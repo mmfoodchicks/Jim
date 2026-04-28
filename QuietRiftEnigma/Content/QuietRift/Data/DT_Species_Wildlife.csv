@@ -1,0 +1,13 @@
+---,SpeciesId,DisplayName,BehaviorRole,Priority,Phase,PreferredBiomes,MaxHealth,MassKg,MoveSpeedWalk,MoveSpeedFlee,ThreatDetectionRadius,NoiseFactor,Notes
+ANM_RidgebackGrazer,ANM_RidgebackGrazer,"Ridgeback Grazer",Prey,High,VerticalSlice,"forest edge|grassland|road shoulder",150,180,280,560,2000,0.4,"Herd behavior. Pack animal candidate. Large food source"
+ANM_GlasshornRunner,ANM_GlasshornRunner,"Glasshorn Runner",Prey,High,VerticalSlice,"open field|sparse forest|abandoned suburb",40,25,320,780,3000,0.1,"Stealth hunting target. Optics resource. Very fast flee"
+ANM_AshbackBoar,ANM_AshbackBoar,"Ashback Boar",Scavenger,High,VerticalSlice,"burn zone|forest edge|junkyard|abandoned farm",90,80,260,420,1200,0.6,"Charges when >50% HP. Steals food. Camp nuisance"
+ANM_HookjawStalker,ANM_HookjawStalker,"Hookjaw Stalker",Predator,High,VerticalSlice,"dense forest|ravine|abandoned structure",120,90,200,650,2500,0.05,"Nearly silent. Stalks before charging. Pack hunter variant"
+ANM_ThornhideDray,ANM_ThornhideDray,"Thornhide Dray",Scavenger,High,VerticalSlice,"scrubland|town outskirts|trash piles|carcass site",55,30,240,500,1500,0.45,"Pack scavenger. Attracted to carcasses. Harassment attacker"
+ANM_MireOx,ANM_MireOx,"Mire Ox",Prey,Medium,Phase2,"swamp|river flat|flooded mine pit",250,350,180,300,1000,0.7,"Dangerous passive. Fat and heavy hide source. Charges if cornered"
+ANM_LanternMiteSwarm,ANM_LanternMiteSwarm,"Lantern Mite Swarm",Hazard,Medium,Phase2,"cave|damp forest|rotting log|old mine",30,1,0,600,500,0.1,"Swarm AI. Environmental warning. Bait crafting resource"
+ANM_BurrowEel,ANM_BurrowEel,"Burrow Eel",Hazard,Medium,Phase2,"mud flat|riverbank|wet cave",20,5,0,200,200,0.05,"Ankle-bite hazard. Emergency food. Bait source"
+ANM_IronmantleBeetle,ANM_IronmantleBeetle,"Ironmantle Beetle",Ambient,Medium,Phase2,"deadwood|cave|mine support|mineral soil",15,3,60,120,300,0.0,"Armor/chitin resource. Mineral ecology creature"
+ANM_PaleRafter,ANM_PaleRafter,"Pale Rafter",Predator,Medium,Phase2,"mine|cave|remnant site",70,20,0,400,800,0.02,"Vertical threat. Drops from cave ceiling. Cave/mine predator"
+ANM_StonebellyTortoise,ANM_StonebellyTortoise,"Stonebelly Tortoise",Ambient,Low,Phase3,"rocky highland|dry forest|cave mouth",80,120,40,80,400,0.1,"Rare shell resource. Retreats into shell under threat"
+ANM_EmbermaneAlpha,ANM_EmbermaneAlpha,"Embermane Alpha",Predator,Low,Phase3,"burn zone|high-risk forest",300,200,300,700,3500,0.15,"Elite predator. Rare biological components. Boss-tier encounter"

@@ -1,0 +1,31 @@
+---,MissionId,Act,Title,Objective,Reward,UnlocksNext
+MQ_000,MQ_000,"Act 0 - Impact","Cryo Wake","Exit pod; recover emergency cord kit; stabilize bleeding; reach daylight","Tutorial authority: basic interaction, body HUD, emergency inventory unlocked",MQ_001
+MQ_001,MQ_001,"Act 0 - Impact","The First Safe Pocket","Find or construct a windbreak; place first camp marker; cache one safe ration stack","BaseClaimToken + camp marker + +5 MG (survivors see rally point)",MQ_002
+MQ_002,MQ_002,"Act 0 - Impact","Voices in the Debris","Locate first survivor signal; recover 1-3 survivors; escort to camp","Population unlock; first potential leader candidate; survivors bring personal inventory only",MQ_003
+MQ_003,MQ_003,"Act 0 - Impact","Water Before Fire","Secure any two water sources: boiled crash water OR filtered basin OR stored ration water","Water routine unlocked; +MR all survivors; Research learns WaterSafety_Pending",MQ_004
+MQ_004,MQ_004,"Act 0 - Impact","First Night Protocol","Light camp; assign rest; place emergency food/water; survive one night","Daily colony report unlocked; first leader complaint system active",MQ_005
+MQ_005,MQ_005,"Act 1 - Stabilization","No Global Stockpile","Build Log Yard + Stone Pile + Pantry + Scrap Heap; deposit items into correct depots","Station pull logic enabled; +10 MR workers due readable supply flow",MQ_006
+MQ_006,MQ_006,"Act 1 - Stabilization","A Place for Work","Build ST_CAMP_WORKBENCH; craft first repair kit","Repair loop unlocked; leader issue state can report maintenance debt",MQ_007
+MQ_007,MQ_007,"Act 1 - Stabilization","Names on the Board","Assign at least 3 roles; appoint temporary leader for one department","Leadership XP begins; leader panel unlocked",MQ_008
+MQ_008,MQ_008,"Act 1 - Stabilization","Safe Known Unknown Suspect","Classify first food source OR rely on sealed Earth food until researched","CodexDiscoveryState + EdibilityState UI unlocked",MQ_009
+MQ_009,MQ_009,"Act 1 - Stabilization","The Missing Tool Chain","Recover REF_BASIC_TOOLING from tool-gated wreck","Unlock basic tool recipes; micro-research queue slot 1",MQ_010
+MQ_010,MQ_010,"Act 2 - Industry","Smoke Clay and Metal","Build ST_ANVIL_FORGE + ST_KILN_FURNACE or prerequisites","Metalwork/Ceramics T0 tech; +Engineer MR",MQ_011
+MQ_011,MQ_011,"Act 2 - Industry","The First Real Schedule","Create role priority trees + fallback arrays for 4 departments","FallbackTaskArray enabled; idle-worker warnings reduce",MQ_012
+MQ_012,MQ_012,"Act 2 - Industry","Militia Without Magic Guns","Build emergency weapon rack; load MilitiaKit; drill 3 civilians","Civilian DEFEND/HIDE/FLEE simulation unlocked; +MR Security",MQ_013
+MQ_013,MQ_013,"Act 2 - Industry","The Cartography Board","Build cartography board; pin 3 reports from player/scout exploration","POI rumor system + location placeholders unlocked",MQ_014
+MQ_014,MQ_014,"Act 2 - Industry","Micro Improvements","Complete any 3 micro-research from different families","MicroResearchStacking enabled; first family cap displayed",MQ_015
+MQ_015,MQ_015,"Act 2 - Industry","Grid in the Dark","Assemble basic generator + storage + powered station circuit","PowerQualityFactor telemetry enabled; electronics tier path opens",MQ_016
+MQ_016,MQ_016,"Act 3 - Factions","Not Alone","Identify first non-player camp without starting a fight","Faction diplomacy screen; moral compass comparison",MQ_017
+MQ_017,MQ_017,"Act 3 - Factions","Terms of Trust","Complete believable faction trust objective: shared route/prisoner exchange/med aid/trade convoy","Access to faction market/services; item rewards from visible faction stockpile only",MQ_018
+MQ_018,MQ_018,"Act 3 - Factions","Occupied Signal","Find occupied Remnant satellite site; identify garrison pattern","Unlock site planning board; ControlState telemetry",MQ_019
+MQ_019,MQ_019,"Act 3 - Factions","Extraction Not Victory","Clear/infiltrate/bargain/sabotage site; extract physical core/module; haul home","Major TechNode stalls resolve via ReferenceComponentId/module delivery",MQ_020
+MQ_020,MQ_020,"Act 4 - Remnant","Warm Systems","Survive first Remnant wake escalation; document trigger cause","D diagnostic protocol; Research/Engineering leaders gain issue awareness",MQ_021
+MQ_021,MQ_021,"Act 4 - Remnant","Capital Breadcrumbs","Assemble stacked intel to triangulate antagonist capital region","Capital search region appears — not exact coordinates",MQ_022
+MQ_022,MQ_022,"Act 4 - Remnant","The Human Cost","Choose: accept/refuse/escort elsewhere/trade custody of refugees","Camp culture shifts; labor or diplomacy outcomes; no binary good/evil loot",MQ_023
+MQ_023,MQ_023,"Act 4 - Remnant","Capital Approach","Disable or bypass two satellite systems: relay/power tap/recruitment hold/armory cache","Capital raid difficulty reduced; enemy raid cadence changes",MQ_024
+MQ_024,MQ_024,"Act 5 - Resolution","The Long Signal","Build or claim high-power beacon array; defend through startup","Rescue ending path opens",MQ_027
+MQ_025,MQ_025,"Act 5 - Resolution","Escape Hardware","Recover launch/guidance/cryopod ref components from high-tier sites","Escape ending path opens",MQ_027
+MQ_026,MQ_026,"Act 5 - Resolution","Permanent Foothold","Stabilize food/power/defense/morale/faction treaties for long-duration colony","Settlement ending path opens; colony self-sustaining simulation",MQ_027
+MQ_027,MQ_027,"Act 5 - Resolution","The Last Council","Leaders debate evacuation/rescue wait/settlement; player commits policy","Locks final objective set; applies colony-wide moral compass result",MQ_028
+MQ_028,MQ_028,"Act 5 - Resolution","Hold Until Dawn","Survive final multi-front: raid + D wake + weather + supply strain","Complete selected ending",MQ_029
+MQ_029,MQ_029,"Epilogue","What We Built","Generate persistent outcome report from survivors/factions/losses/leaders/truth","New-game modifiers/codex unlocks only — no combat loot handout",
