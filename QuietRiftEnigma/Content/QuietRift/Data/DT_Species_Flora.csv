@@ -1,0 +1,13 @@
+---,SpeciesId,DisplayName,Priority,Phase,PreferredBiomes,MaxHarvestCharges,RegrowthTimeHours,InitialEdibility,Notes
+PLT_SmokebarkTree,PLT_SmokebarkTree,"Smokebark Tree",VeryHigh,VerticalSlice,"forest|foothill|town edge",3,72,Inedible,"Core lumber/resin. Felling mechanic increases yield dramatically"
+PLT_BlackstemReed,PLT_BlackstemReed,"Blackstem Reed",High,VerticalSlice,"riverbank|marsh edge|ditch",8,12,MustCook,"Basic fiber/thatch. Edible pith when cooked"
+PLT_SourLanternBerry,PLT_SourLanternBerry,"Sour Lantern Berry",High,VerticalSlice,"forest edge|shaded clearing",10,18,Unknown,"Ripeness mechanic: Unripe=toxic. Ripe=safe. Overripe=sick risk"
+PLT_NeedleleafShrub,PLT_NeedleleafShrub,"Needleleaf Shrub",High,VerticalSlice,"dry forest|rocky slope|road edge",6,24,Inedible,"Stick/thorn source. Scratches player clothing. Noise hazard"
+PLT_RustcapFungus,PLT_RustcapFungus,"Rustcap Fungus",High,VerticalSlice,"rotting log|damp cave|old wood structure",4,36,Unknown,"30% chance toxic variant on spawn. Research required to identify"
+PLT_Spinegrass,PLT_Spinegrass,"Spinegrass",High,VerticalSlice,"dry field|hillside|abandoned lot",12,8,Inedible,"Terrain texture plant. Movement noise modifier. Clothing wear source"
+PLT_BloodmilkPod,PLT_BloodmilkPod,"Bloodmilk Pod",Medium,Phase2,"shaded forest|ravine|mineral seep",5,48,Toxic,"High-risk painkiller/wound-seal. Toxic raw. Research to unlock medicinal use"
+PLT_Glassroot,PLT_Glassroot,"Glassroot",Medium,Phase2,"mineral soil|cave mouth|remnant zone",4,72,Inedible,"Optics/mineral crafting. Crystal structure yields MAT_GLASSROOT_CRYSTAL"
+PLT_BlueveinKelp,PLT_BlueveinKelp,"Bluevein Kelp",Medium,Phase2,"lake|slow river|flooded pit",15,6,Unknown,"Food/antiseptic/water filtration. Aquatic harvesting required"
+PLT_Gutvine,PLT_Gutvine,"Gutvine",Medium,Phase2,"forest canopy|abandoned structure|cliff",8,24,Inedible,"Strong cordage/climbing material. Climb-assist mechanic possible"
+PLT_CorpseflowerMat,PLT_CorpseflowerMat,"Corpseflower Mat",Medium,Phase2,"forest floor|carcass site|swamp edge",10,12,Inedible,"Environmental clue. Decays nearby actors. Disease indicator"
+PLT_IronwoodSpire,PLT_IronwoodSpire,"Ironwood Spire",Medium,Phase2,"old forest|high slope",2,168,Inedible,"Advanced construction/tool handle. Rare. Very hard wood"
