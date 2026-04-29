@@ -9,9 +9,7 @@
 
 // Weather and scent components live in the QuietRiftEnigma module which QRUI does not depend on.
 // Access them by class name at runtime so no hard compile-time dependency is needed.
-// Blueprints can also bind OnWeatherEventStarted / OnScentChanged directly.
-#define QR_FIND_COMPONENT_BY_NAME(Actor, ClassName) \
-	(UActorComponent*)Actor->FindComponentByClass(FindObject<UClass>(ANY_PACKAGE, TEXT(ClassName)))
+// FindFirstObject<>() replaces the UE 5.4-and-earlier FindObject<>(ANY_PACKAGE, ...) idiom.
 
 void UQRDevOverlay::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
@@ -59,11 +57,10 @@ void UQRDevOverlay::RefreshFromPawn(APawn* TargetPawn)
 	}
 
 	// ── Scent (runtime lookup — avoids hard dep on QuietRiftEnigma module) ────
-	if (UClass* ScentClass = FindObject<UClass>(ANY_PACKAGE, TEXT("QRScentComponent")))
+	if (UClass* ScentClass = FindFirstObject<UClass>(TEXT("QRScentComponent")))
 	{
 		if (UActorComponent* ScentComp = TargetPawn->FindComponentByClass(ScentClass))
 		{
-			// Read ScentIntensity via reflection so we don't need the header
 			if (FFloatProperty* Prop = CastField<FFloatProperty>(ScentClass->FindPropertyByName(TEXT("ScentIntensity"))))
 				ScentIntensity = Prop->GetPropertyValue_InContainer(ScentComp);
 		}
@@ -81,7 +78,7 @@ void UQRDevOverlay::RefreshFromPawn(APawn* TargetPawn)
 		}
 
 		// Weather (runtime lookup)
-		if (UClass* WeatherClass = FindObject<UClass>(ANY_PACKAGE, TEXT("QRWeatherComponent")))
+		if (UClass* WeatherClass = FindFirstObject<UClass>(TEXT("QRWeatherComponent")))
 		{
 			if (UActorComponent* WeatherComp = GS->FindComponentByClass(WeatherClass))
 			{
