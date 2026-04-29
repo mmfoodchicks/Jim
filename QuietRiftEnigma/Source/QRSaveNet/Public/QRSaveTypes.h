@@ -16,6 +16,23 @@ struct QRSAVENET_API FQRItemSaveData
 	UPROPERTY() float SpoilProgress = 0.0f;
 	UPROPERTY() EQREdibilityState EdibilityState = EQREdibilityState::Unknown;
 	UPROPERTY() FGuid InstanceGuid;
+
+	// v1.17 fields — must be persisted so food safety and bulk rules survive reload
+	UPROPERTY() EQRFoodOriginClass FoodOriginClass = EQRFoodOriginClass::Unknown;
+	UPROPERTY() float PackageIntegrity = 1.0f;
+	UPROPERTY() bool bIsBulkItem = false;
+};
+
+// Serializable weapon runtime state (per-equipped weapon on a survivor)
+USTRUCT()
+struct QRSAVENET_API FQRWeaponSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FName WeaponItemId;
+	UPROPERTY() int32 CurrentAmmo = 0;
+	UPROPERTY() float FoulingFactor = 0.0f;
+	UPROPERTY() bool bIsJammed = false;
 };
 
 // Serializable inventory snapshot
@@ -26,6 +43,37 @@ struct QRSAVENET_API FQRInventorySaveData
 
 	UPROPERTY() TArray<FQRItemSaveData> Items;
 	UPROPERTY() FQRItemSaveData HandSlot;
+	UPROPERTY() bool bHasHandSlot = false;              // distinguishes "empty hand slot" from "no save data"
+	UPROPERTY() EQRHandsSlotState HandsSlotState = EQRHandsSlotState::Empty;
+};
+
+// Serializable leader component state (v1.4 / v1.17)
+USTRUCT()
+struct QRSAVENET_API FQRLeaderSaveData
+{
+	GENERATED_BODY()
+
+	// Aptitude axes
+	UPROPERTY() float LeadershipAptitude = 5.0f;
+	UPROPERTY() float SkillAptitude = 5.0f;
+	UPROPERTY() float Composure = 5.0f;
+
+	// Morale
+	UPROPERTY() float MoraleIndex = 50.0f;
+	UPROPERTY() float MoraleResilience = 30.0f;
+	UPROPERTY() float MoraleGradient = 0.0f;
+	UPROPERTY() float LeaderXP = 0.0f;
+	UPROPERTY() float DefectionRisk = 0.0f;
+	UPROPERTY() float MoralCompassVector = 0.0f;
+
+	// Issue escalation pipeline
+	UPROPERTY() EQRLeaderIssueState IssueState = EQRLeaderIssueState::None;
+	UPROPERTY() float IssueEscalationScore = 0.0f;
+	UPROPERTY() float BlockerDurationHours = 0.0f;
+
+	// Camp alignment (8-axis; padded/truncated to current axis count on load)
+	UPROPERTY() TArray<float> CampPolicyVector;
+	UPROPERTY() float CampAlignmentScore = 0.0f;
 };
 
 // Save data for a single survivor
@@ -46,6 +94,7 @@ struct QRSAVENET_API FQRSurvivorSaveData
 	UPROPERTY() bool bIsAlive = true;
 	UPROPERTY() FQRInventorySaveData Inventory;
 	UPROPERTY() TMap<EQRNPCRole, float> SkillLevels;
+	UPROPERTY() FQRWeaponSaveData EquippedWeapon;    // v1.17: persists weapon fouling/jam/ammo
 };
 
 // Save data for a harvestable node (tree, rock, etc.)
@@ -120,6 +169,9 @@ struct QRSAVENET_API FQRGameSaveData
 	UPROPERTY() TArray<FQRBuildableSaveData> ColonyBuildables;
 	UPROPERTY() float ColonyMorale = 50.0f;
 	UPROPERTY() EQREndingPath EndingPath = EQREndingPath::None;
+
+	// Leader state per leader type (keyed by EQRLeaderType cast to uint8 for TMap serialization)
+	UPROPERTY() TMap<uint8, FQRLeaderSaveData> LeaderStates;
 
 	// Quest/Mission data
 	UPROPERTY() TArray<FName> CompletedMissionIds;

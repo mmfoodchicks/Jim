@@ -171,4 +171,17 @@ namespace QRGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ending_Rescue)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ending_Escape)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ending_Settlement)
+
+	// ── Tool Tags (for harvest gating) ──
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tool_Knife)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tool_Axe)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tool_HeavyAxe)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tool_Gloves)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tool_Pickaxe)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tool_Sickle)
+
+	// ── Ammo Quality Tags ──
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ammo_Dirty)       // Improvised / dirty ammo (×5 fouling)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ammo_Subsonic)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ammo_AP)          // Armor-piercing
 }

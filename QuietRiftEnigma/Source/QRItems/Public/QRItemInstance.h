@@ -15,7 +15,9 @@ class QRITEMS_API UQRItemInstance : public UObject
 
 public:
 	// ── Data ─────────────────────────────────
-	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	// Replicated so clients can read item properties without a separate asset lookup;
+	// avoids null-deref window between Items array replication and Definition loading.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Item")
 	TObjectPtr<const UQRItemDefinition> Definition = nullptr;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Item", ReplicatedUsing = OnRep_Quantity)
@@ -29,15 +31,16 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Item", ReplicatedUsing = OnRep_Spoil)
 	float SpoilProgress = 0.0f;
 
+	// Derived from SpoilProgress via OnRep_Spoil — not replicated separately
 	UPROPERTY(BlueprintReadOnly, Category = "Item")
 	EQRSpoilState SpoilState = EQRSpoilState::Fresh;
 
-	// Per-instance edibility override (research can change this)
-	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	// Per-instance edibility override (research can change this from the default)
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Item")
 	EQREdibilityState EdibilityState = EQREdibilityState::Unknown;
 
-	// Unique runtime ID for save/load tracking
-	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	// Unique runtime ID for save/load and network tracking
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Item")
 	FGuid InstanceGuid;
 
 	// ── Accessors ────────────────────────────
@@ -45,7 +48,7 @@ public:
 	bool IsValid() const { return Definition != nullptr && Quantity > 0; }
 
 	UFUNCTION(BlueprintPure, Category = "Item")
-	bool IsBroken() const { return Durability >= 0.0f && Durability <= 0.0f; }
+	bool IsBroken() const { return Durability >= 0.0f && Durability < KINDA_SMALL_NUMBER; }
 
 	UFUNCTION(BlueprintPure, Category = "Item")
 	bool IsSpoiled() const { return SpoilState == EQRSpoilState::Rotten || SpoilProgress >= 1.0f; }

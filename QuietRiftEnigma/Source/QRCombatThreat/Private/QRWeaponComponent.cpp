@@ -19,6 +19,7 @@ void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRWeaponComponent, CurrentAmmo);
 	DOREPLIFETIME(UQRWeaponComponent, FoulingFactor);
 	DOREPLIFETIME(UQRWeaponComponent, bIsJammed);
+	DOREPLIFETIME(UQRWeaponComponent, bHasSuppressor);
 }
 
 bool UQRWeaponComponent::CanFire() const
@@ -65,7 +66,7 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 
 	--CurrentAmmo;
 	// v1.17: canonical fouling increment (dirty ammo ×5, suppressor ×1.5)
-	FoulingFactor = FMath::Clamp(FoulingFactor + GetFoulingIncrement(bIsDirtyAmmo, false), 0.0f, 1.0f);
+	FoulingFactor = FMath::Clamp(FoulingFactor + GetFoulingIncrement(bIsDirtyAmmo, bHasSuppressor), 0.0f, 1.0f);
 
 	if (CurrentAmmo <= 0)
 		WeaponState = EQRWeaponState::Empty;
@@ -86,14 +87,22 @@ float UQRWeaponComponent::ComputeEffectiveDamage(float DistanceMeters) const
 
 void UQRWeaponComponent::BeginReload()
 {
-	if (WeaponState == EQRWeaponState::Jammed || WeaponState == EQRWeaponState::Firing) return;
+	// Cannot reload while jammed (WeaponState check alone is insufficient — bIsJammed can be
+	// true while state is Empty, which would let FinishReload silently set state=Ready while
+	// the jam persists, creating a soft-lock where CanFire() is permanently false).
+	if (bIsJammed) return;
+	if (WeaponState == EQRWeaponState::Firing || WeaponState == EQRWeaponState::Reloading) return;
 	WeaponState = EQRWeaponState::Reloading;
 }
 
 void UQRWeaponComponent::FinishReload(int32 NewAmmoCount)
 {
-	CurrentAmmo = FMath::Min(NewAmmoCount, MagazineCapacity);
-	WeaponState = EQRWeaponState::Ready;
+	// Only accept FinishReload if we actually initiated a reload — prevents ammo refill exploit
+	if (WeaponState != EQRWeaponState::Reloading) return;
+
+	// Clamp to [0, MagazineCapacity]; negative NewAmmoCount would otherwise soft-lock CanFire()
+	CurrentAmmo = FMath::Clamp(NewAmmoCount, 0, MagazineCapacity);
+	WeaponState = CurrentAmmo > 0 ? EQRWeaponState::Ready : EQRWeaponState::Empty;
 	OnWeaponReloaded.Broadcast();
 	OnAmmoChanged.Broadcast(CurrentAmmo);
 }

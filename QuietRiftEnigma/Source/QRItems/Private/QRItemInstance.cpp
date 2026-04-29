@@ -6,9 +6,12 @@
 void UQRItemInstance::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UQRItemInstance, Definition);
 	DOREPLIFETIME(UQRItemInstance, Quantity);
 	DOREPLIFETIME(UQRItemInstance, Durability);
 	DOREPLIFETIME(UQRItemInstance, SpoilProgress);
+	DOREPLIFETIME(UQRItemInstance, EdibilityState);
+	DOREPLIFETIME(UQRItemInstance, InstanceGuid);
 }
 
 void UQRItemInstance::Initialize(const UQRItemDefinition* InDefinition, int32 InQuantity)

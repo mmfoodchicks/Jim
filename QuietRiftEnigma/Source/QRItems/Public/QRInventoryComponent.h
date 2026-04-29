@@ -34,13 +34,14 @@ public:
 
 	// ── Config ───────────────────────────────
 	// v1.17: CarryCapacityKg = 20 + 6*STR. Default assumes STR 3.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
+	// Replicated so clients can run accurate IsSprintBlocked checks locally.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Inventory")
 	float MaxCarryWeightKg = 38.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Inventory")
 	float MaxVolumeLiters = 60.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Inventory")
 	int32 MaxSlots = 30;
 
 	// Spatial grid dimensions for UI layout (W columns × H rows)
@@ -98,6 +99,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	void ClearHandSlot();
+
+	// Force-clears LockedByAction state (call on death, save-load, or action interruption)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	void ForceUnlockHandsSlot();
 
 	// ── Queries ──────────────────────────────
 	UFUNCTION(BlueprintPure, Category = "Inventory")

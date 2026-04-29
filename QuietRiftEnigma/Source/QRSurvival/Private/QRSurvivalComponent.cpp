@@ -130,29 +130,46 @@ void UQRSurvivalComponent::ApplyHealing(float Amount)
 	OnHealthChanged.Broadcast(Health);
 }
 
-void UQRSurvivalComponent::ConsumeFood(const UQRItemInstance* FoodItem)
+void UQRSurvivalComponent::ConsumeFood(UQRItemInstance* FoodItem)
 {
 	if (!FoodItem || !FoodItem->Definition) return;
+	if (FoodItem->Quantity <= 0) return;  // prevent multi-consume exploit on same instance
 
-	const FQRFoodStats& Stats = FoodItem->Definition->FoodStats;
+	const FQRFoodStats& Stats  = FoodItem->Definition->FoodStats;
+	const UQRItemDefinition* Def = FoodItem->Definition;
 
-	// Check toxin risk
-	bool bIsCooked = FoodItem->EdibilityState == EQREdibilityState::Safe;
-	float Cals = bIsCooked ? Stats.CaloriesCooked : Stats.CaloriesRaw;
+	// v1.17 SafeKnown rule: EarthSealed/ShipRation items are inherently safe UNLESS
+	// PackageIntegrity is compromised (< 0.5). Native/Unknown food requires explicit Safe state.
+	bool bIsSafe = (FoodItem->EdibilityState == EQREdibilityState::Safe ||
+	                FoodItem->EdibilityState == EQREdibilityState::Researched);
 
+	if (!bIsSafe)
+	{
+		const EQRFoodOriginClass Origin = Def->FoodOriginClass;
+		if ((Origin == EQRFoodOriginClass::EarthSealed || Origin == EQRFoodOriginClass::ShipRation)
+		    && Def->PackageIntegrity >= 0.5f)
+		{
+			bIsSafe = true;
+		}
+	}
+
+	const float Cals = bIsSafe ? Stats.CaloriesCooked : Stats.CaloriesRaw;
 	Hunger = FMath::Min(MaxHunger, Hunger + (Cals / 2200.0f) * MaxHunger);
 	Thirst = FMath::Min(MaxThirst, Thirst + (Stats.WaterContentML / 2500.0f) * MaxThirst);
 
-	// Toxin risk roll
-	if (!bIsCooked && Stats.RawRiskChance > 0.0f)
+	// Toxin risk for raw/unknown food
+	if (!bIsSafe && Stats.RawRiskChance > 0.0f)
 	{
 		if (FMath::FRand() < Stats.RawRiskChance)
 			AddInjury(EQRInjuryType::Toxin, EQRInjurySeverity::Minor);
 	}
 
-	// Spoiled food always risks infection
+	// Spoiled food always risks infection regardless of origin
 	if (FoodItem->IsSpoiled())
 		AddInjury(EQRInjuryType::Infection, EQRInjurySeverity::Moderate);
+
+	// Decrement quantity — caller is responsible for removing the instance when Quantity == 0
+	--FoodItem->Quantity;
 }
 
 void UQRSurvivalComponent::DrinkWater(float WaterML, bool bIsPurified)
