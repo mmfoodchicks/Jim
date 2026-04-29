@@ -13,8 +13,7 @@ public class QRItems : ModuleRules
 			"Engine",
 			"GameplayTags",
 			"QRCore",
-			"StructUtils",
-			"Net"
+			"StructUtils"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

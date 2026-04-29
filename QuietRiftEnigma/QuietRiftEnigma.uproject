@@ -86,10 +86,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "WorldPartitionHLODs",
-			"Enabled": true
-		},
-		{
 			"Name": "DataValidation",
 			"Enabled": true
 		},
