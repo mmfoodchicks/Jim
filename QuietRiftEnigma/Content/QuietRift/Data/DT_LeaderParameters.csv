@@ -1,0 +1,18 @@
+Leader_Parameters,,,,
+,,,,
+Parameter,Kind,Default,Meaning,FormulaOrRule
+L,float 0-10,NPC generated,Leadership aptitude; any NPC can train it over time.,Leadership XP only while actively leading; LXP/s = 0.0025*Subordinates*EventMult.
+S,float 0-10,Role skill,Leader's skill in the department being led.,Can be primary role skill or cross-role skill with CrossRolePenalty.
+COM,float 0-10,NPC stat,Composure; reduces panic and leader condition chance.,Used in P_cond and morale shock checks.
+MI,0-100,50-70,Individual morale for the leader.,"Affected by personal quests, policy alignment, injuries, starvation, grief."
+MR,0-100,Group morale,Role-group morale under this leader.,Affects Eff_M and group willingness/refusal.
+MG,0-100,Global morale,Base/camp morale.,Eff_M = 0.50 + 0.007*Morale per v1.17.
+LeaderBuff,scalar,1.0-1.35,Baseline always-on leader work multiplier.,"Clamp(1 + 0.02*L + 0.01*S, 1.0, 1.35)."
+LeaderLevel,int 1-5,derived,Aura tier odds quality band.,floor(1 + 4*((0.6*L + 0.4*S)/10)).
+LeaderIssueState,enum,None,Tracks blocker reporting/escalation.,None / Reported / Escalating / QuestIssued / Resolved.
+IssueEscalationScore,float,0,When persistent blockers become directed quests.,"BlockerSeverity * max(BlockerDurationHours - GuidanceDelayHours,0) * LeaderAwarenessMult; quest at >=100."
+ConditionDebuffSlot,slot,empty,Temporary/persistent leader debuff from trauma or inexperience.,One active condition slot plus tags; severe events can overwrite lower tier.
+InexperiencedLeaderTag,bool/tag,true if L<3 or no successful crisis,Marks shaky authority.,Removed by Leader Training missions or sufficient L + witnessed success.
+MoralCompassVector,float vector,generated from traits,Leader ideological pull/push profile.,Compared to CampPolicyVector and faction tags.
+CampAlignmentScore,float -1..1,0,How aligned leader feels with camp choices.,"Dot(MoralCompassVector, CampPolicyVector) + RecentActionMemory - Grievance."
+DefectionRisk,0..1,low,Risk leader leaves/joins faction/splits camp.,"Clamp(Base + Scarcity + Misalignment + Trauma - Loyalty - MI/100, 0, 1)."

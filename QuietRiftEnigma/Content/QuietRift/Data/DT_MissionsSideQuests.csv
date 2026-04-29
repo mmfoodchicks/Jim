@@ -1,0 +1,28 @@
+Missions_Side_Quests,,,,,,,,
+,,,,,,,,
+MissionId,Category,MissionName,Issuer,Trigger,Objective,LocationRule,RewardDesign,ImplementationNotes
+SQ_SURV_001,Survivor Story,The Person Who Won't Sleep,Any survivor,MI low after raid/crash,Find their keepsake or move their bunk away from noise; optional conversation resolution.,Crash debris / base housing,Permanent MI boost for that NPC; reduced night panic.,"Personal morale, no loot."
+SQ_SURV_002,Survivor Story,Tools From Home,Engineer survivor,Personal tool lost in wreck,Recover tool case or craft replacement from current station tier.,EngineeringWreck placeholder,NPC work confidence + small Engineering XP; no unique OP tool unless physically recovered and damaged.,Believable personal item.
+SQ_SURV_003,Survivor Story,The Last Message,Research/civic survivor,Terminal log clue,Recover/send/record final message from another pod.,SurvivorPod/CommsRelayDebris,MI closure; MG small; possible IntelFragment if terminal present.,
+SQ_SURV_004,Survivor Story,Not Going Back Out There,Any traumatized worker,Worker refuses route after casualty,Escort them through low-risk task or reassign without humiliation.,Known safe route,Debuff reduced; trust gain.,
+SQ_SURV_005,Survivor Story,A Better Job,Misassigned NPC,CrossRolePenalty repeated,Train NPC in new role or move them to aligned role.,Base job board,Role XP; morale relief.,
+SQ_WORLD_001,Exploration,The Wreck That Moved,Scout rumor,New debris event or bad map note,Verify wreck location and tag it correctly.,Random minor wreck placeholder,Map accuracy; POI added; loot remains in containers.,
+SQ_WORLD_002,Exploration,Lights Across the Shelf,Night visual landmark,Player sees distant powered relay,"Approach, observe, decide whether to mark or avoid.",Relay/PowerTap placeholder,Intel/route marker; potential danger.,
+SQ_WORLD_003,Exploration,The Hollow Under The Ridge,Miner/hunter rumor,Cave mouth discovered,Survey entrance without waking internal hazard.,CaveMouthDeepVein placeholder,Cave map node; no instant ore.,
+SQ_WORLD_004,Exploration,Steam Song,Thermal anomaly,ThermalVentField detected,Collect readings and determine whether it can power/kill/cook.,ThermalVentField,Power or hazard knowledge.,
+SQ_WORLD_005,Exploration,The Glass Drift,Weather event uncovers glass dune cache,New micro POI visible,Recover fragile components before storm covers them.,GlassDunes placeholder,Components from physical cache; timer-based.,
+SQ_MORAL_001,Moral Dilemma,The Other Camp's Sick,Faction request,Good/neutral camp has outbreak,"Send medicine, research help, or refuse to preserve supplies.",Faction camp,"Faction relation, camp ideology, possible future med trade.",No random item.
+SQ_MORAL_002,Moral Dilemma,Food For Names,Desperate refugees,Refugees offer intel for food,"Choose feed, bargain, refuse, or escort.",Wilderness/base gate,Intel if they actually know it; morale reaction.,
+SQ_MORAL_003,Moral Dilemma,The Saboteur,Internal sabotage,Station damaged suspiciously,Investigate evidence and choose punishment/restoration/exile.,Base,Camp culture shifts; possible hidden faction link.,
+SQ_MORAL_004,Moral Dilemma,Burn The Field,Toxic crop/flora risk,Toxic plant useful but dangerous,"Burn it, research it, or fence it.",Farm/biome patch,Safety vs research path.,
+SQ_MORAL_005,Moral Dilemma,One More Mouth,Child/elder/injured refugee,Food buffer low,Accept/refuse/transfer refugee.,Base/faction route,Morale compass result; future story hook.,
+SQ_FAUNA_001,Ecology,Pen Break,Livestock stress high,Mount/animal escapes,Track and recover/cull/release animal.,Near pens/route,Husbandry trust; predator pressure changes.,
+SQ_FAUNA_002,Ecology,Eggs In The Vents,Unknown nest near route,Workers refuse route,"Study, relocate, burn, or avoid nest.",Vent/Cave placeholder,Route safety or research sample.,
+SQ_FAUNA_003,Ecology,Too Quiet,Predators vanished,Ecology imbalance,Investigate why prey/predators left area.,Biome route,Warnings of faction/D/weather pressure.,
+SQ_FAUNA_004,Ecology,Waste Draws Teeth,Carcass/waste issue,PredatorPressure rising,"Clean waste, move carcasses, build sanitation pit.",Base/pens,LV/PP reduction.,
+SQ_FAUNA_005,Ecology,The Injured Dray,Mount candidate,Injured haul animal found,Treat/capture/release/eat depending policy.,Biome herd route,Potential mount if handled; morale effects.,
+SQ_POI_001,POI,Sealed Locker,Locked container found,ACCESS_PRY/CUT/POWER missing,Return with correct tool or mark for later.,Any POI compartment,Loot is whatever deterministic table contains.,
+SQ_POI_002,POI,Bad Air Room,ACCESS_AIR compartment,Med/engineering warning,Prepare respirators/vent power and recover contents.,MedBayWreck/Galley/Remnant,Unlock compartment safely.,
+SQ_POI_003,POI,The Cryo Count,CryoPodCluster found,Some pods damaged,"Prioritize rescue, salvage, or power reroute.",CryoPodCluster,Survivors or materials based on choice.,
+SQ_POI_004,POI,Picked Clean,Scavenged POI,Faction got there first,Track scavenger route or accept loss.,Any POI,"Faction intel/route, not regenerated loot.",
+SQ_POI_005,POI,"Claim, Strip, or Burn",Cleared site,Player controls site outcome,Choose site resolution and perform required setup/sabotage.,Remnant/faction site,World-state change.,

@@ -1,0 +1,18 @@
+Variable,Kind,Default,What it does
+WorldMapSizeKm,float,64.0,Total width of the accessible interior in kilometers (square world assumed).
+WorldBorderMode,enum,WORLD_BORDER_HAZARD_BELT,How the map is bounded with natural borders.
+WORLD_BORDER_HAZARD_BELT,enum value,-,Border is a hazard belt plus a hard wall (recommended).
+WORLD_BORDER_SMALL_RING,enum value,-,Smaller world with a short hazard belt and fast pacing.
+WorldBorderHazardWidthMeters,float,5000,Width of the hazard belt before the hard wall.
+WorldBorderHardWallEnabled,bool,true,"If true, there is a final non-traversable wall after the hazard belt."
+WorldTileSizeMeters,int,1024,World streaming tile size for terrain/biome/POI streaming buckets.
+BiomeCellSizeMeters,int,128,Resolution of the biome field sampling (macro assignment).
+BiomeBlendWidthMeters,int,96,Width of biome blending zone for visuals and spawn interpolation.
+BiomeMacroNoiseScale,float,0.00055,Scale of the macro biome noise field (lower = larger patches).
+BiomeMicroNoiseScale,float,0.0025,Scale of the micro feature noise field (higher = finer features).
+BiomeMinPatchAreaCells,int,40,Minimum connected area in biome cells; smaller patches are merged into neighbors.
+POIAllowedBiomeTags,set<string>,{Any},Biome tags a POI can spawn in (Any = no restriction).
+POIForbiddenBiomeTags,set<string>,{},Biome tags a POI cannot spawn in.
+POIAllowedHabitatTags,set<string>,{},"Required habitat tags (e.g., Caves, AbandonedStructures) when applicable."
+BiomeFaunaSpawnBudgetPerKm2,float,1.0,Relative spawn budget multiplier per biome (used as a per-biome scalar).
+BiomeFloraDensityPerKm2,float,1.0,Relative flora density multiplier per biome (used as a per-biome scalar).

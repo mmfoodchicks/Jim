@@ -320,3 +320,91 @@ enum class EQREndingPath : uint8
 	EscapeHardware  UMETA(DisplayName = "Escape Hardware"),
 	PermanentFoothold UMETA(DisplayName = "Permanent Foothold"),
 };
+
+// ─────────────────────────────────────────────
+//  v1.17 INTEGRATED MERGE PATCH ENUMS
+// ─────────────────────────────────────────────
+
+// Hands slot occupancy — separates bulk-hand carry from grid inventory.
+// Source: Quiet_Rift_GDD_Integrated_Merge_Patch_v1_17.docx
+UENUM(BlueprintType)
+enum class EQRHandsSlotState : uint8
+{
+	Empty           UMETA(DisplayName = "Empty"),
+	Occupied        UMETA(DisplayName = "Occupied"),
+	LockedByAction  UMETA(DisplayName = "Locked By Action"),
+};
+
+// Origin class for any food item. Separates crash-safe Earth food from native
+// alien food that requires discovery before being marked safe.
+// Source: Quiet_Rift_GDD_Integrated_Merge_Patch_v1_17.docx
+UENUM(BlueprintType)
+enum class EQRFoodOriginClass : uint8
+{
+	Unknown         UMETA(DisplayName = "Unknown"),
+	Native          UMETA(DisplayName = "Native (Alien)"),
+	EarthCrop       UMETA(DisplayName = "Earth Crop"),
+	EarthSealed     UMETA(DisplayName = "Earth Sealed Ration"),
+	ShipRation      UMETA(DisplayName = "Ship Ration"),
+	ProcessedLocal  UMETA(DisplayName = "Processed Local"),
+};
+
+// Tracks the imported crop safety-to-mutation pipeline.
+// Source: Quiet_Rift_GDD_Integrated_Merge_Patch_v1_17.docx
+UENUM(BlueprintType)
+enum class EQREarthCropBaseState : uint8
+{
+	Stable          UMETA(DisplayName = "Stable"),
+	Contaminated    UMETA(DisplayName = "Contaminated"),
+	Mutated         UMETA(DisplayName = "Mutated"),
+};
+
+// Leader issue/blocker tracking state machine.
+// Source: Mission & Leadership Bible v1.4 / Leader_Parameters
+UENUM(BlueprintType)
+enum class EQRLeaderIssueState : uint8
+{
+	None            UMETA(DisplayName = "None"),
+	Reported        UMETA(DisplayName = "Reported"),
+	Escalating      UMETA(DisplayName = "Escalating"),
+	QuestIssued     UMETA(DisplayName = "Quest Issued"),
+	Resolved        UMETA(DisplayName = "Resolved"),
+};
+
+// Generic mission/quest state used for main, side, leader, and faction missions.
+UENUM(BlueprintType)
+enum class EQRMissionStatus : uint8
+{
+	Locked          UMETA(DisplayName = "Locked"),
+	Available       UMETA(DisplayName = "Available"),
+	Active          UMETA(DisplayName = "Active"),
+	Completed       UMETA(DisplayName = "Completed"),
+	Failed          UMETA(DisplayName = "Failed"),
+	Expired         UMETA(DisplayName = "Expired"),
+};
+
+// Source family for a mission row in DataTables.
+UENUM(BlueprintType)
+enum class EQRMissionSource : uint8
+{
+	MainQuestline       UMETA(DisplayName = "Main Questline"),
+	LeaderDirective     UMETA(DisplayName = "Leader Directive"),
+	SideQuest           UMETA(DisplayName = "Side Quest"),
+	FactionContract     UMETA(DisplayName = "Faction Contract"),
+	Procedural          UMETA(DisplayName = "Procedural"),
+};
+
+// Ideological pull/push axis for the leader moral compass vector.
+// Source: Leader_Moral_Compass v1.4
+UENUM(BlueprintType)
+enum class EQRMoralCompassAxis : uint8
+{
+	Compassion          UMETA(DisplayName = "Compassion"),
+	Security            UMETA(DisplayName = "Security"),
+	Science             UMETA(DisplayName = "Science"),
+	Autonomy            UMETA(DisplayName = "Autonomy"),
+	Infrastructure      UMETA(DisplayName = "Infrastructure"),
+	Isolation           UMETA(DisplayName = "Isolation"),
+	Extraction          UMETA(DisplayName = "Extraction"),
+	RemnantCuriosity    UMETA(DisplayName = "Remnant Curiosity"),
+};

@@ -1,0 +1,22 @@
+Variable,Kind,Default/Example,What it does,Where it goes,Source
+SaveGameFormatVersion,int,1,Save schema version for migrations,SaveManager/WorldSave,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+AutosaveIntervalSeconds,int,180,Autosave interval (seconds),SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+AutosaveMaxSnapshots,int,8,Rotating snapshot count,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+AutosaveMinSecondsSinceCombat,int,20,Safe-save gate: seconds since combat,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+AutosaveMinSecondsSinceDamage,int,10,Safe-save gate: seconds since player damage,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+AutosaveMinSecondsSinceTransaction,int,5,Safe-save gate: seconds since inventory/crafting/loot transaction,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+SaveAtomicWriteEnabled,bool,true,Use atomic temp-write + rename,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+SaveJournalEnabled,bool,true,Enable lightweight transaction journal for crash recovery,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+SaveJournalFlushSeconds,int,15,Journal flush interval,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+SaveCorruptionFallbackSnapshots,int,3,How many prior snapshots to try when corruption detected,SaveManager,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+NetAuthorityMode,enum,AUTH_LISTEN_SERVER,Network authority mode,Net/Session,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+NetRelevancyRadiusMeters,float,250.0,Default net relevancy radius,Net/Replication,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+NetStationDetailRadiusMeters,float,120.0,Radius where full station queue detail replicates,Net/Replication,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+NetReplicationHz_Actors,int,20,High-frequency replication tick for actors,Net/Replication,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+NetReplicationHz_UI,int,4,Low-frequency replication tick for coarse UI state,Net/Replication,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+RegionChunkSizeMeters,int,512,Chunk size in meters for persistence grid,World/SaveChunking,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+ChunkUnloadQuietSeconds,int,2,Quiet window before writing chunk-only mini-save on unload,World/Streaming,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+LooseItemCapPerChunk,int,200,Max dropped loose items persisted per chunk,World/SaveChunking,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+HazardPersistMaxSeconds,int,3600,Max lifetime for persisted hazards,World/SaveChunking,JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+HUDShowNoiseMeter,bool,true,HUD toggle: show noise indicator,UI,JIM_UI_UX Chapter / JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2
+HUDShowStanceIndicator,bool,true,HUD toggle: show stance indicator,UI,JIM_UI_UX Chapter / JIM_Save_Persistence_and_Coop_Authority_GDD_v0_2

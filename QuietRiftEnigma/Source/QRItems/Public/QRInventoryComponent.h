@@ -33,8 +33,9 @@ public:
 	UQRInventoryComponent();
 
 	// ── Config ───────────────────────────────
+	// v1.17: CarryCapacityKg = 20 + 6*STR. Default assumes STR 3.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
-	float MaxCarryWeightKg = 40.0f;
+	float MaxCarryWeightKg = 38.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
 	float MaxVolumeLiters = 60.0f;
@@ -42,13 +43,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
 	int32 MaxSlots = 30;
 
+	// Spatial grid dimensions for UI layout (W columns × H rows)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
+	int32 InventoryGridW = 6;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
+	int32 InventoryGridH = 5;
+
+	// Sprint is blocked when CurrentWeightKg / MaxCarryWeightKg >= 0.85
+	// (enforced by owning character movement component)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory",
+		meta = (ClampMin = "0.1", ClampMax = "1.0"))
+	float SprintEncumbranceRatio = 0.85f;
+
 	// ── State ────────────────────────────────
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Items, Category = "Inventory")
 	TArray<TObjectPtr<UQRItemInstance>> Items;
 
-	// Hand slot (currently equipped/held item)
+	// Hand slot (currently equipped/held item — typically a weapon or tool)
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
 	TObjectPtr<UQRItemInstance> HandSlot = nullptr;
+
+	// v1.17: Hands slot occupancy FSM, tracks bulk-item carry state separately from HandSlot ptr
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
+	EQRHandsSlotState HandsSlotState = EQRHandsSlotState::Empty;
+
+	// v1.17: max items that can be shoulder-stacked. = 1 + floor(STR/4), clamped 1..3.
+	// Updated by the owning character when STR changes.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Inventory")
+	int32 ShoulderStackMax = 1;
 
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
@@ -91,6 +114,18 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	bool IsOverEncumbered() const;
+
+	// True when CurrentWeight/MaxCarryWeight >= SprintEncumbranceRatio
+	UFUNCTION(BlueprintPure, Category = "Inventory")
+	bool IsSprintBlocked() const;
+
+	// v1.17: recompute ShoulderStackMax = Clamp(1 + floor(STR/4), 1, 3) when character STR changes
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	void SetShoulderStackFromSTR(int32 STR);
+
+	// v1.17: Recalculate MaxCarryWeightKg = 20 + 6*STR when character STR changes
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	void SetCarryCapacityFromSTR(int32 STR);
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	TArray<UQRItemInstance*> GetItemsByCategory(EQRItemCategory Category) const;

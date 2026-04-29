@@ -80,6 +80,34 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Leader")
 	EQRLeaderType LeaderType = EQRLeaderType::None;
 
+	// ── Core Aptitude (v1.4 Leader_Parameters) ──
+	// Leadership aptitude L [0..10]. LeaderBuff = Clamp(1+0.02*L+0.01*S, 1.0, 1.35)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Leader|Aptitude",
+		meta = (ClampMin = "0", ClampMax = "10"))
+	float LeadershipAptitude = 5.0f;    // L
+
+	// Skill aptitude S [0..10]. Combined with L for LeaderLevel formula.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Leader|Aptitude",
+		meta = (ClampMin = "0", ClampMax = "10"))
+	float SkillAptitude = 5.0f;         // S
+
+	// Composure COM [0..10]. Governs stress resistance and escalation dampening.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Leader|Aptitude",
+		meta = (ClampMin = "0", ClampMax = "10"))
+	float Composure = 5.0f;             // COM
+
+	// Computed: Clamp(1 + 0.02*L + 0.01*S, 1.0, 1.35)
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Aptitude")
+	float LeaderBuff = 1.0f;
+
+	// Computed: floor(1 + 4*((0.6*L + 0.4*S) / 10)), range 1..5
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Aptitude")
+	int32 LeaderLevel = 1;
+
+	// True when LeaderLevel == 1 and no significant XP earned — enables tutorial scaffolding
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Aptitude")
+	bool bIsInexperiencedLeader = false;
+
 	// ── Stats (replicated) ───────────────────
 	// Morale Index (MI): 0..100
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Stats")
@@ -101,9 +129,42 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Stats")
 	float DefectionRisk = 0.0f;
 
-	// Moral compass vector [-1..1] (negative = ruthless, positive = humane)
+	// Moral compass scalar [-1..1] (negative = ruthless, positive = humane) — legacy scalar
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Stats")
 	float MoralCompassVector = 0.0f;
+
+	// ── Issue Escalation (v1.17) ─────────────
+	// Current phase of the leader blocker→quest pipeline
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Issues")
+	EQRLeaderIssueState IssueState = EQRLeaderIssueState::None;
+
+	// IssueEscalationScore = BlockerSeverity * max(BlockerDurationHours - GuidanceDelayHours, 0) * LeaderAwarenessMult
+	// Quest issued when score >= 100
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Issues")
+	float IssueEscalationScore = 0.0f;
+
+	// How long (in-game hours) the current blocker has persisted
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Issues")
+	float BlockerDurationHours = 0.0f;
+
+	// Grace window (hours) before the leader reacts — COM-scaled
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Leader|Issues",
+		meta = (ClampMin = "0"))
+	float GuidanceDelayHours = 6.0f;
+
+	// Multiplier driven by leader awareness/perception traits [0.5..2.0]
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Leader|Issues",
+		meta = (ClampMin = "0.5", ClampMax = "2.0"))
+	float LeaderAwarenessMult = 1.0f;
+
+	// ── Camp Alignment / Policy (v1.4 Moral Compass) ──
+	// Dot-product alignment of leader preferences with camp policy [-1..1]
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Policy")
+	float CampAlignmentScore = 0.0f;
+
+	// Per-axis policy weights — index maps to EQRMoralCompassAxis (8 axes)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Leader|Policy")
+	TArray<float> CampPolicyVector;
 
 	// ── Active Directives / Conditions ───────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Directives")
@@ -141,11 +202,31 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")
 	void GainLeaderXP(float XP);
 
+	// Recompute LeaderBuff, LeaderLevel, bIsInexperiencedLeader from current L/S
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")
+	void RecalculateLeaderDerivedStats();
+
+	// Tick the issue escalation score and transition IssueState FSM
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")
+	void AdvanceIssueEscalation(float BlockerSeverity, float DeltaGameHours);
+
+	// Resolve the current blocker issue; resets escalation state
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")
+	void ResolveCurrentIssue();
+
+	// Update CampAlignmentScore by dot-producting CampPolicyVector with supplied camp preference vector
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")
+	void UpdateCampAlignment(const TArray<float>& CampPreferenceVector);
+
 	UFUNCTION(BlueprintPure, Category = "Leader")
 	float GetTotalDebuff(FName StatName) const;
 
 	UFUNCTION(BlueprintPure, Category = "Leader")
 	bool IsDefecting() const { return DefectionRisk >= 0.85f; }
+
+	// Eff_M formula: 0.50 + 0.007 * MoraleIndex
+	UFUNCTION(BlueprintPure, Category = "Leader")
+	float GetEfficiencyMultiplier() const { return FMath::Clamp(0.50f + 0.007f * MoraleIndex, 0.0f, 1.2f); }
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

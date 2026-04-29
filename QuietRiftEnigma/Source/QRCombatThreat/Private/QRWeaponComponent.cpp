@@ -1,6 +1,8 @@
 #include "QRWeaponComponent.h"
 #include "QRItemInstance.h"
+#include "QRItemDefinition.h"
 #include "QRSurvivalComponent.h"
+#include "GameplayTagContainer.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
 
@@ -16,20 +18,34 @@ void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRWeaponComponent, WeaponState);
 	DOREPLIFETIME(UQRWeaponComponent, CurrentAmmo);
 	DOREPLIFETIME(UQRWeaponComponent, FoulingFactor);
+	DOREPLIFETIME(UQRWeaponComponent, bIsJammed);
 }
 
 bool UQRWeaponComponent::CanFire() const
 {
-	return WeaponState == EQRWeaponState::Ready && CurrentAmmo > 0;
+	return !bIsJammed && WeaponState == EQRWeaponState::Ready && CurrentAmmo > 0;
+}
+
+float UQRWeaponComponent::GetFoulingIncrement(bool bIsDirtyAmmo, bool bHasSuppressor) const
+{
+	float Inc = FoulingPerShot;
+	if (bIsDirtyAmmo)   Inc *= DirtyAmmoFoulingMult;
+	if (bHasSuppressor) Inc *= SuppressorFoulingMult;
+	return FMath::Clamp(Inc, 0.0f, 1.0f);
 }
 
 bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 {
 	if (!CanFire()) return false;
 
-	// Check jam
+	// Determine ammo quality for fouling calculation
+	const bool bIsDirtyAmmo = AmmoInstance && AmmoInstance->Definition &&
+		AmmoInstance->Definition->ItemTags.HasTag(FGameplayTag::RequestGameplayTag(TEXT("Ammo.Dirty")));
+
+	// Check jam before firing
 	if (FMath::FRand() < GetJamChance())
 	{
+		bIsJammed   = true;
 		WeaponState = EQRWeaponState::Jammed;
 		OnWeaponJammed.Broadcast();
 		return false;
@@ -41,7 +57,6 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 
 	float Damage = ComputeEffectiveDamage(Distance);
 
-	// Apply damage to target's survival component
 	if (Target)
 	{
 		if (UQRSurvivalComponent* Survival = Target->FindComponentByClass<UQRSurvivalComponent>())
@@ -49,15 +64,14 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 	}
 
 	--CurrentAmmo;
-	FoulingFactor = FMath::Min(1.0f, FoulingFactor + 0.01f);
+	// v1.17: canonical fouling increment (dirty ammo ×5, suppressor ×1.5)
+	FoulingFactor = FMath::Clamp(FoulingFactor + GetFoulingIncrement(bIsDirtyAmmo, false), 0.0f, 1.0f);
 
 	if (CurrentAmmo <= 0)
 		WeaponState = EQRWeaponState::Empty;
 
 	OnWeaponFired.Broadcast(Target, Damage);
 	OnAmmoChanged.Broadcast(CurrentAmmo);
-
-	// TODO: Broadcast noise event to nearby threat detection systems
 	return true;
 }
 
@@ -86,14 +100,17 @@ void UQRWeaponComponent::FinishReload(int32 NewAmmoCount)
 
 void UQRWeaponComponent::ClearJam()
 {
-	if (WeaponState == EQRWeaponState::Jammed)
+	if (bIsJammed || WeaponState == EQRWeaponState::Jammed)
 	{
+		bIsJammed     = false;
 		WeaponState   = CurrentAmmo > 0 ? EQRWeaponState::Ready : EQRWeaponState::Empty;
-		FoulingFactor = FMath::Min(1.0f, FoulingFactor + 0.05f); // Jam-clearing adds fouling
+		// Jam clearing physically removes debris — small fouling addition from the action
+		FoulingFactor = FMath::Clamp(FoulingFactor + 0.05f, 0.0f, 1.0f);
 	}
 }
 
 void UQRWeaponComponent::Clean()
 {
 	FoulingFactor = 0.0f;
+	// Cleaning also clears any pre-jam condition (does not clear active jam — use ClearJam first)
 }

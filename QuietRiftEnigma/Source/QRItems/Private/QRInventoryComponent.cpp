@@ -1,6 +1,7 @@
 #include "QRInventoryComponent.h"
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
+#include "QRMath.h"
 #include "Net/UnrealNetwork.h"
 
 UQRInventoryComponent::UQRInventoryComponent()
@@ -15,6 +16,8 @@ void UQRInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UQRInventoryComponent, Items);
 	DOREPLIFETIME(UQRInventoryComponent, HandSlot);
+	DOREPLIFETIME(UQRInventoryComponent, HandsSlotState);
+	DOREPLIFETIME(UQRInventoryComponent, ShoulderStackMax);
 }
 
 EQRInventoryResult UQRInventoryComponent::TryAddItem(UQRItemInstance* Item, int32& OutRemainder)
@@ -104,13 +107,21 @@ bool UQRInventoryComponent::TryRemoveItem(FName ItemId, int32 Quantity)
 bool UQRInventoryComponent::TryEquipToHandSlot(UQRItemInstance* Item)
 {
 	if (!Item || !Item->IsValid()) return false;
+	if (HandsSlotState == EQRHandsSlotState::LockedByAction) return false;
+
+	// Bulk items (e.g. Bulk Meat Sack) mark the hands slot as occupied and cannot share
+	if (Item->Definition && Item->Definition->bIsBulkItem && HandsSlotState == EQRHandsSlotState::Occupied)
+		return false;
+
 	HandSlot = Item;
+	HandsSlotState = EQRHandsSlotState::Occupied;
 	return true;
 }
 
 void UQRInventoryComponent::ClearHandSlot()
 {
 	HandSlot = nullptr;
+	HandsSlotState = EQRHandsSlotState::Empty;
 }
 
 int32 UQRInventoryComponent::CountItem(FName ItemId) const
@@ -154,6 +165,21 @@ float UQRInventoryComponent::GetCurrentVolumeLiters() const
 bool UQRInventoryComponent::IsOverEncumbered() const
 {
 	return GetCurrentWeightKg() > MaxCarryWeightKg || GetCurrentVolumeLiters() > MaxVolumeLiters;
+}
+
+bool UQRInventoryComponent::IsSprintBlocked() const
+{
+	return UQRMath::EncumbranceRatio(GetCurrentWeightKg(), MaxCarryWeightKg) >= SprintEncumbranceRatio;
+}
+
+void UQRInventoryComponent::SetShoulderStackFromSTR(int32 STR)
+{
+	ShoulderStackMax = UQRMath::ShoulderStackMax(STR);
+}
+
+void UQRInventoryComponent::SetCarryCapacityFromSTR(int32 STR)
+{
+	MaxCarryWeightKg = UQRMath::CarryCapacityKg(STR);
 }
 
 TArray<UQRItemInstance*> UQRInventoryComponent::GetItemsByCategory(EQRItemCategory Category) const

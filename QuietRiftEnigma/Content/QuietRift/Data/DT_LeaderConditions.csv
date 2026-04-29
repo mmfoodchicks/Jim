@@ -1,0 +1,15 @@
+Leader_Conditions_Debuffs,,,,,
+,,,,,
+ConditionId,Name,Trigger,MechanicalEffect,RecoveryPath,TierRange
+COND_AUTHORITY_GAP,Authority Gap,Inexperienced / new appointment,Subordinates apply 1.10 CrossRole-like friction to obeyed tasks; LeaderOverrideMod cap 1.05.,Complete Leadership Is Earned or successful department cycle.,T0-T2
+COND_OVERWHELMED,Overwhelmed,Too many subordinates/blockers,GuidanceDelayHours +25%; IssueEscalationScore generation -20%.,Reduce active blockers or train delegation.,T1-T3
+COND_HESITANT,Hesitant,Recent injury/death under command,LeaderOverrideMod cannot exceed 1.00 during danger.,Wounded-role recovery mission.,T1-T3
+COND_OVERPROTECTIVE,Overprotective,Subordinate casualty,MaxWorkRange *=0.75; refuses high-risk route assignments.,Safe witnessed mission in same route type.,T2-T4
+COND_TUNNEL_VISION,Tunnel Vision,Scarcity/pressure,Leader boosts one task but starves fallback array; StorageDeficitMod overfocus.,Complete cross-department mission.,T2-T4
+COND_PANIC_CONTAGION,Panic Contagion,Raid lost/base breached,Nearby MR shock +; civilian FLEE chance rises.,Breach rehearsal / memorial / successful defense.,T3-T5
+COND_FAVORITISM,Favoritism,Internal dispute,"Specific NPCs get priority, others lose MI.",Justice/mediation mission.,T1-T3
+COND_BURNOUT,Burnout,Long shifts/no rest,LeaderBuff -10%; condition roll chance +.,Rest schedule and support mission.,T1-T4
+COND_VENGEFUL,Vengeful,Faction killed bonded NPC,Aggression +; negotiation penalties; risky raid proposals.,Justice/restraint outcome.,T3-T5
+COND_GRIEF_SPIRAL,Grief Spiral,Bonded subordinate killed,MR -= periodic small amount until addressed.,Memorial + successful safe work cycle.,T3-T5
+COND_IDEOLOGICAL_FRICTION,Ideological Friction,Camp policy mismatch,"CampAlignmentScore penalty affects MI/MR, possible resignation.",Council / policy compromise.,T2-T5
+COND_CRISIS_PROVEN,Crisis Proven,Positive tag after success,Reduces future condition magnitude/duration.,Earned by crisis mission; not a debuff.,BuffTag

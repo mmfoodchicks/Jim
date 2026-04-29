@@ -1,0 +1,7 @@
+Raid_Experience_Tiers,,,,,,
+,,,,,,
+RaidExperience,Planning,Approach,ArmoryUse,MoraleBehavior,LootBehavior,Counterplay
+Inexperienced,Little/no recon; target picked from visible opportunity.,"Loud, direct, often wrong time/weather.",May bring mismatched ammo or insufficient tools.,"Panics after leader injury, casualties, lights, or failed breach.",Grabs nearest visible supplies; poor prioritization.,"Lights, walls, warnings, and one strong chokepoint often break them."
+Competent,"Basic scouting; targets pantry, armory, or weak wall.",Uses one flank or distraction; retreats if objective fails.,Mostly correct ammo/tools; limited breaching kit.,Will withdraw after 20-35% losses unless desperate.,Prioritizes food/meds/ammo.,"Patrol coverage, distributed racks, and safe rooms matter."
+Veteran,"Reads power instability, patrol gaps, weather, and recent losses.","Multi-stage: decoy, breach, suppression, theft/exfil.",Correct loadouts; specialists carry cutters/power injectors.,"Stays calm; retreats on objective complete, not ego.",Targets strategic bottlenecks/remnant components.,"Layered defense, counter-scouting, morale, and route control."
+Fanatic/Remnant-Linked,May ignore normal survival math for ideology/site objective.,"Uses D hazards, captives, relays, or self-sacrifice.",Mixed human gear + site systems.,Does not break normally; can collapse if belief/relay disrupted.,Targets people/data/modules more than food.,"Disrupt leader, signal, or site state; avoid pure attrition fight."

@@ -73,6 +73,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical", meta = (ClampMin = "1"))
 	int32 MaxStackSize = 1;
 
+	// v1.17: bulk items (e.g. Bulk Meat Sack, Fuel Barrel) occupy the hands slot and
+	// cannot be placed in the grid inventory — requires HandsSlotState == Occupied.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical")
+	bool bIsBulkItem = false;
+
 	// ── Durability ────────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Durability", meta = (ClampMin = "0"))
 	float MaxDurability = 0.0f;   // 0 = indestructible / consumable
@@ -81,6 +86,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Food",
 		meta = (EditCondition = "Category == EQRItemCategory::Food"))
 	FQRFoodStats FoodStats;
+
+	// v1.17: where this food originated — governs the "SafeKnown" rule.
+	// EarthSealed / ShipRation items are always safe without research.
+	// Native items require CodexDiscoveryState == Known before safe consumption.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Food",
+		meta = (EditCondition = "Category == EQRItemCategory::Food"))
+	EQRFoodOriginClass FoodOriginClass = EQRFoodOriginClass::Unknown;
+
+	// Integrity of sealed packaging [0..1]. Only meaningful for EarthSealed / ShipRation.
+	// If PackageIntegrity < 0.5 the item loses its SafeKnown exemption.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Food",
+		meta = (EditCondition = "Category == EQRItemCategory::Food",
+			ClampMin = "0", ClampMax = "1"))
+	float PackageIntegrity = 1.0f;
 
 	// ── Visuals / Audio ───────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visuals")

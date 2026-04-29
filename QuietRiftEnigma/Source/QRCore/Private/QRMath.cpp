@@ -37,3 +37,64 @@ float UQRMath::AdvanceSpoil(float CurrentSpoil, float SpoilRatePerHour, float Ga
 {
 	return FMath::Clamp(CurrentSpoil + SpoilRatePerHour * GameHoursElapsed, 0.0f, 1.0f);
 }
+
+float UQRMath::MicroResearchFinalScalar(const TArray<float>& BonusArray)
+{
+	float Scalar = 1.0f;
+	for (float Bonus : BonusArray)
+	{
+		Scalar *= (1.0f + Bonus);
+	}
+	return Scalar;
+}
+
+float UQRMath::ColonyEfficiencyMultiplier(float MoraleIndex)
+{
+	return FMath::Clamp(0.50f + 0.007f * MoraleIndex, 0.0f, 1.2f);
+}
+
+float UQRMath::LeaderBuffScalar(float L, float S)
+{
+	return FMath::Clamp(1.0f + 0.02f * L + 0.01f * S, 1.0f, 1.35f);
+}
+
+int32 UQRMath::ComputeLeaderLevel(float L, float S)
+{
+	const float Combined = 0.6f * L + 0.4f * S;
+	return FMath::Clamp(FMath::FloorToInt(1.0f + 4.0f * (Combined / 10.0f)), 1, 5);
+}
+
+float UQRMath::IssueEscalationScore(float BlockerSeverity, float BlockerDurationHours,
+	float GuidanceDelayHours, float LeaderAwarenessMult)
+{
+	const float ActiveHours = FMath::Max(BlockerDurationHours - GuidanceDelayHours, 0.0f);
+	return BlockerSeverity * ActiveHours * LeaderAwarenessMult;
+}
+
+float UQRMath::CarryCapacityKg(int32 STR)
+{
+	return 20.0f + 6.0f * static_cast<float>(STR);
+}
+
+float UQRMath::EncumbranceRatio(float CurrentWeightKg, float MaxCarryWeightKg)
+{
+	if (MaxCarryWeightKg <= 0.0f) return 1.0f;
+	return CurrentWeightKg / MaxCarryWeightKg;
+}
+
+int32 UQRMath::ShoulderStackMax(int32 STR)
+{
+	return FMath::Clamp(1 + FMath::FloorToInt(static_cast<float>(STR) / 4.0f), 1, 3);
+}
+
+float UQRMath::StorageDeficitMod(float TargetStockpile, float CurrentStockpile)
+{
+	const float Denom = FMath::Max(CurrentStockpile, 1.0f);
+	return FMath::Clamp(TargetStockpile / Denom, 0.5f, 3.0f);
+}
+
+float UQRMath::CrossContamExposure(float ToxicSoil, float InfectedWater, float SporeLoad,
+	float FarmerCrossContamScore)
+{
+	return ToxicSoil + InfectedWater + SporeLoad + FarmerCrossContamScore;
+}
