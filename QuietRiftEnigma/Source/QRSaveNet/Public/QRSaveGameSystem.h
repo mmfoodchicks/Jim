@@ -22,6 +22,10 @@ public:
 	FString SaveVersion = TEXT("1.0.0");
 };
 
+// Current save layout version — bump this whenever FQRGameSaveData or its nested structs change.
+// MigrateToCurrentVersion() must handle every intermediate step.
+static constexpr int32 QRCurrentSaveVersion = 1;
+
 // Singleton-accessible save/load coordinator
 UCLASS(BlueprintType, Blueprintable)
 class QRSAVENET_API UQRSaveGameSystem : public UObject
@@ -51,6 +55,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Save")
 	TArray<FString> GetAllSaveSlots() const;
+
+	// Apply any pending format migrations to Data so it matches QRCurrentSaveVersion.
+	// Called automatically on every load; safe to call on already-current saves.
+	static void MigrateToCurrentVersion(FQRGameSaveData& Data);
 
 	// ── Async Callbacks ──────────────────────
 private:

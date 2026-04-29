@@ -184,4 +184,17 @@ namespace QRGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ammo_Dirty)       // Improvised / dirty ammo (×5 fouling)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ammo_Subsonic)
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ammo_AP)          // Armor-piercing
+
+	// ── Weather Event Tags ──
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weather_DustStorm)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weather_AcidRain)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weather_VentEruption)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weather_HeatWave)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weather_IceFog)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weather_MagneticStorm)
+
+	// ── Scent Tags ──
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Scent_Meat)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Scent_Blood)
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Scent_Carrion)
 }

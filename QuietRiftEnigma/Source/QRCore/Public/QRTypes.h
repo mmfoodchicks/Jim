@@ -309,6 +309,23 @@ enum class EQRWildlifeBehaviorRole : uint8
 };
 
 // ─────────────────────────────────────────────
+//  WEATHER EVENT ENUMS
+// ─────────────────────────────────────────────
+
+// Active atmospheric hazard. Stored on UQRWeatherComponent and broadcast to all systems.
+UENUM(BlueprintType)
+enum class EQRWeatherEvent : uint8
+{
+	None            UMETA(DisplayName = "None"),
+	DustStorm       UMETA(DisplayName = "Dust Storm"),       // visibility ↓, machinery fouling ↑
+	AcidRain        UMETA(DisplayName = "Acid Rain"),        // ongoing armor/structure damage
+	VentEruption    UMETA(DisplayName = "Vent Eruption"),    // heat + toxin zones
+	HeatWave        UMETA(DisplayName = "Heat Wave"),        // core temp ↑, dehydration x2
+	IceFog          UMETA(DisplayName = "Ice Fog"),          // hypothermia risk, vision 0
+	MagneticStorm   UMETA(DisplayName = "Magnetic Storm"),   // electronics disabled
+};
+
+// ─────────────────────────────────────────────
 //  ENDING PATHS
 // ─────────────────────────────────────────────
 
@@ -407,4 +424,36 @@ enum class EQRMoralCompassAxis : uint8
 	Isolation           UMETA(DisplayName = "Isolation"),
 	Extraction          UMETA(DisplayName = "Extraction"),
 	RemnantCuriosity    UMETA(DisplayName = "Remnant Curiosity"),
+};
+
+// ─────────────────────────────────────────────
+//  REUSABLE STAT CONTAINER
+// ─────────────────────────────────────────────
+
+// Generic clamped stat (Health, Hunger, Thirst, Fatigue, Morale, etc.).
+// Replaces ad-hoc float + MaxFloat pairs when a stat needs portable serialization or blueprints.
+USTRUCT(BlueprintType)
+struct FQRClampedStat
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0"))
+	float Current = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0"))
+	float Min = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0"))
+	float Max = 100.0f;
+
+	// Returns normalized [0..1] position within the [Min..Max] range.
+	float GetNormalized() const
+	{
+		return (Max > Min) ? FMath::Clamp((Current - Min) / (Max - Min), 0.0f, 1.0f) : 0.0f;
+	}
+
+	void Set(float Value)   { Current = FMath::Clamp(Value, Min, Max); }
+	void Add(float Delta)   { Set(Current + Delta); }
+	bool IsAtMin() const    { return Current <= Min + KINDA_SMALL_NUMBER; }
+	bool IsAtMax() const    { return Current >= Max - KINDA_SMALL_NUMBER; }
 };

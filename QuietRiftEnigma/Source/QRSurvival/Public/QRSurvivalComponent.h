@@ -133,6 +133,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void DrinkWater(float WaterML, bool bIsPurified = false);
 
+	// Attempt to spread a disease to survivors within RadiusCm (shared-meal / shared-source contamination).
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
+	void SpreadInfectionNearby(float RadiusCm, EQRInjuryType Type, float Chance);
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void Rest(float GameHours);
 

@@ -238,3 +238,25 @@ void UQRResearchComponent::TickResearchQueue(float DeltaTime)
 			MicroResearchQueue.RemoveAt(0);
 	}
 }
+
+
+void UQRResearchComponent::ForceUnlockTechNode(FName NodeId)
+{
+	for (FQRTechNodeRuntime& RT : TechNodeStates)
+	{
+		if (RT.TechNodeId == NodeId)
+		{
+			RT.AccumulatedResearchPoints = TNumericLimits<float>::Max();
+			RT.bRefComponentDelivered    = true;
+			TryUnlockNode(RT);
+			return;
+		}
+	}
+	// Node not yet in TechNodeStates — add a minimal runtime and mark unlocked
+	FQRTechNodeRuntime New;
+	New.TechNodeId               = NodeId;
+	New.State                    = EQRTechNodeState::Unlocked;
+	New.bRefComponentDelivered   = true;
+	TechNodeStates.Add(New);
+	OnTechNodeUnlocked.Broadcast(NodeId);
+}

@@ -164,12 +164,42 @@ void UQRSurvivalComponent::ConsumeFood(UQRItemInstance* FoodItem)
 			AddInjury(EQRInjuryType::Toxin, EQRInjurySeverity::Minor);
 	}
 
-	// Spoiled food always risks infection regardless of origin
+	// Spoiled food always risks infection regardless of origin; spread to nearby eaters
 	if (FoodItem->IsSpoiled())
+	{
 		AddInjury(EQRInjuryType::Infection, EQRInjurySeverity::Moderate);
+		SpreadInfectionNearby(300.0f, EQRInjuryType::Infection, 0.30f);
+	}
 
 	// Decrement quantity — caller is responsible for removing the instance when Quantity == 0
 	--FoodItem->Quantity;
+}
+
+void UQRSurvivalComponent::SpreadInfectionNearby(float RadiusCm, EQRInjuryType Type, float Chance)
+{
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams Params(NAME_None, /*bTraceComplex=*/false, Owner);
+	Owner->GetWorld()->OverlapMultiByObjectType(
+		Overlaps,
+		Owner->GetActorLocation(),
+		FQuat::Identity,
+		FCollisionObjectQueryParams(ECC_Pawn),
+		FCollisionShape::MakeSphere(RadiusCm),
+		Params
+	);
+
+	for (const FOverlapResult& Hit : Overlaps)
+	{
+		AActor* Other = Hit.GetActor();
+		if (!Other) continue;
+		UQRSurvivalComponent* OtherSurv = Other->FindComponentByClass<UQRSurvivalComponent>();
+		if (!OtherSurv || OtherSurv->bIsDead) continue;
+		if (FMath::FRand() < Chance)
+			OtherSurv->AddInjury(Type, EQRInjurySeverity::Minor);
+	}
 }
 
 void UQRSurvivalComponent::DrinkWater(float WaterML, bool bIsPurified)
@@ -177,7 +207,10 @@ void UQRSurvivalComponent::DrinkWater(float WaterML, bool bIsPurified)
 	Thirst = FMath::Min(MaxThirst, Thirst + (WaterML / 2500.0f) * MaxThirst);
 
 	if (!bIsPurified && FMath::FRand() < 0.25f)
+	{
 		AddInjury(EQRInjuryType::Infection, EQRInjurySeverity::Minor);
+		SpreadInfectionNearby(300.0f, EQRInjuryType::Infection, 0.20f);
+	}
 }
 
 void UQRSurvivalComponent::Rest(float GameHours)

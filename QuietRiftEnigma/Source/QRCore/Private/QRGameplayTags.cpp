@@ -165,4 +165,15 @@ namespace QRGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ammo_Dirty,                       "Ammo.Dirty")
 	UE_DEFINE_GAMEPLAY_TAG(Ammo_Subsonic,                    "Ammo.Subsonic")
 	UE_DEFINE_GAMEPLAY_TAG(Ammo_AP,                          "Ammo.AP")
+
+	UE_DEFINE_GAMEPLAY_TAG(Weather_DustStorm,                "Weather.DustStorm")
+	UE_DEFINE_GAMEPLAY_TAG(Weather_AcidRain,                 "Weather.AcidRain")
+	UE_DEFINE_GAMEPLAY_TAG(Weather_VentEruption,             "Weather.VentEruption")
+	UE_DEFINE_GAMEPLAY_TAG(Weather_HeatWave,                 "Weather.HeatWave")
+	UE_DEFINE_GAMEPLAY_TAG(Weather_IceFog,                   "Weather.IceFog")
+	UE_DEFINE_GAMEPLAY_TAG(Weather_MagneticStorm,            "Weather.MagneticStorm")
+
+	UE_DEFINE_GAMEPLAY_TAG(Scent_Meat,                       "Scent.Meat")
+	UE_DEFINE_GAMEPLAY_TAG(Scent_Blood,                      "Scent.Blood")
+	UE_DEFINE_GAMEPLAY_TAG(Scent_Carrion,                    "Scent.Carrion")
 }

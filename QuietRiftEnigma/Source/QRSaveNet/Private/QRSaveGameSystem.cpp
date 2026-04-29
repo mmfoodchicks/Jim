@@ -1,14 +1,28 @@
 #include "QRSaveGameSystem.h"
 #include "Kismet/GameplayStatics.h"
 
+void UQRSaveGameSystem::MigrateToCurrentVersion(FQRGameSaveData& Data)
+{
+	if (Data.SaveVersion < 1)
+	{
+		// v0 → v1: FoodOriginClass, PackageIntegrity, bIsBulkItem added to FQRItemSaveData;
+		// FQRWeaponSaveData, FQRLeaderSaveData, and HandsSlotState added to higher structs.
+		// Struct defaults already cover every new field — no data patching needed.
+		Data.SaveVersion = 1;
+	}
+	// Add future migrations here:
+	// if (Data.SaveVersion < 2) { ... Data.SaveVersion = 2; }
+}
+
 void UQRSaveGameSystem::SaveGame(const FQRGameSaveData& DataToSave, const FString& SlotName, int32 UserIndex)
 {
 	UQRSaveGame* SaveObj = Cast<UQRSaveGame>(UGameplayStatics::CreateSaveGameObject(UQRSaveGame::StaticClass()));
 	if (!SaveObj) { OnSaveComplete.Broadcast(false); return; }
 
 	SaveObj->GameData = DataToSave;
-	SaveObj->GameData.SaveSlotName = SlotName;
-	SaveObj->GameData.SaveTimestamp = FDateTime::Now();
+	SaveObj->GameData.SaveVersion    = QRCurrentSaveVersion;
+	SaveObj->GameData.SaveSlotName   = SlotName;
+	SaveObj->GameData.SaveTimestamp  = FDateTime::Now();
 
 	FAsyncSaveGameToSlotDelegate Delegate;
 	Delegate.BindUObject(this, &UQRSaveGameSystem::OnSaveToSlotComplete);
@@ -58,5 +72,7 @@ void UQRSaveGameSystem::OnLoadFromSlotComplete(const FString& SlotName, int32 Us
 		OnLoadComplete.Broadcast(false, FQRGameSaveData());
 		return;
 	}
+
+	MigrateToCurrentVersion(QRSave->GameData);
 	OnLoadComplete.Broadcast(true, QRSave->GameData);
 }
