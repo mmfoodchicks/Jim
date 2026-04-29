@@ -27,7 +27,6 @@ public class QuietRiftEnigma : ModuleRules
 			"QRCombatThreat",
 			"QRSaveNet",
 			"QRUI",
-			"Net",
 			"NetCore"
 		});
 
