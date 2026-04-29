@@ -152,6 +152,9 @@ struct QRSAVENET_API FQRGameSaveData
 {
 	GENERATED_BODY()
 
+	// Incremented whenever the save layout changes (see UQRSaveGameSystem::MigrateToCurrentVersion)
+	UPROPERTY() int32 SaveVersion = 0;
+
 	// Save slot metadata
 	UPROPERTY() FString SaveSlotName;
 	UPROPERTY() FDateTime SaveTimestamp;

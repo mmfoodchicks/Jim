@@ -96,6 +96,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Role")
 	void GainSkillXP(EQRNPCRole Role, float XP);
 
+	// Copy a fraction of Mentor's skill levels into this component.
+	// InheritanceFraction [0..1]: 0.33 for die-and-replace lineage; 0.15 for active apprenticeship.
+	// Skill never decreases — only the gap between mentor and self is inherited.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Skills")
+	void InheritSkillsFromMentor(const UQRNPCRoleComponent* Mentor, float InheritanceFraction = 0.33f);
+
 	// Work efficiency multiplier based on skill [0.5 .. 2.0]
 	UFUNCTION(BlueprintPure, Category = "Role")
 	float GetEfficiencyMultiplier() const;

@@ -79,3 +79,18 @@ float UQRNPCRoleComponent::GetEfficiencyMultiplier() const
 	// Skill 0 = 0.5x, Skill 50 = 1.0x, Skill 100 = 2.0x
 	return FMath::GetMappedRangeValueClamped(FVector2f(0.0f, 100.0f), FVector2f(0.5f, 2.0f), Skill);
 }
+
+void UQRNPCRoleComponent::InheritSkillsFromMentor(const UQRNPCRoleComponent* Mentor, float InheritanceFraction)
+{
+	if (!Mentor || !FMath::IsFinite(InheritanceFraction)) return;
+	const float SafeFrac = FMath::Clamp(InheritanceFraction, 0.0f, 1.0f);
+
+	for (const auto& Pair : Mentor->RoleSkillLevels)
+	{
+		const float MentorSkill = Pair.Value;
+		float& MySkill = RoleSkillLevels.FindOrAdd(Pair.Key);
+		// Only close the gap upward — never reduce a skill
+		const float Gain = FMath::Max(MentorSkill - MySkill, 0.0f) * SafeFrac;
+		MySkill = FMath::Clamp(MySkill + Gain, 0.0f, 100.0f);
+	}
+}

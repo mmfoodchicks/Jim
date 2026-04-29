@@ -62,6 +62,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Research")
 	bool DeliverReferenceComponent(FName ReferenceComponentId);
 
+	// Force-unlock a node by ID, bypassing prerequisites and research costs.
+	// For debug / cheat use only — do not call from gameplay code.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Research")
+	void ForceUnlockTechNode(FName NodeId);
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Research")
 	void AddResearchPoints(float Points, EQRResearchFamily Family);
 
