@@ -154,4 +154,15 @@ namespace QRGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ending_Rescue,                    "Ending.Rescue")
 	UE_DEFINE_GAMEPLAY_TAG(Ending_Escape,                    "Ending.Escape")
 	UE_DEFINE_GAMEPLAY_TAG(Ending_Settlement,                "Ending.Settlement")
+
+	UE_DEFINE_GAMEPLAY_TAG(Tool_Knife,                       "Tool.Knife")
+	UE_DEFINE_GAMEPLAY_TAG(Tool_Axe,                         "Tool.Axe")
+	UE_DEFINE_GAMEPLAY_TAG(Tool_HeavyAxe,                    "Tool.HeavyAxe")
+	UE_DEFINE_GAMEPLAY_TAG(Tool_Gloves,                      "Tool.Gloves")
+	UE_DEFINE_GAMEPLAY_TAG(Tool_Pickaxe,                     "Tool.Pickaxe")
+	UE_DEFINE_GAMEPLAY_TAG(Tool_Sickle,                      "Tool.Sickle")
+
+	UE_DEFINE_GAMEPLAY_TAG(Ammo_Dirty,                       "Ammo.Dirty")
+	UE_DEFINE_GAMEPLAY_TAG(Ammo_Subsonic,                    "Ammo.Subsonic")
+	UE_DEFINE_GAMEPLAY_TAG(Ammo_AP,                          "Ammo.AP")
 }

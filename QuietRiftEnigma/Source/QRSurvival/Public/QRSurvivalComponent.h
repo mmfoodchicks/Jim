@@ -125,7 +125,10 @@ public:
 	void ApplyHealing(float Amount);
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
-	void ConsumeFood(const UQRItemInstance* FoodItem);
+	// Applies nutrition from FoodItem and decrements its Quantity by 1.
+	// Caller must remove the item instance from inventory when Quantity reaches 0.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
+	void ConsumeFood(UQRItemInstance* FoodItem);
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void DrinkWater(float WaterML, bool bIsPurified = false);

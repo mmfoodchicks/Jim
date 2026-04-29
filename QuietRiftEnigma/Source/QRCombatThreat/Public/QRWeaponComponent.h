@@ -106,6 +106,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")
 	bool bIsJammed = false;
 
+	// Set to true by the attachment system when a suppressor is fitted
+	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Weapon")
+	bool bHasSuppressor = false;
+
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Weapon|Events")
 	FOnWeaponFired OnWeaponFired;

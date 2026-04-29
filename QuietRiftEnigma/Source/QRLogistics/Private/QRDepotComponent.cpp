@@ -25,21 +25,24 @@ bool UQRDepotComponent::DepositItem(UQRItemInstance* Item)
 {
 	if (!Item || !CanAccept(Item->Definition)) return false;
 
-	// Try to merge into existing stack
-	const int32 StackMax = Item->Definition->MaxStackSize;
+	// Snapshot original quantity so we can restore if deposit fails entirely
+	const int32 OriginalQuantity = Item->Quantity;
+
+	// Try to merge into existing stacks
+	const int32 StackMax = FMath::Max(Item->Definition->MaxStackSize, 1);
 	for (UQRItemInstance* Existing : StoredItems)
 	{
-		if (Existing && Existing->Definition == Item->Definition && Existing->Quantity < StackMax)
+		if (!Existing || Existing->Definition != Item->Definition || Existing->Quantity >= StackMax)
+			continue;
+
+		int32 Space = StackMax - Existing->Quantity;
+		int32 ToAdd = FMath::Min(Space, Item->Quantity);
+		Existing->Quantity += ToAdd;
+		Item->Quantity -= ToAdd;
+		if (Item->Quantity <= 0)
 		{
-			int32 Space = StackMax - Existing->Quantity;
-			int32 ToAdd = FMath::Min(Space, Item->Quantity);
-			Existing->Quantity += ToAdd;
-			Item->Quantity -= ToAdd;
-			if (Item->Quantity <= 0)
-			{
-				OnDepotChanged.Broadcast();
-				return true;
-			}
+			OnDepotChanged.Broadcast();
+			return true;
 		}
 	}
 
@@ -50,20 +53,24 @@ bool UQRDepotComponent::DepositItem(UQRItemInstance* Item)
 		return true;
 	}
 
+	// Nothing was stored — restore the caller's quantity to avoid silent partial consumption
+	Item->Quantity = OriginalQuantity;
 	return false;
 }
 
 UQRItemInstance* UQRDepotComponent::WithdrawItem(FName ItemId, int32 Quantity)
 {
-	if (CountItem(ItemId) < Quantity) return nullptr;
+	if (Quantity <= 0 || CountItem(ItemId) < Quantity) return nullptr;
 
-	UQRItemInstance* Result = NewObject<UQRItemInstance>(this);
+	// Outer to GetOwner so the item survives if this component is later destroyed
+	UQRItemInstance* Result = NewObject<UQRItemInstance>(GetOwner());
 
 	int32 Remaining = Quantity;
 	for (int32 i = StoredItems.Num() - 1; i >= 0 && Remaining > 0; --i)
 	{
 		UQRItemInstance* Inst = StoredItems[i];
-		if (!Inst || Inst->Definition->ItemId != ItemId) continue;
+		// Guard Definition — may be null on a replicated instance that hasn't fully resolved
+		if (!Inst || !Inst->Definition || Inst->Definition->ItemId != ItemId) continue;
 
 		if (!Result->IsValid())
 			Result->Initialize(Inst->Definition, 0);

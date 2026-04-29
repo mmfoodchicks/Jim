@@ -105,10 +105,17 @@ void UQRLeaderComponent::RecalculateDefectionRisk()
 
 void UQRLeaderComponent::AddDirective(FQRLeaderDirective Directive)
 {
-	// Don't duplicate
-	for (const FQRLeaderDirective& Existing : ActiveDirectives)
+	// If the same directive already exists, update its severity and reset its escalation timer
+	// rather than silently ignoring it (stale severity would persist otherwise)
+	for (FQRLeaderDirective& Existing : ActiveDirectives)
 	{
-		if (Existing.DirectiveId == Directive.DirectiveId) return;
+		if (Existing.DirectiveId == Directive.DirectiveId)
+		{
+			Existing.Severity            = Directive.Severity;
+			Existing.EscalationTimeHours = Directive.EscalationTimeHours;
+			Existing.bIsResolved         = false;
+			return;
+		}
 	}
 	ActiveDirectives.Add(Directive);
 	OnDirectiveAdded.Broadcast(Directive);
@@ -116,13 +123,15 @@ void UQRLeaderComponent::AddDirective(FQRLeaderDirective Directive)
 
 void UQRLeaderComponent::ResolveDirective(FName DirectiveId, float MoralBias)
 {
+	// Clamp bias so a malicious or accidental extreme value can't spike MoralCompassVector
+	const float ClampedBias = FMath::Clamp(MoralBias, -1.0f, 1.0f);
 	for (FQRLeaderDirective& Dir : ActiveDirectives)
 	{
 		if (Dir.DirectiveId == DirectiveId && !Dir.bIsResolved)
 		{
 			Dir.bIsResolved = true;
-			ApplyMoraleChange(Dir.Severity * 15.0f); // reward MI for resolution
-			MoralCompassVector = FMath::Clamp(MoralCompassVector + MoralBias, -1.0f, 1.0f);
+			ApplyMoraleChange(Dir.Severity * 15.0f);
+			MoralCompassVector = FMath::Clamp(MoralCompassVector + ClampedBias, -1.0f, 1.0f);
 			OnDirectiveResolved.Broadcast(DirectiveId);
 			return;
 		}
@@ -158,7 +167,9 @@ void UQRLeaderComponent::ApplyMoraleChange(float Delta, bool bIsEvent)
 
 void UQRLeaderComponent::GainLeaderXP(float XP)
 {
-	LeaderXP += XP;
+	// Reject negative or extreme values — no per-tick cap, but guards against runaway calls
+	if (XP <= 0.0f || !FMath::IsFinite(XP)) return;
+	LeaderXP = FMath::Clamp(LeaderXP + XP, 0.0f, 100000.0f);
 }
 
 float UQRLeaderComponent::GetTotalDebuff(FName StatName) const
@@ -179,19 +190,45 @@ void UQRLeaderComponent::RecalculateLeaderDerivedStats()
 	bIsInexperiencedLeader = (LeaderLevel == 1 && LeaderXP < 10.0f);
 }
 
+// Maximum hours a QuestIssued state can persist without resolution before forcing a fallback
+static constexpr float QuestIssuedTimeoutHours = 168.0f; // one in-game week
+
 void UQRLeaderComponent::AdvanceIssueEscalation(float BlockerSeverity, float DeltaGameHours)
 {
+	// Guard against negative or NaN inputs that would corrupt the FSM
+	if (DeltaGameHours <= 0.0f || !FMath::IsFinite(DeltaGameHours)) return;
+	const float SafeSeverity = FMath::Clamp(BlockerSeverity, 0.0f, 10.0f);
+
 	BlockerDurationHours += DeltaGameHours;
 
 	IssueEscalationScore = UQRMath::IssueEscalationScore(
-		BlockerSeverity, BlockerDurationHours, GuidanceDelayHours, LeaderAwarenessMult);
+		SafeSeverity, BlockerDurationHours, GuidanceDelayHours, LeaderAwarenessMult);
 
-	if (IssueState == EQRLeaderIssueState::None)
+	switch (IssueState)
+	{
+	case EQRLeaderIssueState::None:
+	case EQRLeaderIssueState::Resolved:
 		IssueState = EQRLeaderIssueState::Reported;
-	else if (IssueState == EQRLeaderIssueState::Reported && IssueEscalationScore > 10.0f)
-		IssueState = EQRLeaderIssueState::Escalating;
-	else if (IssueState == EQRLeaderIssueState::Escalating && IssueEscalationScore >= 100.0f)
-		IssueState = EQRLeaderIssueState::QuestIssued;
+		break;
+	case EQRLeaderIssueState::Reported:
+		if (IssueEscalationScore > 10.0f)
+			IssueState = EQRLeaderIssueState::Escalating;
+		break;
+	case EQRLeaderIssueState::Escalating:
+		if (IssueEscalationScore >= 100.0f)
+			IssueState = EQRLeaderIssueState::QuestIssued;
+		break;
+	case EQRLeaderIssueState::QuestIssued:
+		// Fallback: if quest generation system never resolved this within the timeout,
+		// force-resolve so the FSM doesn't get stuck permanently
+		if (BlockerDurationHours >= QuestIssuedTimeoutHours)
+		{
+			ResolveCurrentIssue();
+			// Apply a morale penalty to represent the unaddressed issue
+			ApplyMoraleChange(-SafeSeverity * 5.0f);
+		}
+		break;
+	}
 }
 
 void UQRLeaderComponent::ResolveCurrentIssue()
