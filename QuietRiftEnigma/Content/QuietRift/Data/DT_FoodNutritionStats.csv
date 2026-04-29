@@ -1,0 +1,16 @@
+FoodId,DisplayName,WeightKg,StackLimit,SpoilHours,CalRaw,WaterRaw,RiskRaw,CalCook,WaterCook,RiskCook,RawEffect,CookEffect,Source
+FOD_RAW_MEAT,Raw Meat,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_GRAIN_SACK,Grain Sack,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_TUBER_CRATE,Tuber Crate,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_AROMA_POD,Aroma Pod,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_COOKED_MEAT,Cooked Meat,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_JERKY_STRIP,Jerky Strip,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_HOT_PORRIDGE,Hot Porridge,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_TUBER_STEW,Tuber Stew,,,,,,,,,,,,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_LATTICE_TUBER,Lattice Tuber,0.6,12,18,220,35,0.22,300,20,0.12,Nausea (10% if fails),Well Fed (+StaminaRegen 20m),JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_MAWCAP_CAP,Mawcap Cap,0.4,16,10,140,15,0.35,240,10,0.16,Hallucination (low),Warmth (+ColdResist 15m),JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_NULLMINT_NODE,Nullmint Node,0.2,20,24,40,8,0.1,30,5,0.06,Calm (+PanicThreshold 10m),Calm (+PanicThreshold 15m),JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_REED_PORRIDGE,Reed Porridge,0.5,10,8,80,30,0.18,220,55,0.08,Bloat (minor),Hydrated (+HydrationRegen 15m),JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_COURSER_MEAT,Courser Meat Cut,1.0,6,12,300,0,0.28,520,0,0.1,Parasite risk,Strong (+Strength 10m),JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_DRAY_MEAT,Dray Meat Slab,1.5,4,9,420,0,0.26,720,0,0.11,GI risk,Well Fed (+WorkSpeed 10m),JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx
+FOD_FIELD_RATION,Field Ration,0.3,20,9999,450,0,0.0,450,0,0.0,None,None,JIM_Final_Encyclopedia_GDD_v1_2_MERGED_Field_Manual_Integrated_v8_ADDED_OPTICS_LONGRANGE_SNIPER (1).docx

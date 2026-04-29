@@ -72,6 +72,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float WearPerShot = 0.5f;
 
+	// v1.17: fouling added per shot (canonical name from v1.17 patch)
+	// Dirty/primitive ammo multiplies this by 5; suppressor multiplies by 1.5
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon",
+		meta = (ClampMin = "0", ClampMax = "1"))
+	float FoulingPerShot = 0.005f;
+
+	// v1.17: multiplier applied to FoulingPerShot when dirty/improvised ammo is used
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	float DirtyAmmoFoulingMult = 5.0f;
+
+	// v1.17: additional fouling multiplier when a suppressor attachment is fitted
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	float SuppressorFoulingMult = 1.5f;
+
+	// v1.17: seconds required to clear a jam (ClearJam action duration)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon",
+		meta = (ClampMin = "0"))
+	float MalfunctionClearSeconds = 4.0f;
+
 	// ── Runtime State ─────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")
 	EQRWeaponState WeaponState = EQRWeaponState::Holstered;
@@ -79,9 +98,13 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")
 	int32 CurrentAmmo = 0;
 
-	// Fouling factor [0..1] — increases jam chance over time
+	// Fouling accumulator [0..1] — drives jam chance and accuracy penalty
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")
 	float FoulingFactor = 0.0f;
+
+	// v1.17: explicit jam flag, separate from WeaponState so Blueprints can query it directly
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")
+	bool bIsJammed = false;
 
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Weapon|Events")
@@ -120,6 +143,14 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	float GetJamChance() const { return FMath::Clamp(BaseJamChance + FoulingFactor * 0.2f, 0.0f, 0.8f); }
+
+	// v1.17: compute per-shot fouling increment accounting for ammo type and suppressor
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	float GetFoulingIncrement(bool bIsDirtyAmmo, bool bHasSuppressor) const;
+
+	// v1.17: True when jammed or state is Empty/Reloading
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	bool IsReadyToFire() const { return !bIsJammed && WeaponState == EQRWeaponState::Ready && CurrentAmmo > 0; }
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

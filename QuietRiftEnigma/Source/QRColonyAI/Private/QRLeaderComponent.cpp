@@ -1,22 +1,36 @@
 #include "QRLeaderComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "QRMath.h"
 
 UQRLeaderComponent::UQRLeaderComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.TickInterval = 60.0f; // tick once per in-game minute
 	SetIsReplicatedByDefault(true);
+
+	// Pre-allocate 8-axis policy vector (one slot per EQRMoralCompassAxis)
+	CampPolicyVector.Init(0.0f, 8);
 }
 
 void UQRLeaderComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UQRLeaderComponent, LeadershipAptitude);
+	DOREPLIFETIME(UQRLeaderComponent, SkillAptitude);
+	DOREPLIFETIME(UQRLeaderComponent, Composure);
+	DOREPLIFETIME(UQRLeaderComponent, LeaderBuff);
+	DOREPLIFETIME(UQRLeaderComponent, LeaderLevel);
+	DOREPLIFETIME(UQRLeaderComponent, bIsInexperiencedLeader);
 	DOREPLIFETIME(UQRLeaderComponent, MoraleIndex);
 	DOREPLIFETIME(UQRLeaderComponent, MoraleResilience);
 	DOREPLIFETIME(UQRLeaderComponent, MoraleGradient);
 	DOREPLIFETIME(UQRLeaderComponent, LeaderXP);
 	DOREPLIFETIME(UQRLeaderComponent, DefectionRisk);
 	DOREPLIFETIME(UQRLeaderComponent, MoralCompassVector);
+	DOREPLIFETIME(UQRLeaderComponent, IssueState);
+	DOREPLIFETIME(UQRLeaderComponent, IssueEscalationScore);
+	DOREPLIFETIME(UQRLeaderComponent, BlockerDurationHours);
+	DOREPLIFETIME(UQRLeaderComponent, CampAlignmentScore);
 	DOREPLIFETIME(UQRLeaderComponent, ActiveDirectives);
 	DOREPLIFETIME(UQRLeaderComponent, ActiveConditions);
 }
@@ -156,4 +170,51 @@ float UQRLeaderComponent::GetTotalDebuff(FName StatName) const
 			Total += Cond.DebuffAmount;
 	}
 	return Total;
+}
+
+void UQRLeaderComponent::RecalculateLeaderDerivedStats()
+{
+	LeaderBuff  = UQRMath::LeaderBuffScalar(LeadershipAptitude, SkillAptitude);
+	LeaderLevel = UQRMath::ComputeLeaderLevel(LeadershipAptitude, SkillAptitude);
+	bIsInexperiencedLeader = (LeaderLevel == 1 && LeaderXP < 10.0f);
+}
+
+void UQRLeaderComponent::AdvanceIssueEscalation(float BlockerSeverity, float DeltaGameHours)
+{
+	BlockerDurationHours += DeltaGameHours;
+
+	IssueEscalationScore = UQRMath::IssueEscalationScore(
+		BlockerSeverity, BlockerDurationHours, GuidanceDelayHours, LeaderAwarenessMult);
+
+	if (IssueState == EQRLeaderIssueState::None)
+		IssueState = EQRLeaderIssueState::Reported;
+	else if (IssueState == EQRLeaderIssueState::Reported && IssueEscalationScore > 10.0f)
+		IssueState = EQRLeaderIssueState::Escalating;
+	else if (IssueState == EQRLeaderIssueState::Escalating && IssueEscalationScore >= 100.0f)
+		IssueState = EQRLeaderIssueState::QuestIssued;
+}
+
+void UQRLeaderComponent::ResolveCurrentIssue()
+{
+	IssueState           = EQRLeaderIssueState::Resolved;
+	IssueEscalationScore = 0.0f;
+	BlockerDurationHours = 0.0f;
+	// Let morale recover on next directive resolution call
+}
+
+void UQRLeaderComponent::UpdateCampAlignment(const TArray<float>& CampPreferenceVector)
+{
+	if (CampPreferenceVector.Num() != CampPolicyVector.Num()) return;
+
+	float Dot = 0.0f;
+	float MagPolicy = 0.0f, MagCamp = 0.0f;
+	for (int32 i = 0; i < CampPolicyVector.Num(); ++i)
+	{
+		Dot       += CampPolicyVector[i] * CampPreferenceVector[i];
+		MagPolicy += CampPolicyVector[i] * CampPolicyVector[i];
+		MagCamp   += CampPreferenceVector[i] * CampPreferenceVector[i];
+	}
+
+	const float Denom = FMath::Sqrt(MagPolicy) * FMath::Sqrt(MagCamp);
+	CampAlignmentScore = (Denom > SMALL_NUMBER) ? FMath::Clamp(Dot / Denom, -1.0f, 1.0f) : 0.0f;
 }
