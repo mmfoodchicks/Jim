@@ -6,6 +6,8 @@
 #include "QRItemDefinition.h"
 #include "QRColonyStateComponent.h"
 #include "QRResearchComponent.h"
+#include "QRRaidScheduler.h"
+#include "QRGameplayTags.h"
 #include "QRWeatherComponent.h"
 #include "QRScentComponent.h"
 #include "QRWeaponComponent.h"
@@ -59,17 +61,19 @@ void UQRCheatManager::QRSetMorale(float Value)
 void UQRCheatManager::QRForceRaid()
 {
 #if !UE_BUILD_SHIPPING
-	if (AQRGameMode* GM = Cast<AQRGameMode>(UGameplayStatics::GetGameMode(GetPlayerController())))
+	// AQRRaidScheduler is an actor placed in the level — find the first one and trigger it
+	TArray<AActor*> Found;
+	UGameplayStatics::GetAllActorsOfClass(GetPlayerController(), AQRRaidScheduler::StaticClass(), Found);
+	if (Found.Num() == 0)
 	{
-		// QRRaidScheduler lives as a component on the GameState; ask it to fire immediately
-		if (AGameStateBase* GS = UGameplayStatics::GetGameState(GetPlayerController()))
-		{
-			if (UActorComponent* Comp = GS->FindComponentByClass(FindObject<UClass>(ANY_PACKAGE, TEXT("UQRRaidScheduler"))))
-			{
-				// Delegate to Blueprint or call the native ForceRaid method if declared
-				UE_LOG(LogTemp, Log, TEXT("[QRCheat] ForceRaid requested — wire UQRRaidScheduler::ForceRaid in Blueprint if not yet exposed"));
-			}
-		}
+		UE_LOG(LogTemp, Warning, TEXT("[QRCheat] No AQRRaidScheduler in world — place one in your level"));
+		return;
+	}
+
+	if (AQRRaidScheduler* Sched = Cast<AQRRaidScheduler>(Found[0]))
+	{
+		Sched->TriggerRaid(QRGameplayTags::Faction_Hostile_Generic, EQRRaidExperienceTier::Competent);
+		UE_LOG(LogTemp, Log, TEXT("[QRCheat] ForceRaid triggered (Hostile.Generic / Competent tier)"));
 	}
 #endif
 }
