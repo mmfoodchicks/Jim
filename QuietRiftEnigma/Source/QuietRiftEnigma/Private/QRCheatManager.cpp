@@ -12,6 +12,7 @@
 #include "QRScentComponent.h"
 #include "QRWeaponComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/AssetManager.h"
 #include "Kismet/GameplayStatics.h"
 
 // Helper: find the local player's pawn cast to AQRCharacter, or nullptr
@@ -39,8 +40,26 @@ void UQRCheatManager::QRGiveItem(const FString& ItemId, int32 Quantity)
 	}
 
 	const int32 SafeQty = FMath::Clamp(Quantity, 1, 9999);
-	EQRInventoryResult Result = Inv->TryAddByDefinition(FName(*ItemId), SafeQty);
-	UE_LOG(LogTemp, Log, TEXT("[QRCheat] GiveItem %s x%d → result %d"), *ItemId, SafeQty, (int32)Result);
+
+	// Resolve the item definition via the asset manager. The cheat manager only runs in
+	// dev builds, so a synchronous load is acceptable if the asset isn't already in memory.
+	UAssetManager& AM = UAssetManager::Get();
+	const FPrimaryAssetId AssetId(TEXT("QRItem"), FName(*ItemId));
+	const UQRItemDefinition* Def = Cast<UQRItemDefinition>(AM.GetPrimaryAssetObject(AssetId));
+	if (!Def)
+	{
+		const FSoftObjectPath Path = AM.GetPrimaryAssetPath(AssetId);
+		Def = Path.IsValid() ? Cast<UQRItemDefinition>(Path.TryLoad()) : nullptr;
+	}
+	if (!Def)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[QRCheat] QRGiveItem: item '%s' not found in QRItem primary assets"), *ItemId);
+		return;
+	}
+
+	int32 Remainder = 0;
+	EQRInventoryResult Result = Inv->TryAddByDefinition(Def, SafeQty, Remainder);
+	UE_LOG(LogTemp, Log, TEXT("[QRCheat] GiveItem %s x%d → result %d remainder %d"), *ItemId, SafeQty, (int32)Result, Remainder);
 #endif
 }
 
