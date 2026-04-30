@@ -4,6 +4,7 @@
 #include "QRResearchComponent.h"
 #include "QRWeatherComponent.h"
 #include "QRSaveGameSystem.h"
+#include "QRVanguardColony.h"
 #include "QRCharacter.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -29,6 +30,10 @@ void AQRGameMode::BeginPlay()
 		Weather     = GS->FindComponentByClass<UQRWeatherComponent>();
 	}
 
+	// The Concordat is placed once by the level designer; locate it by class.
+	VanguardConcordat = Cast<AQRVanguardColony>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), AQRVanguardColony::StaticClass()));
+
 	// Activate tutorial mission
 	ActivateMission(FName("MQ_000"));
 }
@@ -41,7 +46,8 @@ void AQRGameMode::Tick(float DeltaTime)
 
 	// Convert real-seconds elapsed into game-hours for time-driven subsystems
 	const float GameHoursElapsed = DeltaTime * 24.0f / DayLengthRealSeconds;
-	if (Weather) Weather->AdvanceByHours(GameHoursElapsed);
+	if (Weather)           Weather->AdvanceByHours(GameHoursElapsed);
+	if (VanguardConcordat) VanguardConcordat->AdvanceTime(GameHoursElapsed);
 
 	float DayProgress = FMath::Fmod(WorldTimeSeconds, DayLengthRealSeconds) / DayLengthRealSeconds;
 	bool bWasNight    = bIsNight;

@@ -98,6 +98,18 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "NPC")
 	void SetRaidState(EQRCivilianRaidState NewState);
 
+	// Picks a raid response based on this NPC's individual morale:
+	//   >= 65 → Defending  (high morale: stand and fight back)
+	//   >= 30 → Hiding     (mid morale: shelter in place, stay quiet)
+	//   <  30 → Fleeing    (low morale: run, abandon the camp if needed)
+	UFUNCTION(BlueprintPure, Category = "NPC|Raid")
+	EQRCivilianRaidState DetermineRaidResponse() const;
+
+	// Convenience wrapper — picks a response and applies it as the new raid state.
+	// Call from the GameMode/raid scheduler when a raid begins for each civilian.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "NPC|Raid")
+	void RespondToRaid();
+
 	// Recompute CampAlignmentScore by dot-product of InnateCompassVector vs camp policy.
 	// Call this when the camp's policy vector changes or when evaluating whether an NPC stays.
 	// Returns the new score; Blueprint can check against a leave threshold (e.g. < -0.6).

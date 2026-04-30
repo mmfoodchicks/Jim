@@ -203,6 +203,39 @@ enum class EQRRaidExperienceTier : uint8
 	Fanatic         UMETA(DisplayName = "Fanatic"),
 };
 
+// Tier classification for Vanguard Concordat satellite outposts.
+// Determined at runtime from distance to the Concordat; drives AI, attacker count, and equipment.
+UENUM(BlueprintType)
+enum class EQRVanguardHardpointTier : uint8
+{
+	ListeningPost   UMETA(DisplayName = "Listening Post"),   // Outer ring — scouts, watchers, no fortification
+	ForwardPost     UMETA(DisplayName = "Forward Post"),     // Mid-outer — light infantry, basic cover
+	Hardpoint       UMETA(DisplayName = "Hardpoint"),        // Mid-inner — fortified, coordinated patrols
+	InnerSanctum    UMETA(DisplayName = "Inner Sanctum"),    // Near Concordat — elite, heavy weapons
+	Concordat       UMETA(DisplayName = "Concordat"),        // The main colony — Fanatic-tier, never relocated
+};
+
+// Physical artifact left behind by Progenitor automated systems.
+// Found near active Remnant sites; each type has distinct research and crafting uses.
+UENUM(BlueprintType)
+enum class EQRRemnantArtifactType : uint8
+{
+	DataShard       UMETA(DisplayName = "Data Shard"),      // Crystalline memory sliver — yields Remnant research on study
+	PowerCell       UMETA(DisplayName = "Power Cell"),      // Spent or partial energy store — T4 power ingredient
+	SignalFragment  UMETA(DisplayName = "Signal Fragment"), // Broken Spire component — contains Progenitor language data
+	MemoryCore      UMETA(DisplayName = "Memory Core"),     // Dense data cluster — rare; unlocks codex lore directly
+};
+
+// Classification of Progenitor (Remnant) structure types found on Tharsis IV.
+UENUM(BlueprintType)
+enum class EQRRemnantStructureType : uint8
+{
+	SignalSpire         UMETA(DisplayName = "Signal Spire"),        // Emits the beacon signal; studying unlocks lore
+	PowerCore           UMETA(DisplayName = "Power Core"),          // Still-active energy source; harvestable for T4 power
+	DataArchive         UMETA(DisplayName = "Data Archive"),        // Crystalline storage; yields Remnant research on study
+	ResonanceChamber    UMETA(DisplayName = "Resonance Chamber"),   // Deepest sites; responds to Rift research progress
+};
+
 UENUM(BlueprintType)
 enum class EQRRemnantWakeState : uint8
 {

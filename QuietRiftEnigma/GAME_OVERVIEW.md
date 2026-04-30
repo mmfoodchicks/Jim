@@ -119,9 +119,64 @@ Every craft in your colony can have a **leader promoted from within**. Leaders g
 
 The world runs on a real cycle. Days give you time to work, explore, and build. Night raises the threat level — wildlife is more aggressive, the temperature drops harder, and the colony needs you close.
 
-Raids aren't random. A threat risk score builds based on your camp's visibility, noise level, and the factions moving through the region. The more you push outward, the more attention you attract. When a raid hits, your guards respond based on their training. Civilians shelter or flee. You're in the middle of it with whatever weapon you have.
+Raids aren't random. A threat risk score builds based on your camp's visibility, noise level, and the factions moving through the region. The more you push outward, the more attention you attract.
+
+**When a raid hits, civilians don't all react the same way.** Each NPC's individual morale decides what they do:
+
+- **High morale (defending)** — they grab whatever they can use as a weapon and fight back alongside your guards. A camp running on confidence and full bellies turns hostile fast when something attacks it.
+- **Mid morale (hiding)** — they shelter in place, doors barred, lights down, hoping the raid passes. They don't help and they don't get in the way.
+- **Low morale (fleeing)** — they break and run. Sometimes they come back when it's over. Sometimes they don't. A camp running on hunger and grief loses people every time it gets hit.
+
+Your guards respond based on their training and assignment regardless of morale — that's what they're there for. But the civilian half of your population is a direct measure of how well you've kept the place running. You'll see it the first time a raid hits a hungry, demoralized camp and you watch half your survivors disappear into the treeline.
 
 Survive. Repair. Rebuild. The attention doesn't go away.
+
+---
+
+## The Concordat — Your Real Enemy
+
+Six years before the *Meridian's Threshold* launched, the Colonial Authority had already sent someone to Tharsis IV.
+
+That mission wasn't announced. It wasn't on any public manifest. It was the classified advance team — a small forward operation under **Director Harlan Voss**, dispatched the moment the moon's signal was confirmed structured rather than natural. Voss arrived, found the Quiet Rift, claimed the moon as Colonial Authority property under emergency-charter provisions no one outside the Authority had ever read, and got to work. By the time your colony ship launched, he had been there for years, building.
+
+What he built is called **the Concordat**. It is the largest single faction on the moon and the only one that genuinely matters. Voss isn't interested in your colony's survival. He's interested in your colony not knowing what's down there until the Authority decides to make it official — and he's prepared to ensure that personally if the situation requires it.
+
+**The Concordat is hardcoded into the world.** It doesn't move, doesn't get repositioned by world generation, doesn't disappear in a procedural shuffle. It sits where Voss put it — adjacent to the Rift entrance — surrounded by rings of armed positions that get harder the closer you get to the center.
+
+**Those rings are the satellite outposts.** The Concordat doesn't raid you directly most of the time. It delegates. The outer ring is mostly listening posts and scouts — light infantry with old equipment, the kind of opposition you can fight through if you're prepared. The middle rings are forward posts and hardpoints — coordinated patrols, real cover, fortified positions that take planning. The inner sanctum, just outside the Concordat itself, is staffed by Voss's personal guard — Fanatic-tier, heavy weapons, no hesitation. And then there's the Concordat at the center, which you do not walk into casually.
+
+**The closer you push, the harder the resistance gets.** Each outpost knows exactly where it sits in the perimeter and fights accordingly. Your first capture is going to be a listening post that broke. Your last, before the Concordat itself, is going to cost you.
+
+**Capturing satellites matters.** Each one you take down reduces the total raid capacity the Concordat can field against you. The Concordat itself always retains a baseline of direct raid actions — Voss's personal guard, Fanatic-tier, dispatched without warning when his hostility toward you crosses a threshold — but the satellites are what give him reach. Cut them off and the pressure on your camp decreases visibly.
+
+**Hostility builds over time.** The Concordat tracks what you do. Attacking outposts raises it. Researching the Rift past certain thresholds raises it more. Stealing Progenitor technology raises it the most. Push too hard, too fast, and Voss stops bothering with proxies and comes for you directly.
+
+You can ignore the Concordat for a long time if you stay small. You cannot reach the Rift without going through it.
+
+---
+
+## The Remnants
+
+Scattered across Tharsis IV are structures that should not exist.
+
+The Colonial Authority's classification for them is **Source Culture Zero (SC-0)** — the Progenitors. Whatever they were, they're gone. Not killed, not buried, just gone. There are no bodies, no graves, no images, no tools sized for anything resembling a hand. What remains is **automated infrastructure that's still running**, thousands of years after the people who built it stopped existing.
+
+This is the part of the moon the *Meridian's Threshold* was actually sent to investigate. It's also the part Voss is suppressing.
+
+**Remnant structures are not ruins.** They are functional systems. They have power. They have cycles. They respond to being approached. The four major types:
+
+- **Signal Spires** — the source of the beacon that drew Earth here in the first place. Approachable; studying them yields language fragments that begin to crack the Progenitor codex.
+- **Power Cores** — still-active energy sources, output measurable in the same units as your generator's. Late-game research lets you tap them for T4 power without breaking them, *if* the structure isn't reacting to you.
+- **Data Archives** — crystalline storage that gives up Remnant research points when studied. The single best research source in the game once you can safely approach one.
+- **Resonance Chambers** — the deepest sites, the ones that respond to your Rift research progress most strongly. These are the structures that wake up when you push too far.
+
+**Each structure has a wake state.** It starts **Dormant** — quiet, safe to approach, basic research yield. As your colony's Rift research advances, structures begin **Stirring** — mild atmospheric effects in the area, slightly better research yield, nearby Vanguard patrols become alert because Voss is watching this exact metric. Push further and they go **Active** — full data access, stronger pulses, visibly different from before. Push far enough that the structure decides it's threatened and it goes **Hostile** — automated defensive systems engage, anything in the field takes damage, research becomes dangerous and partial. Eventually defenses stand down and the site enters **Subsiding**, returning toward Active.
+
+**You don't fight the Remnants. You learn to read them.** A Hostile structure isn't an enemy in the conventional sense — it's a piece of automated infrastructure that decided you weren't authorized. Wait it out. Approach during a calm window. Study during Active state and your yields multiply.
+
+**Artifacts.** When structures stir, fragments shed loose — Data Shards, Power Cells, Signal Fragments, and very rarely Memory Cores. Pick them up and you feed the Remnant research family directly. Memory Cores in particular unlock codex lore entries on collection rather than requiring research time, and they're rare enough that finding one is a real event.
+
+**The Concordat knows all of this.** Voss has been studying these sites for six years. He has a head start on you that's measured in years of data. The Concordat's Inner Sanctum sits where it sits because the structures it surrounds are the ones Voss has already learned to interface with. You will get there eventually, if you make it that far.
 
 ---
 
@@ -167,9 +222,11 @@ The meteor that broke the ship wasn't in any navigation chart because it wasn't 
 
 You survived anyway.
 
-The **Quiet Rift** is the entrance — a massive seismic formation on the surface that opens into the structure below. The signal originates there. The closer your research gets to it, the more the structure responds: weather events increasing in frequency, wildlife behavior shifting, strange formations appearing on the surface that weren't there before.
+The **Quiet Rift** is the entrance — a massive seismic formation on the surface that opens into the structure below. The signal originates there. The closer your research gets to it, the more the Remnant structures respond: weather events increasing in frequency, wildlife behavior shifting, dormant sites stirring, strange formations appearing on the surface that weren't there before.
 
-By late game, your colony has to make a decision about what to do with what you've found.
+And the closer you get, the more visible the Concordat becomes. Voss didn't build his ring of outposts at random. He built it around the part of the moon that the Authority decided was theirs. You're not just exploring the Rift — you're contesting it. Every step toward the center is a step into someone else's claim, and Voss has had six years to fortify it.
+
+By late game, your colony has to make a decision about what to do with what you've found. And about what to do with the Concordat. Those aren't separate decisions.
 
 ---
 

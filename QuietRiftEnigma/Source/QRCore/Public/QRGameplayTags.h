@@ -75,6 +75,12 @@ namespace QRGameplayTags
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Faction_EngineerCompact)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Faction_Remnant)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Faction_Hostile_Generic)
+	// The Vanguard Concordat — the hardcoded antagonist faction controlling the Rift approaches
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Faction_Vanguard)
+	// Satellite outposts that ring the Concordat; difficulty scales with distance
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Faction_Vanguard_Satellite)
+	// Threat tag used by the raid scheduler to classify Vanguard-sourced raids
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Threat_Vanguard)
 
 	// ── Biome Tags (v1.5 canonical) ──
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Biome_BasaltShelf)

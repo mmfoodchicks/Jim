@@ -140,6 +140,21 @@ void AQRNPCSurvivor::SetRaidState(EQRCivilianRaidState NewState)
 	if (RoleComp) RoleComp->SetRaidState(NewState);
 }
 
+EQRCivilianRaidState AQRNPCSurvivor::DetermineRaidResponse() const
+{
+	// High morale survivors fight back, mid morale hide, low morale flee.
+	// Guards are still routed through their normal combat orders by the role component;
+	// this only governs civilian (non-guard) reaction.
+	if (IndividualMorale >= 65.0f) return EQRCivilianRaidState::Defending;
+	if (IndividualMorale >= 30.0f) return EQRCivilianRaidState::Hiding;
+	return EQRCivilianRaidState::Fleeing;
+}
+
+void AQRNPCSurvivor::RespondToRaid()
+{
+	SetRaidState(DetermineRaidResponse());
+}
+
 bool AQRNPCSurvivor::IsAlive() const
 {
 	return Survival && !Survival->bIsDead;

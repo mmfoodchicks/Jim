@@ -10,6 +10,7 @@ class UQRResearchComponent;
 class UQRSaveGameSystem;
 class UQRWeatherComponent;
 class AQRRaidScheduler;
+class AQRVanguardColony;
 
 // Main game mode — controls session start, tutorial unlock flow, and ending resolution
 UCLASS(BlueprintType, Blueprintable)
@@ -50,6 +51,12 @@ public:
 	// Weather component — lives on the GameState. GameMode drives its time advance each tick.
 	UPROPERTY(BlueprintReadOnly, Category = "World")
 	TObjectPtr<UQRWeatherComponent> Weather;
+
+	// The hardcoded Vanguard Concordat actor, located in the level by class on BeginPlay.
+	// GameMode drives its game-hours clock each tick so its raid cooldowns and hostility
+	// decay advance regardless of which Blueprint subclass the level designer used.
+	UPROPERTY(BlueprintReadOnly, Category = "Concordat")
+	TObjectPtr<AQRVanguardColony> VanguardConcordat;
 
 	// ── Save System ───────────────────────────
 	UPROPERTY(BlueprintReadOnly, Category = "Save")
