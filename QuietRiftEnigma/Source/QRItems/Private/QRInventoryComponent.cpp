@@ -43,7 +43,7 @@ EQRInventoryResult UQRInventoryComponent::TryAddItem(UQRItemInstance* Item, int3
 	const float FreeVolume = FMath::Max(MaxVolumeLiters  - GetCurrentVolumeLiters(), 0.0f);
 	const int32 MaxByWeight = FMath::FloorToInt(FreeWeight / MassKg);
 	const int32 MaxByVolume = FMath::FloorToInt(FreeVolume / VolLiters);
-	const int32 MaxFit = FMath::Min({Item->Quantity, MaxByWeight, MaxByVolume});
+	const int32 MaxFit = FMath::Min(Item->Quantity, FMath::Min(MaxByWeight, MaxByVolume));
 
 	if (MaxFit <= 0)
 	{

@@ -54,7 +54,7 @@ bool UQRResearchComponent::DeliverReferenceComponent(FName ReferenceComponentId)
 	// Find the tech node that needs this ref component
 	for (FQRTechNodeRuntime& RT : TechNodeStates)
 	{
-		const UQRTechNode** NodePtr = NodeDefinitions.Find(RT.TechNodeId);
+		auto* NodePtr = NodeDefinitions.Find(RT.TechNodeId);
 		if (!NodePtr || !(*NodePtr)) continue;
 
 		if ((*NodePtr)->RequiredReferenceComponentId == ReferenceComponentId && !RT.bRefComponentDelivered)
@@ -74,7 +74,7 @@ void UQRResearchComponent::AddResearchPoints(float Points, EQRResearchFamily Fam
 	{
 		if (RT.State != EQRTechNodeState::ResearchPending) continue;
 
-		const UQRTechNode** NodePtr = NodeDefinitions.Find(RT.TechNodeId);
+		auto* NodePtr = NodeDefinitions.Find(RT.TechNodeId);
 		if (!NodePtr || !(*NodePtr)) continue;
 		if ((*NodePtr)->Family != Family) continue;
 
@@ -85,7 +85,7 @@ void UQRResearchComponent::AddResearchPoints(float Points, EQRResearchFamily Fam
 
 void UQRResearchComponent::TryUnlockNode(FQRTechNodeRuntime& Runtime)
 {
-	const UQRTechNode** NodePtr = NodeDefinitions.Find(Runtime.TechNodeId);
+	auto* NodePtr = NodeDefinitions.Find(Runtime.TechNodeId);
 	if (!NodePtr || !(*NodePtr)) return;
 	const UQRTechNode* Node = *NodePtr;
 
@@ -112,7 +112,7 @@ void UQRResearchComponent::TryUnlockNode(FQRTechNodeRuntime& Runtime)
 	{
 		if (OtherRT.State == EQRTechNodeState::Locked)
 		{
-			const UQRTechNode** OtherNodePtr = NodeDefinitions.Find(OtherRT.TechNodeId);
+			auto* OtherNodePtr = NodeDefinitions.Find(OtherRT.TechNodeId);
 			if (OtherNodePtr && *OtherNodePtr && ArePrerequisitesMet(*OtherNodePtr))
 				OtherRT.State = EQRTechNodeState::ResearchPending;
 		}
@@ -130,7 +130,7 @@ bool UQRResearchComponent::ArePrerequisitesMet(const UQRTechNode* Node) const
 
 bool UQRResearchComponent::QueueMicroResearch(FName MicroResearchId, UQRInventoryComponent* CostSource)
 {
-	const UQRMicroResearchDefinition** DefPtr = MicroResearchDefinitions.Find(MicroResearchId);
+	auto* DefPtr = MicroResearchDefinitions.Find(MicroResearchId);
 	if (!DefPtr || !(*DefPtr)) return false;
 
 	// Check stack cap
@@ -167,7 +167,7 @@ int32 UQRResearchComponent::GetMicroResearchStacks(FName MicroResearchId) const
 
 float UQRResearchComponent::GetMicroResearchMultiplier(FName MicroResearchId) const
 {
-	const UQRMicroResearchDefinition** DefPtr = MicroResearchDefinitions.Find(MicroResearchId);
+	auto* DefPtr = MicroResearchDefinitions.Find(MicroResearchId);
 	if (!DefPtr) return 1.0f;
 
 	for (const FQRMicroResearchRuntime& RT : MicroResearchStates)
@@ -204,7 +204,7 @@ void UQRResearchComponent::TickResearchQueue(float DeltaTime)
 	if (MicroResearchQueue.IsEmpty()) return;
 
 	const FName CurrentId = MicroResearchQueue[0];
-	const UQRMicroResearchDefinition** DefPtr = MicroResearchDefinitions.Find(CurrentId);
+	auto* DefPtr = MicroResearchDefinitions.Find(CurrentId);
 	if (!DefPtr || !(*DefPtr))
 	{
 		MicroResearchQueue.RemoveAt(0);

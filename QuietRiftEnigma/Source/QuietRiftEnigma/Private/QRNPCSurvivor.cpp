@@ -43,10 +43,7 @@ void AQRNPCSurvivor::BeginPlay()
 	{
 		// Bind death
 		if (Survival)
-			Survival->OnDeath.AddLambda([this]()
-			{
-				// Notify colony state — handled via GameMode in Blueprint
-			});
+			Survival->OnDeath.AddDynamic(this, &AQRNPCSurvivor::OnSurvivalDeath);
 
 		// Start behavior tree
 		if (AAIController* AIC = Cast<AAIController>(GetController()))
@@ -98,4 +95,9 @@ void AQRNPCSurvivor::SetRaidState(EQRCivilianRaidState NewState)
 bool AQRNPCSurvivor::IsAlive() const
 {
 	return Survival && !Survival->bIsDead;
+}
+
+void AQRNPCSurvivor::OnSurvivalDeath()
+{
+	// Notify colony state — handled via GameMode in Blueprint
 }

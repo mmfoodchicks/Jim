@@ -27,5 +27,5 @@ public:
 	float StompDamage = 60.0f;
 
 	virtual void OnThreatDetected_Implementation(AActor* Threat) override;
-	virtual void OnDeath_Implementation() override;
+	virtual void OnDied_Implementation(AActor* Killer) override;
 };

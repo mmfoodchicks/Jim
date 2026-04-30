@@ -102,6 +102,10 @@ public:
 	void AdvanceRegrowth(float GameHoursElapsed);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Harvestable")
+	void OnHarvest(AActor* Harvester);
+	virtual void OnHarvest_Implementation(AActor* Harvester) {}
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Harvestable")
 	void OnDepleted();
 	virtual void OnDepleted_Implementation();
 

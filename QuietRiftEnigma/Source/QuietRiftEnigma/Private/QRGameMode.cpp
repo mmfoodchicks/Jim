@@ -1,4 +1,5 @@
 #include "QRGameMode.h"
+#include "GameFramework/GameStateBase.h"
 #include "QRColonyStateComponent.h"
 #include "QRResearchComponent.h"
 #include "QRSaveGameSystem.h"

@@ -1,4 +1,5 @@
 #include "QRWildlifeBase.h"
+#include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AIController.h"
