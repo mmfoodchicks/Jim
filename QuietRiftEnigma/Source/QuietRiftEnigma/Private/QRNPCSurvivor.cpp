@@ -65,7 +65,12 @@ void AQRNPCSurvivor::PromoteToLeader(EQRLeaderType Type)
 	if (LeaderComp)
 	{
 		LeaderComp->LeaderType = Type;
-		// NativeLeaderType is set once (during creation or world-find) and never overwritten here
+		// Auto-derive native affinity on first promotion if not already set by the spawner.
+		// World-found leaders have NativeLeaderType set explicitly before PromoteToLeader is called.
+		if (LeaderComp->NativeLeaderType == EQRLeaderType::None && RoleComp)
+		{
+			LeaderComp->NativeLeaderType = UQRLeaderComponent::GetNaturalLeaderTypeForRole(RoleComp->PrimaryRole);
+		}
 		LeaderComp->RecalculateLeaderDerivedStats();
 	}
 

@@ -2,6 +2,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "QRColonyStateComponent.h"
 #include "QRResearchComponent.h"
+#include "QRWeatherComponent.h"
 #include "QRSaveGameSystem.h"
 #include "QRCharacter.h"
 #include "Kismet/GameplayStatics.h"
@@ -20,11 +21,12 @@ void AQRGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Colony state and research components live on the GameState actor
+	// Colony state, research, and weather components live on the GameState actor
 	if (AGameStateBase* GS = GetGameState<AGameStateBase>())
 	{
 		ColonyState = GS->FindComponentByClass<UQRColonyStateComponent>();
 		Research    = GS->FindComponentByClass<UQRResearchComponent>();
+		Weather     = GS->FindComponentByClass<UQRWeatherComponent>();
 	}
 
 	// Activate tutorial mission
@@ -35,8 +37,11 @@ void AQRGameMode::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	float PrevTime    = WorldTimeSeconds;
 	WorldTimeSeconds += DeltaTime;
+
+	// Convert real-seconds elapsed into game-hours for time-driven subsystems
+	const float GameHoursElapsed = DeltaTime * 24.0f / DayLengthRealSeconds;
+	if (Weather) Weather->AdvanceByHours(GameHoursElapsed);
 
 	float DayProgress = FMath::Fmod(WorldTimeSeconds, DayLengthRealSeconds) / DayLengthRealSeconds;
 	bool bWasNight    = bIsNight;

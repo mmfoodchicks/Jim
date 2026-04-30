@@ -8,6 +8,7 @@
 class UQRColonyStateComponent;
 class UQRResearchComponent;
 class UQRSaveGameSystem;
+class UQRWeatherComponent;
 class AQRRaidScheduler;
 
 // Main game mode — controls session start, tutorial unlock flow, and ending resolution
@@ -45,6 +46,10 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Research")
 	TObjectPtr<UQRResearchComponent> Research;
+
+	// Weather component — lives on the GameState. GameMode drives its time advance each tick.
+	UPROPERTY(BlueprintReadOnly, Category = "World")
+	TObjectPtr<UQRWeatherComponent> Weather;
 
 	// ── Save System ───────────────────────────
 	UPROPERTY(BlueprintReadOnly, Category = "Save")
