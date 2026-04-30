@@ -14,8 +14,7 @@ public class QRCraftingResearch : ModuleRules
 			"GameplayTags",
 			"QRCore",
 			"QRItems",
-			"QRLogistics",
-			"Net"
+			"QRLogistics"
 		});
 	}
 }

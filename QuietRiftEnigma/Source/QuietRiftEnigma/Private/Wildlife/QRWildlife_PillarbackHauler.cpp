@@ -27,9 +27,9 @@ void AQRWildlife_PillarbackHauler::OnThreatDetected_Implementation(AActor* Threa
 	SetAIState(EQRWildlifeAIState::Fleeing);
 }
 
-void AQRWildlife_PillarbackHauler::OnDeath_Implementation()
+void AQRWildlife_PillarbackHauler::OnDied_Implementation(AActor* Killer)
 {
-	Super::OnDeath_Implementation();
+	Super::OnDied_Implementation(Killer);
 	// Release dorsal mineral cache on death
 	for (const FQRWildlifeDrop& Drop : DorsalMineralDrops)
 	{

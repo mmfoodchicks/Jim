@@ -2,6 +2,9 @@
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRGameplayTags.h"
+#include "QRCoreSettings.h"
+#include "Engine/World.h"
+#include "Engine/OverlapResult.h"
 #include "Net/UnrealNetwork.h"
 
 UQRSurvivalComponent::UQRSurvivalComponent()
@@ -58,7 +61,11 @@ void UQRSurvivalComponent::ApplyNeedDamage(float DeltaTime)
 
 void UQRSurvivalComponent::TickInjuries(float DeltaTime)
 {
-	const float GameHoursPerSecond = 1.0f / 60.0f; // 1 game-min per real-sec
+	// Derive game-hours-per-second from the project day length setting so injury
+	// durations stay consistent if DayLengthSeconds is ever tuned.
+	const UQRCoreSettings* S        = GetDefault<UQRCoreSettings>();
+	const float DayLenSec           = S ? S->DayLengthSeconds : 1200.0f;
+	const float GameHoursPerSecond  = 24.0f / DayLenSec;
 	float HoursElapsed = DeltaTime * GameHoursPerSecond;
 
 	for (int32 i = ActiveInjuries.Num() - 1; i >= 0; --i)

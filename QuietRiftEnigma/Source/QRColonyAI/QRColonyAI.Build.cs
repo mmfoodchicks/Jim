@@ -19,8 +19,7 @@ public class QRColonyAI : ModuleRules
 			"QRItems",
 			"QRSurvival",
 			"QRLogistics",
-			"QRCraftingResearch",
-			"Net"
+			"QRCraftingResearch"
 		});
 	}
 }

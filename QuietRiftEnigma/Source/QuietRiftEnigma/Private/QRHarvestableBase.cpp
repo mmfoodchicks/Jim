@@ -1,4 +1,5 @@
 #include "QRHarvestableBase.h"
+#include "QRCoreSettings.h"
 #include "Net/UnrealNetwork.h"
 
 AQRHarvestableBase::AQRHarvestableBase()
@@ -56,24 +57,36 @@ TArray<FQRHarvestYield> AQRHarvestableBase::Harvest(FGameplayTag ToolTag, float 
 	return Results;
 }
 
-void AQRHarvestableBase::AdvanceRegrowth(float GameHoursElapsed)
+void AQRHarvestableBase::ForceRegrow()
 {
-	if (!bIsDepleted || RegrowthTimeHours <= 0.0f) return;
+	GetWorldTimerManager().ClearTimer(RegrowthTimerHandle);
+	OnRegrowthTimerFired();
+}
 
-	RegrowthTimeRemaining -= GameHoursElapsed;
-	if (RegrowthTimeRemaining <= 0.0f)
-	{
-		bIsDepleted           = false;
-		RemainingCharges      = MaxHarvestCharges;
-		RegrowthTimeRemaining = 0.0f;
-		OnRegrown();
-	}
+void AQRHarvestableBase::OnRegrowthTimerFired()
+{
+	if (!HasAuthority()) return;
+	bIsDepleted           = false;
+	RemainingCharges      = MaxHarvestCharges;
+	RegrowthTimeRemaining = 0.0f;
+	OnRegrown();
 }
 
 void AQRHarvestableBase::OnDepleted_Implementation()
 {
 	OnNodeDepleted.Broadcast(this);
-	// Blueprint subclass handles visual state change
+
+	// Schedule automatic regrowth using real-world seconds derived from settings day length
+	if (HasAuthority() && RegrowthTimeHours > 0.0f)
+	{
+		const UQRCoreSettings* S = GetDefault<UQRCoreSettings>();
+		const float DayLenSec    = S ? S->DayLengthSeconds : 1200.0f;
+		const float RegrowthSec  = RegrowthTimeHours * DayLenSec / 24.0f;
+		GetWorldTimerManager().SetTimer(RegrowthTimerHandle, this,
+			&AQRHarvestableBase::OnRegrowthTimerFired, RegrowthSec, /*bLoop=*/false);
+		RegrowthTimeRemaining = RegrowthTimeHours;
+	}
+	// Blueprint subclass handles visual state change (stump mesh, etc.)
 }
 
 void AQRHarvestableBase::OnRegrown_Implementation()

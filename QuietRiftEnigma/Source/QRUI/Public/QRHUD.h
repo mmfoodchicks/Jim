@@ -66,6 +66,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "HUD|Widgets")
 	TObjectPtr<UUserWidget> CodexWidget;
 
+	UPROPERTY(BlueprintReadOnly, Category = "HUD|Widgets")
+	TObjectPtr<UUserWidget> CrosshairWidget;
+
 	// ── State ─────────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Category = "HUD")
 	bool bInventoryOpen = false;

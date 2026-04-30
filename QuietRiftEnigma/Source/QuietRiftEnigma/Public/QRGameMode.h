@@ -8,7 +8,9 @@
 class UQRColonyStateComponent;
 class UQRResearchComponent;
 class UQRSaveGameSystem;
+class UQRWeatherComponent;
 class AQRRaidScheduler;
+class AQRVanguardColony;
 
 // Main game mode — controls session start, tutorial unlock flow, and ending resolution
 UCLASS(BlueprintType, Blueprintable)
@@ -46,9 +48,31 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Research")
 	TObjectPtr<UQRResearchComponent> Research;
 
+	// Weather component — lives on the GameState. GameMode drives its time advance each tick.
+	UPROPERTY(BlueprintReadOnly, Category = "World")
+	TObjectPtr<UQRWeatherComponent> Weather;
+
+	// The hardcoded Vanguard Concordat actor, located in the level by class on BeginPlay.
+	// GameMode drives its game-hours clock each tick so its raid cooldowns and hostility
+	// decay advance regardless of which Blueprint subclass the level designer used.
+	UPROPERTY(BlueprintReadOnly, Category = "Concordat")
+	TObjectPtr<AQRVanguardColony> VanguardConcordat;
+
 	// ── Save System ───────────────────────────
 	UPROPERTY(BlueprintReadOnly, Category = "Save")
 	TObjectPtr<UQRSaveGameSystem> SaveSystem;
+
+	// ── Session Setup ─────────────────────────
+	// Maximum players this session was created for (set by lobby before travel).
+	// Drives starting NPC count: solo=3, 2p=2, 3p=1, 4p+=0.
+	// Blueprint subclass reads this to spawn the correct number of starting survivors.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Session")
+	int32 MaxPlayers = 1;
+
+	// Returns how many NPC survivors should be pre-spawned at session start.
+	// Scales inversely with player count so the total effective workforce stays balanced.
+	UFUNCTION(BlueprintPure, Category = "Session")
+	int32 GetStartingNPCCount() const;
 
 	// ── Interface ────────────────────────────
 	UFUNCTION(BlueprintCallable, Category = "World")

@@ -1,5 +1,6 @@
 #include "QRDevOverlay.h"
 #include "UObject/UnrealType.h"
+#include "GameFramework/GameStateBase.h"
 #include "QRSurvivalComponent.h"
 #include "QRInventoryComponent.h"
 #include "QRWeaponComponent.h"

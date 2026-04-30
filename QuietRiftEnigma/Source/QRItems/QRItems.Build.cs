@@ -12,8 +12,7 @@ public class QRItems : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"GameplayTags",
-			"QRCore",
-			"StructUtils"
+			"QRCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

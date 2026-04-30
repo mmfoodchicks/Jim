@@ -21,6 +21,7 @@ void UQRLeaderComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRLeaderComponent, LeaderBuff);
 	DOREPLIFETIME(UQRLeaderComponent, LeaderLevel);
 	DOREPLIFETIME(UQRLeaderComponent, bIsInexperiencedLeader);
+	DOREPLIFETIME(UQRLeaderComponent, CrossCraftPenaltyMult);
 	DOREPLIFETIME(UQRLeaderComponent, MoraleIndex);
 	DOREPLIFETIME(UQRLeaderComponent, MoraleResilience);
 	DOREPLIFETIME(UQRLeaderComponent, MoraleGradient);
@@ -180,14 +181,51 @@ float UQRLeaderComponent::GetTotalDebuff(FName StatName) const
 		if (Cond.AffectedStat == StatName)
 			Total += Cond.DebuffAmount;
 	}
-	return Total;
+	// Cross-craft leaders impose harsher conditions on their team: penalty 0.6 → 1.4x debuffs
+	return Total * (2.0f - CrossCraftPenaltyMult);
 }
 
 void UQRLeaderComponent::RecalculateLeaderDerivedStats()
 {
-	LeaderBuff  = UQRMath::LeaderBuffScalar(LeadershipAptitude, SkillAptitude);
+	// Determine cross-craft penalty before applying to buff
+	const bool bHasMismatch = (NativeLeaderType != EQRLeaderType::None)
+	                        && (LeaderType       != EQRLeaderType::None)
+	                        && (LeaderType       != NativeLeaderType);
+
+	if (!bHasMismatch)
+	{
+		CrossCraftPenaltyMult = 1.0f;
+	}
+	else
+	{
+		// World-found leaders adapt better — their experience covers the gap partially
+		CrossCraftPenaltyMult = bIsWorldFoundLeader ? 0.8f : 0.6f;
+	}
+
+	const float BaseLeaderBuff = UQRMath::LeaderBuffScalar(LeadershipAptitude, SkillAptitude);
+	// Cross-craft leaders can drop below 1.0, meaning they actively hurt team output
+	LeaderBuff  = FMath::Clamp(BaseLeaderBuff * CrossCraftPenaltyMult, 0.5f, 1.35f);
 	LeaderLevel = UQRMath::ComputeLeaderLevel(LeadershipAptitude, SkillAptitude);
 	bIsInexperiencedLeader = (LeaderLevel == 1 && LeaderXP < 10.0f);
+}
+
+EQRLeaderType UQRLeaderComponent::GetNaturalLeaderTypeForRole(EQRNPCRole Role)
+{
+	switch (Role)
+	{
+	case EQRNPCRole::Guard:       return EQRLeaderType::Security;
+	case EQRNPCRole::Engineer:    return EQRLeaderType::Engineering;
+	case EQRNPCRole::Builder:     return EQRLeaderType::Engineering;
+	case EQRNPCRole::Medic:       return EQRLeaderType::Medical;
+	case EQRNPCRole::Gatherer:    return EQRLeaderType::Logistics;
+	case EQRNPCRole::Hauler:      return EQRLeaderType::Logistics;
+	case EQRNPCRole::Researcher:  return EQRLeaderType::Research;
+	case EQRNPCRole::Farmer:      return EQRLeaderType::Agriculture;
+	case EQRNPCRole::Cook:        return EQRLeaderType::Morale;
+	case EQRNPCRole::Scout:       return EQRLeaderType::Survival;
+	case EQRNPCRole::Miner:       return EQRLeaderType::Survival;
+	default:                      return EQRLeaderType::None;
+	}
 }
 
 // Maximum hours a QuestIssued state can persist without resolution before forcing a fallback

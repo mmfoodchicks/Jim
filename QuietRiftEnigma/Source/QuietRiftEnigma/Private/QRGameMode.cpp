@@ -1,7 +1,10 @@
 #include "QRGameMode.h"
+#include "GameFramework/GameStateBase.h"
 #include "QRColonyStateComponent.h"
 #include "QRResearchComponent.h"
+#include "QRWeatherComponent.h"
 #include "QRSaveGameSystem.h"
+#include "QRVanguardColony.h"
 #include "QRCharacter.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -12,19 +15,24 @@ AQRGameMode::AQRGameMode()
 
 	DefaultPawnClass = AQRCharacter::StaticClass();
 
-	SaveSystem = NewObject<UQRSaveGameSystem>(this);
+	SaveSystem = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
 }
 
 void AQRGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Colony state and research components live on the GameState actor
+	// Colony state, research, and weather components live on the GameState actor
 	if (AGameStateBase* GS = GetGameState<AGameStateBase>())
 	{
 		ColonyState = GS->FindComponentByClass<UQRColonyStateComponent>();
 		Research    = GS->FindComponentByClass<UQRResearchComponent>();
+		Weather     = GS->FindComponentByClass<UQRWeatherComponent>();
 	}
+
+	// The Concordat is placed once by the level designer; locate it by class.
+	VanguardConcordat = Cast<AQRVanguardColony>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), AQRVanguardColony::StaticClass()));
 
 	// Activate tutorial mission
 	ActivateMission(FName("MQ_000"));
@@ -34,8 +42,12 @@ void AQRGameMode::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	float PrevTime    = WorldTimeSeconds;
 	WorldTimeSeconds += DeltaTime;
+
+	// Convert real-seconds elapsed into game-hours for time-driven subsystems
+	const float GameHoursElapsed = DeltaTime * 24.0f / DayLengthRealSeconds;
+	if (Weather)           Weather->AdvanceByHours(GameHoursElapsed);
+	if (VanguardConcordat) VanguardConcordat->AdvanceTime(GameHoursElapsed);
 
 	float DayProgress = FMath::Fmod(WorldTimeSeconds, DayLengthRealSeconds) / DayLengthRealSeconds;
 	bool bWasNight    = bIsNight;
@@ -54,6 +66,12 @@ void AQRGameMode::Tick(float DeltaTime)
 	{
 		if (bIsNight) OnNightStarted();
 	}
+}
+
+int32 AQRGameMode::GetStartingNPCCount() const
+{
+	// Solo = 3, 2 players = 2, 3 players = 1, 4+ players = 0
+	return FMath::Max(0, 4 - MaxPlayers);
 }
 
 float AQRGameMode::GetDayProgress() const

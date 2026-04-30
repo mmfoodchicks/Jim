@@ -124,7 +124,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void ApplyHealing(float Amount);
 
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	// Applies nutrition from FoodItem and decrements its Quantity by 1.
 	// Caller must remove the item instance from inventory when Quantity reaches 0.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")

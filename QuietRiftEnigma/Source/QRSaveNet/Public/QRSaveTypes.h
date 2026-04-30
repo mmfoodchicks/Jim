@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "QRTypes.h"
+#include "QRTechNode.h"
+#include "QRMicroResearch.h"
 #include "QRSaveTypes.generated.h"
 
 // Serializable item snapshot for save/load

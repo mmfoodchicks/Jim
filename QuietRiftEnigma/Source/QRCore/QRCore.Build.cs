@@ -11,9 +11,7 @@ public class QRCore : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
-			"GameplayTags",
-			"StructUtils",
-			"DataRegistry"
+			"GameplayTags"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

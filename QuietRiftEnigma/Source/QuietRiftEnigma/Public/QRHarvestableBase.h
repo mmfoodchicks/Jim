@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "QRTypes.h"
+#include "TimerManager.h"
 #include "QRHarvestableBase.generated.h"
 
 class UQRItemDefinition;
@@ -98,8 +99,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Harvestable")
 	bool CanBeHarvested() const { return !bIsDepleted && RemainingCharges > 0; }
 
+	// Immediately skip the regrowth timer and restore the node. Useful for cheats/debug.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Harvestable")
-	void AdvanceRegrowth(float GameHoursElapsed);
+	void ForceRegrow();
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Harvestable")
+	void OnHarvest(AActor* Harvester);
+	virtual void OnHarvest_Implementation(AActor* Harvester) {}
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Harvestable")
 	void OnDepleted();
@@ -111,4 +117,8 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+private:
+	FTimerHandle RegrowthTimerHandle;
+	void OnRegrowthTimerFired();
 };

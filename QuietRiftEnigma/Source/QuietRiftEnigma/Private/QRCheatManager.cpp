@@ -13,6 +13,7 @@
 #include "QRWeaponComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/AssetManager.h"
+#include "GameFramework/GameStateBase.h"
 #include "Kismet/GameplayStatics.h"
 
 // Helper: find the local player's pawn cast to AQRCharacter, or nullptr

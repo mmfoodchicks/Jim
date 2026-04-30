@@ -13,8 +13,7 @@ public class QRSurvival : ModuleRules
 			"Engine",
 			"GameplayTags",
 			"QRCore",
-			"QRItems",
-			"Net"
+			"QRItems"
 		});
 	}
 }

@@ -21,30 +21,34 @@ AQRWildlife_IronstagStalker::AQRWildlife_IronstagStalker()
 
 void AQRWildlife_IronstagStalker::TriggerAntlerSwipe()
 {
-	TArray<AActor*> HitActors;
-	UGameplayStatics::GetAllActorsWithinSphere(
-		GetWorld(), GetActorLocation() + GetActorForwardVector() * AntlerSwipeRadius * 0.5f,
-		AntlerSwipeRadius, TArray<TSubclassOf<AActor>>{AActor::StaticClass()}, HitActors
-	);
-	for (AActor* Target : HitActors)
+	if (!GetWorld()) return;
+	const FVector SwipeOrigin = GetActorLocation() + GetActorForwardVector() * AntlerSwipeRadius * 0.5f;
+	const float RadiusSq = FMath::Square(AntlerSwipeRadius);
+
+	TArray<AActor*> AllActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
+	for (AActor* Target : AllActors)
 	{
 		if (Target == this) continue;
-		UGameplayStatics::ApplyDamage(Target, AntlerSwipeDamage, GetController(), this, nullptr);
+		if (FVector::DistSquared(Target->GetActorLocation(), SwipeOrigin) <= RadiusSq)
+			UGameplayStatics::ApplyDamage(Target, AntlerSwipeDamage, GetController(), this, nullptr);
 	}
 }
 
 void AQRWildlife_IronstagStalker::TriggerStaticDischarge()
 {
-	float Damage = bMagneticStormActive ? StaticDischargeDamage * 2.0f : StaticDischargeDamage;
-	TArray<AActor*> HitActors;
-	UGameplayStatics::GetAllActorsWithinSphere(
-		GetWorld(), GetActorLocation(), StaticDischargeRadius,
-		TArray<TSubclassOf<AActor>>{AActor::StaticClass()}, HitActors
-	);
-	for (AActor* Target : HitActors)
+	if (!GetWorld()) return;
+	const float Damage = bMagneticStormActive ? StaticDischargeDamage * 2.0f : StaticDischargeDamage;
+	const FVector Origin = GetActorLocation();
+	const float RadiusSq = FMath::Square(StaticDischargeRadius);
+
+	TArray<AActor*> AllActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), AllActors);
+	for (AActor* Target : AllActors)
 	{
 		if (Target == this) continue;
-		UGameplayStatics::ApplyDamage(Target, Damage, GetController(), this, nullptr);
+		if (FVector::DistSquared(Target->GetActorLocation(), Origin) <= RadiusSq)
+			UGameplayStatics::ApplyDamage(Target, Damage, GetController(), this, nullptr);
 	}
 }
 

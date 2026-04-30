@@ -56,8 +56,9 @@ public:
 	TArray<FQRNPCTask> FallbackTaskArray;
 
 	// ── Skill Levels ─────────────────────────
-	// 0..100 skill in each role category
-	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Skills")
+	// 0..100 skill in each role category. Server-authoritative; not replicated
+	// (UE 5.7+ disallows replicated TMaps — clients query via RPC if needed).
+	UPROPERTY(BlueprintReadOnly, Category = "Skills")
 	TMap<EQRNPCRole, float> RoleSkillLevels;
 
 	// ── Runtime State ─────────────────────────

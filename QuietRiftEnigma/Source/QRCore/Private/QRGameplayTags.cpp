@@ -60,6 +60,9 @@ namespace QRGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Faction_EngineerCompact,          "Faction.EngineerCompact")
 	UE_DEFINE_GAMEPLAY_TAG(Faction_Remnant,                  "Faction.Remnant")
 	UE_DEFINE_GAMEPLAY_TAG(Faction_Hostile_Generic,          "Faction.Hostile.Generic")
+	UE_DEFINE_GAMEPLAY_TAG(Faction_Vanguard,                 "Faction.Vanguard")
+	UE_DEFINE_GAMEPLAY_TAG(Faction_Vanguard_Satellite,       "Faction.Vanguard.Satellite")
+	UE_DEFINE_GAMEPLAY_TAG(Threat_Vanguard,                  "Threat.Vanguard")
 
 	UE_DEFINE_GAMEPLAY_TAG(Biome_BasaltShelf,                "Biome.BasaltShelf")
 	UE_DEFINE_GAMEPLAY_TAG(Biome_WindPlains,                 "Biome.WindPlains")
