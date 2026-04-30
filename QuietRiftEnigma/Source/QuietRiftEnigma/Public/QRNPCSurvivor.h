@@ -27,8 +27,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UQRSurvivalComponent> Survival;
 
+	// Named RoleComp (not Role) to avoid shadowing the deprecated AActor::Role network role member.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UQRNPCRoleComponent> Role;
+	TObjectPtr<UQRNPCRoleComponent> RoleComp;
 
 	// Only present if this NPC is a leader
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")

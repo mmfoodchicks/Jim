@@ -27,11 +27,11 @@ bool UQRWeaponComponent::CanFire() const
 	return !bIsJammed && WeaponState == EQRWeaponState::Ready && CurrentAmmo > 0;
 }
 
-float UQRWeaponComponent::GetFoulingIncrement(bool bIsDirtyAmmo, bool bHasSuppressor) const
+float UQRWeaponComponent::GetFoulingIncrement(bool bIsDirtyAmmo, bool bUseSuppressor) const
 {
 	float Inc = FoulingPerShot;
 	if (bIsDirtyAmmo)   Inc *= DirtyAmmoFoulingMult;
-	if (bHasSuppressor) Inc *= SuppressorFoulingMult;
+	if (bUseSuppressor) Inc *= SuppressorFoulingMult;
 	return FMath::Clamp(Inc, 0.0f, 1.0f);
 }
 

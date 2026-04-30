@@ -6,7 +6,10 @@
 #include "QRSaveGameSystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSaveComplete, bool, bSuccess);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnLoadComplete, bool, bSuccess, FQRGameSaveData, SaveData);
+
+// FQRGameSaveData is not BlueprintType (TMap<uint8,...> + nested non-BP structs), so
+// FOnLoadComplete is a regular C++ multicast delegate — not BlueprintAssignable.
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLoadComplete, bool /*bSuccess*/, const FQRGameSaveData& /*SaveData*/);
 
 // UE SaveGame object that wraps the full game state
 UCLASS()
@@ -37,11 +40,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Save")
 	FOnSaveComplete OnSaveComplete;
 
-	UPROPERTY(BlueprintAssignable, Category = "Save")
+	// Bound from C++ only — see comment on FOnLoadComplete declaration above.
 	FOnLoadComplete OnLoadComplete;
 
 	// ── Interface ────────────────────────────
-	UFUNCTION(BlueprintCallable, Category = "Save")
+	// C++ only: FQRGameSaveData isn't a BlueprintType.
 	void SaveGame(const FQRGameSaveData& DataToSave, const FString& SlotName, int32 UserIndex = 0);
 
 	UFUNCTION(BlueprintCallable, Category = "Save")

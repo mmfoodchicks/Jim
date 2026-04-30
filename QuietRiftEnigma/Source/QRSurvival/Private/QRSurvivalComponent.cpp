@@ -2,6 +2,8 @@
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRGameplayTags.h"
+#include "Engine/World.h"
+#include "Engine/OverlapResult.h"
 #include "Net/UnrealNetwork.h"
 
 UQRSurvivalComponent::UQRSurvivalComponent()

@@ -150,7 +150,7 @@ public:
 
 	// v1.17: compute per-shot fouling increment accounting for ammo type and suppressor
 	UFUNCTION(BlueprintPure, Category = "Weapon")
-	float GetFoulingIncrement(bool bIsDirtyAmmo, bool bHasSuppressor) const;
+	float GetFoulingIncrement(bool bIsDirtyAmmo, bool bUseSuppressor) const;
 
 	// v1.17: True when jammed or state is Empty/Reloading
 	UFUNCTION(BlueprintPure, Category = "Weapon")

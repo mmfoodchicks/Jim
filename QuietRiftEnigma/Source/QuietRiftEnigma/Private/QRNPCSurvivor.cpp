@@ -15,7 +15,7 @@ AQRNPCSurvivor::AQRNPCSurvivor()
 
 	Inventory   = CreateDefaultSubobject<UQRInventoryComponent>(TEXT("Inventory"));
 	Survival    = CreateDefaultSubobject<UQRSurvivalComponent>(TEXT("Survival"));
-	Role        = CreateDefaultSubobject<UQRNPCRoleComponent>(TEXT("Role"));
+	RoleComp    = CreateDefaultSubobject<UQRNPCRoleComponent>(TEXT("RoleComp"));
 	LeaderComp  = CreateDefaultSubobject<UQRLeaderComponent>(TEXT("LeaderComp"));
 
 	// Reduce inventory capacity for NPCs vs player
@@ -92,7 +92,7 @@ void AQRNPCSurvivor::ApplyMoraleEvent(float Delta, FText EventDescription)
 
 void AQRNPCSurvivor::SetRaidState(EQRCivilianRaidState NewState)
 {
-	if (Role) Role->SetRaidState(NewState);
+	if (RoleComp) RoleComp->SetRaidState(NewState);
 }
 
 bool AQRNPCSurvivor::IsAlive() const
