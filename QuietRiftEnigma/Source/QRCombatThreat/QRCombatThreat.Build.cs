@@ -17,8 +17,7 @@ public class QRCombatThreat : ModuleRules
 			"QRCore",
 			"QRItems",
 			"QRSurvival",
-			"QRColonyAI",
-			"Net"
+			"QRColonyAI"
 		});
 	}
 }

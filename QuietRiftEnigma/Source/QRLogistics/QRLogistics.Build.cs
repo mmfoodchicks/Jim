@@ -15,8 +15,7 @@ public class QRLogistics : ModuleRules
 			"QRCore",
 			"QRItems",
 			"AIModule",
-			"NavigationSystem",
-			"Net"
+			"NavigationSystem"
 		});
 	}
 }
