@@ -13,7 +13,7 @@ AQRGameMode::AQRGameMode()
 
 	DefaultPawnClass = AQRCharacter::StaticClass();
 
-	SaveSystem = NewObject<UQRSaveGameSystem>(this);
+	SaveSystem = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
 }
 
 void AQRGameMode::BeginPlay()
