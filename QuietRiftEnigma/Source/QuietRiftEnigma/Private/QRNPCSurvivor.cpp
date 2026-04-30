@@ -11,6 +11,8 @@
 
 AQRNPCSurvivor::AQRNPCSurvivor()
 {
+	// Pre-allocate 8-axis innate compass vector matching EQRMoralCompassAxis
+	InnateCompassVector.Init(0.0f, 8);
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -36,6 +38,7 @@ void AQRNPCSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(AQRNPCSurvivor, Mood);
 	DOREPLIFETIME(AQRNPCSurvivor, bHasNightPanic);
 	DOREPLIFETIME(AQRNPCSurvivor, LeaderPromotionCount);
+	DOREPLIFETIME(AQRNPCSurvivor, CampAlignmentScore);
 }
 
 void AQRNPCSurvivor::BeginPlay()
@@ -140,6 +143,30 @@ void AQRNPCSurvivor::SetRaidState(EQRCivilianRaidState NewState)
 bool AQRNPCSurvivor::IsAlive() const
 {
 	return Survival && !Survival->bIsDead;
+}
+
+float AQRNPCSurvivor::UpdateCampAlignment(const TArray<float>& CampPolicyVector)
+{
+	if (InnateCompassVector.Num() != CampPolicyVector.Num() || InnateCompassVector.Num() == 0)
+	{
+		CampAlignmentScore = 0.0f;
+		return CampAlignmentScore;
+	}
+
+	float Dot = 0.0f, MagInnate = 0.0f, MagCamp = 0.0f;
+	for (int32 i = 0; i < InnateCompassVector.Num(); ++i)
+	{
+		Dot       += InnateCompassVector[i] * CampPolicyVector[i];
+		MagInnate += InnateCompassVector[i] * InnateCompassVector[i];
+		MagCamp   += CampPolicyVector[i]    * CampPolicyVector[i];
+	}
+
+	const float Denom = FMath::Sqrt(MagInnate) * FMath::Sqrt(MagCamp);
+	CampAlignmentScore = (Denom > SMALL_NUMBER)
+		? FMath::Clamp(Dot / Denom, -1.0f, 1.0f)
+		: 0.0f;
+
+	return CampAlignmentScore;
 }
 
 void AQRNPCSurvivor::OnSurvivalDeath()

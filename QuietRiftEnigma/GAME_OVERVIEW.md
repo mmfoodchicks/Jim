@@ -2,154 +2,199 @@
 
 ---
 
-## The Story
+## The Signal
 
-It's 2157. Humanity has been pushing outward for decades — mining operations on Callisto, research outposts near Europa, fuel depots orbiting Ganymede. But one moon got everyone's attention for a different reason.
+In 2040, a moon appeared in Jupiter's orbit overnight.
 
-Tharsis IV. A mid-sized moon tucked in the outer Jovian system, unremarkable on paper. Thin nitrogen atmosphere. Surface temperature that'll kill you in minutes without gear. No confirmed life.
+No announcement. No debris trail. No explanation from any space agency. Scientists argued for months about whether existing data had simply missed it, whether it had migrated from further out, whether instruments were malfunctioning. None of those explanations held up. The moon was there, it was stable, and it hadn't been there before.
 
-Except for the signal.
+Then the signal started.
 
-In 2154, a long-range survey drone picked up something coming from Tharsis IV — a low-frequency resonance pulse, perfectly periodic, originating from deep beneath the surface. Scientists called it an anomaly. Military called it a threat. The Colonial Authority called it an opportunity and sent a mission before anyone could argue too long about what it actually was.
+Low frequency, perfectly periodic, originating from the surface. Not random noise — structured. Repeated. Patient. Seventeen probes were sent over the following years. None returned. Some disappeared cleanly from telemetry. Some sent back fragmented data that was immediately classified. One sent back a single image before going dark: a geometric formation partially buried in the surface, clearly not natural.
 
-The UCAV *Meridian's Threshold* was a colony-class vessel — six hundred colonists, a scientific team, a security detachment, and enough equipment to establish a permanent outpost. The official mandate was to investigate the signal and begin resource extraction if the moon proved viable. The unofficial mandate, as some aboard suspected, was something else entirely.
+The UN Colonial Authority spent four years arguing about what to do next. In the end, the answer was the same answer it always is when something is too important to leave alone and too dangerous to understand from a distance.
 
-They never made it to a proper landing.
-
-Twelve hours out from orbital insertion, the signal changed. What had been a steady background pulse became something disruptive — a broadband electromagnetic event that burned through navigation systems, shorted communications arrays, and sent the *Meridian's Threshold* into an uncontrolled descent. The ship broke apart on the way down.
-
-You survived. Most didn't.
-
-Now you're on the surface of Tharsis IV with a handful of other survivors, a moon that's actively trying to kill you, and somewhere beneath the rock beneath your feet — the Quiet Rift. The thing that brought you here. The thing that crashed you. The thing that, so far, isn't saying anything at all.
-
-Figure out how to stay alive long enough to figure out what it wants.
+They sent people.
 
 ---
 
-## The World
+## The UCAV *Meridian's Threshold*
 
-Tharsis IV is beautiful and hostile in equal measure. The sky shifts from a deep copper at dawn to near-black at the apex of day, and the gas giant it orbits hangs enormous on the horizon — a slow, looming presence that never fully sets. 
+A colony-class vessel. Six hundred colonists, a full scientific team, a security detachment, and enough equipment to establish a permanent outpost. The official mission: investigate the signal, assess resource viability, establish contact protocols for whatever left that structure.
 
-The terrain is varied and dangerous. Dense groves of **Smokebark Trees** — tall, ash-grey flora that grow in dense clusters and produce the best structural timber on the moon. Open fields of **Blackstem Reed** near the water veins that carve through the rock. **Rustcap Fungus** that grows in the shadows of ridgelines — some varieties edible, some lethally toxic, and they look nearly identical until you know what to look for. **Cinderbloom** and **Mawcap** that hide in the undergrowth, useful for medicine if you know how to process them.
+The unofficial mission — the one the Colonial Authority never announced — was something else entirely. A classified cargo manifest. A small team of specialists who didn't appear on the public crew roster. Instructions sealed until arrival.
 
-The wildlife didn't evolve to share. **Ridgeback Grazers** roam in herds and scatter from noise, but panic the wrong herd and they'll trample anything in their path. The **Hookjaw Stalker** is a patient predator — it doesn't charge, it circles, it waits, and it picks its moment. The **Ironstag** looks docile until it isn't, and a single antler strike will put you on the ground. There are twelve known species across the moon's biomes, and "known" only means someone survived the encounter long enough to write it down.
-
-Then there's the weather. Tharsis IV has acid rain — not metaphorical, not mild. When the storm rolls in you get inside or you start taking damage. The atmospheric events here aren't just inconvenient. They're lethal if you're caught unprepared.
+The ship launched in 2057. The journey took fourteen months. And then, four hours out from orbital insertion, something went wrong.
 
 ---
 
-## Survival
+## Opening
 
-This is a first-person game. You are in the world. You move through it, you interact with it, and it interacts back.
+The alarm has been going for forty seconds before you're fully awake.
 
-Your body tracks **health, hunger, thirst, temperature, and injuries** simultaneously. Bleeding doesn't stop on its own. Infections spread if you don't treat them. A toxin from the wrong mushroom has to be purged before it shuts you down. Push through hypothermia long enough and your hands stop working properly. None of these are annoying inconveniences — they're the central challenge, and managing them is half the game.
+Red emergency lighting. The corridor outside your quarters strobing. The ship's automated voice repeating on a loop — calm, mechanical, indifferent to what it's saying:
 
-Your **inventory has weight limits**. What you carry matters. Running to the far side of the map while overloaded leaves you slow and exhausted. You learn to travel light and cache resources.
+*"Impact imminent. Impact imminent. Impact imminent."*
 
-The world runs on a **real day cycle**. Days give you time to work and explore. Night raises the threat level — wildlife is more aggressive, raids become possible, and your colony needs you close.
+You move to the viewport. Through the scratched polymer you can see it — a fragment of rock the size of a building, tumbling end over end, and moving just a little too fast to be anything other than what it is.
+
+You have approximately two seconds to say something before it hits.
+
+The collision tears the *Meridian's Threshold* in half. The aft section — your half — spins out of control. Emergency pods begin launching automatically. The last thing you see before the lights go out is the surface of the moon filling your viewport, coming up faster than it should.
+
+Then black.
 
 ---
 
-## The Colony
+## The Surface
 
-Other survivors are out there. Some are close. Some are hiding. Some are hurt. Finding them, convincing them to join you, and then keeping them alive is the backbone of the game.
+You wake up inside an escape pod, half-buried in grey sediment. The viewport is cracked but intact. Outside: a sky the color of a bruise, a gas giant hanging low on the horizon so large it looks close enough to touch, and silence. Total, complete silence.
 
-Once someone joins your camp they have needs — food, water, sleep, medical care, and a sense of purpose. Let their morale collapse and they stop cooperating. Let it fall far enough and they leave. You lose people not just to raids and wildlife but to neglect, bad decisions, and running out of reasons to stay.
+The pod's locator is working. Other pods came down within a few kilometers. You can reach them.
 
-Each survivor has **roles** you assign: Gatherer, Hauler, Cook, Builder, Guard, Miner, Researcher, Medic, Scout, Farmer, Engineer. The right person in the right role works efficiently. The wrong person in the wrong role works slowly, wastes materials, and resents it. You can see this happening — morale ticks down, work output drops, and if you don't notice and fix it, it compounds.
+What you find when you do: some survivors intact, some injured, some pods that hit too hard. The forward half of the *Meridian's Threshold* is visible maybe twenty kilometers out, smoke rising from the wreckage in a thin column. The aft half — somewhere beyond the ridgeline — will take longer to reach.
 
-Your survivors work **autonomously**. Once assigned a role and pointed at a task, they'll manage themselves — gathering runs, hauling materials between depots, processing at stations, resting when they need to, eating when they're hungry. A well-organized colony keeps running while you're out exploring. A badly organized one falls apart the moment you turn your back.
+You have limited oxygen. Limited food. No shelter. And somewhere beneath the ground beneath your feet, a signal that seventeen probes tried to reach and never came back from.
+
+The signal is stronger here than it's ever been measured from orbit. You didn't land near it by accident.
+
+---
+
+## Your Colony
+
+How many people came with you changes everything about how you start.
+
+If you're alone, three survivors found their pods near yours and chose to follow you back. If four of you made the crossing together, those three found other groups — you're on your own to recruit. The more players in a session, the fewer NPCs you start with. The game assumes the players themselves cover the gaps.
+
+**Basic survivors** — the ones who trickle into your camp over time or that you find in the field — are exactly that. Woodcutters. Miners. Hunters. Cooks. Farmers. People who had practical skills before the Colonial Authority decided they were colony-ready. They'll work hard and they'll follow direction. Give them a role that matches what they know and they'll be good at it.
+
+**Specialists** are different. Researchers, engineers, medics — these are trained professionals who were specifically recruited for this mission. Some are still out there, in distant pods, in makeshift survivor camps, sheltering in wreckage. You find them by exploring, by following rumors from other survivors you recruit, by completing quests that lead you to them. Until you find them, you either do the specialized work yourself or assign someone basic to the role and accept slower, rougher output.
+
+**Survivors don't just appear.** Some wander into your camp. Some you find and lead back. Some arrive because word travels — a working fire, a defended perimeter, the smell of cooking — and desperate people move toward safety. Others arrive with conditions. They want to see what kind of operation you're running before they commit. And some, once they arrive, will leave if they don't like what they see.
+
+---
+
+## Moral Compass and Camp Culture
+
+Every survivor who joins your camp has a set of values — things they believe in, lines they won't cross, ways they think people should be treated. Some are pragmatists. Some have rigid ethics. Some are ruthless and proud of it. Some have been through enough that they just want somewhere safe and quiet.
+
+Your camp, over time, develops a culture. The decisions you make — how you treat outsiders, whether you ration fairly, how you handle conflict, what you prioritize — all of it shapes what kind of place your colony is. Survivors pay attention to this.
+
+A survivor with a strong humanitarian compass will not stay in a camp that consistently treats other groups as threats to be eliminated. A pragmatist who believes survival requires hard choices will grow frustrated in a camp that refuses to make them. These aren't arbitrary reputation flags — they're people who've been through something terrible and have strong opinions about what it means to do things right.
+
+Match your camp culture to your survivors and they'll stay, contribute, and vouch for you when new arrivals are deciding whether to trust you. Mismatch, and they'll leave. Quietly, usually. Sometimes with a conversation first. Occasionally with consequences.
+
+---
+
+## Assigning Roles — The Infrastructure Question
+
+Here's something the game doesn't try to hide from you: putting someone to work without the tools for the job doesn't work.
+
+If you assign a miner to the Miner role and there's no depot for them to deposit materials, they'll go out and mine anyway. They'll bring the materials back. And then they'll have nowhere to put them. Materials end up dumped on the ground near where they work — a pile that's visible, collectable by hand, but not connected to any automated station flow. The miner, after a few cycles of this, will raise the issue. The director system flags it. You'll get a notification.
+
+The game doesn't hard-block you from making this mistake. It lets you make it, shows you the consequence, and gives you the information to fix it. Build the depot. The pile on the ground becomes usable. The miner's workflow connects.
+
+This applies everywhere:
+- A cook without a Pantry station will improvise — fire and raw materials, slower output, higher spoilage risk
+- A builder without a log depot nearby will walk further for materials and complete projects more slowly
+- A researcher without a research station can still work — making notes, observing, documenting — but actual tech unlocks are slower and require more of your own time to assist
+
+The infrastructure motivates itself. You don't need the game to tell you to build a depot — your miner standing next to a pile of rocks with nowhere to put them will tell you.
 
 ---
 
 ## Leadership
 
-Every craft in your colony can have a **leader promoted from within**. Leaders gain experience over time, boost the people under them, and give their whole department a passive efficiency lift. A veteran Logistics leader keeps haulers on efficient routes. A seasoned Security leader coordinates patrol patterns and cuts response time when a raid hits.
+Every craft in your colony can have a **leader promoted from within**. Leaders gain experience over time, boost the people under them, and give their whole department a passive efficiency lift.
 
-**Craft matters when you promote.** Every survivor has a natural affinity based on their work. A Guard is naturally suited to lead Security. A Researcher leads Research well. Promote your toughest Guard to run Engineering and their buff to the people under them will be noticeably weaker — they're out of their element, and the team feels it. Promote your Engineer to Military during a crisis and expect worse outcomes than a dedicated Security leader would deliver.
+**Craft matters when you promote.** Every survivor has a natural affinity. A Hunter leads Scouts well. A Miner leads Engineering tolerably but not great. Promote someone into a leadership role that doesn't match their background and their buff to the team is weaker — they're doing their best in unfamiliar territory, and the team feels it.
 
-**Stability matters more than optimization.** Every time you demote a leader or swap the role to someone else, the colony feels it. A first swap barely registers. Keep reshuffling and instability builds — morale takes a hit colony-wide, work slows, and survivors start questioning who's actually in charge. This instability fades over time as the new order settles, but it doesn't disappear overnight. The temptation to constantly swap for a slightly better option is exactly how colonies fall apart.
+**Stability matters more than optimization.** Every time you swap a leader out, the colony feels it. Instability builds, morale takes a colony-wide hit, and work slows until people adjust to the new authority. The temptation to constantly reshuffle for a slightly better option is exactly how colonies lose cohesion.
 
-**The best leaders aren't ones you train — they're ones you find.** The world has existing leaders scattered across it: research outposts, surviving security teams, remnant agricultural groups from the crash. Encounter them, earn their trust through quests, and bring them back alive. These world-found leaders arrive with real experience already built in. Promote them immediately, at full effectiveness, with no instability cost — because the colony can see the difference between a veteran and someone you just handed a title.
+**The best leaders are found, not made.** The world has existing leaders scattered across it — research team leads, surviving security commanders, medical officers who kept their groups alive after their pods came down in hostile terrain. Find them, earn their trust, bring them back. They arrive with real experience already built in. Promote them immediately, at full effectiveness, with no instability cost — because the colony can see the difference.
 
 ---
 
-## Raids
+## Day, Night, and Raids
 
-Your camp will be found. The question is when and how prepared you are.
+The world runs on a real cycle. Days give you time to work, explore, and build. Night raises the threat level — wildlife is more aggressive, the temperature drops harder, and the colony needs you close.
 
-There's a **raid risk system** that tracks how visible your camp is — noise from stations, light at night, smells from cooking, traffic patterns. As risk builds, hostile encounters escalate from scouts to full raids. When a raid hits, it isn't a scripted event — it's a threat that has to be handled in real time. Your guards respond based on their training and their leader's effectiveness. Civilians shelter or flee. You're in the middle of it with whatever weapon you have.
+Raids aren't random. A threat risk score builds based on your camp's visibility, noise level, and the factions moving through the region. The more you push outward, the more attention you attract. When a raid hits, your guards respond based on their training. Civilians shelter or flee. You're in the middle of it with whatever weapon you have.
 
-Survive, repair, rebuild. The raids don't stop.
+Survive. Repair. Rebuild. The attention doesn't go away.
 
 ---
 
 ## Crafting and Stations
 
-Your camp is built around **crafting stations**, each requiring workers, materials, and sometimes power.
+Your camp runs on a network of **crafting stations**: Workbench for tools and gear, LogYard for timber processing, Pantry for cooking, AnvilForge for metalwork, Generator for power. Materials move between stations through a depot and hauler system that runs automatically — once you've built the infrastructure to support it.
 
-The **Workbench** handles tools and basic gear. The **LogYard** processes raw timber into planks. The **Pantry** is where your cooks turn raw ingredients into meals that actually restore morale as well as hunger. The **AnvilForge** produces metal components but needs a trained engineer to run it. The **Generator** runs on fuel canisters and powers the stations that need electricity — let it run dry and the powered stations go dark.
+Stations don't run themselves. They run on the people you assign to them, and the quality of the output depends on the skill and role-fit of the person doing the work. A Pantry run by a trained Cook produces better food than one run by a Miner trying their best.
 
-Materials move between stations through a **depot and hauler system**. You place depots near resource points, assign haulers, and the supply chain runs itself. Getting this right is its own puzzle — a bottleneck at the LogYard backs up the whole construction pipeline. A Pantry that's undersupplied with ingredients starts rationing, which hits morale. Every station connects to every other station through the supply web, and the efficiency of the whole determines how fast your camp grows.
+The Generator is the backbone of the powered tier. Without fuel it goes dark. When it goes dark, the powered stations stop. Plan for this.
 
 ---
 
 ## Research
 
-The **research system** is your path to better everything. The tech tree covers tools, medicine, station upgrades, wildlife knowledge, construction techniques, and — eventually — investigation into the Rift itself.
+The **tech tree** covers tools, medicine, station upgrades, wildlife knowledge, construction techniques, and — eventually — investigation into the Rift itself.
 
-Not all research happens at a table. Some of it is **micro-research** that builds passively as your colony works — a researcher studying a Hookjaw carcass slowly fills in the codex entry on that species. A cook experimenting with Rustcap Fungus unlocks its edibility data. Exploration fills in the map and reveals new research opportunities. The more your colony does, the more it learns.
+Not all research happens at a desk. Passive learning accumulates as your colony works — studying carcasses, experimenting with plants, observing the environment. Early-game, you and your players handle the specialized work. Mid-game, when you've found researchers and assigned them properly, the tree opens up faster.
 
-Research unlocks change the game in concrete ways. Until your colony has studied Rustcap Fungus, your survivors will treat both variants as unknown and avoid them. Once it's researched, they know which is safe and your cooks can use it. Early-tier weapon research is the difference between fighting wildlife with crude tools and fighting them with something reliable.
-
----
-
-## The Codex
-
-Everything your colony encounters gets catalogued in the **Codex** — species, plants, items, locations, and lore fragments. But entries don't unlock all at once. A new creature shows up as a silhouette with question marks until you've observed it enough. Food items show no calorie or safety data until researched. Danger levels are estimated, not confirmed.
-
-The Codex is how you learn the world. It's also how you start to piece together what the Quiet Rift actually is — because the lore fragments, when you find enough of them, start pointing in a direction that makes the Colonial Authority's mission look a lot less like a scientific expedition and a lot more like a retrieval.
+Research into the Rift is its own track. The deeper you go, the more the colonial Authority's mission briefing starts to look like a controlled disclosure — not the full story, never the full story.
 
 ---
 
-## Quests
+## Exploration and the Codex
 
-There's a **main quest line** that runs from the crash to the truth. Missions unlock in sequence, each one pushing you deeper into what the Rift is and what the *Meridian's Threshold* was really sent to do. Early missions are about survival and establishing the colony. Mid-game missions start involving the Rift directly. Late-game missions ask you to make choices about what to do with what you've found.
+The moon is procedurally generated around a seed. Biomes shift from dense Smokebark groves to open ridgeline terrain to the crystalline lowlands near the water veins. Points of interest scatter across all of them: crash remnants, survivor outposts, pre-existing formations of uncertain origin.
 
-Alongside the main story are **dynamic missions** that emerge from the world and your colony's situation: a leader NPC at an outpost two biomes over needs a specific resource before their group starves, and if you help them they'll join you. A raider faction has been moving closer and needs to be pushed back before they hit camp. A survivor is infected and needs a plant you haven't found yet. These aren't always marked on a map. Some you have to notice.
+The **Codex** tracks everything you encounter. Species start as silhouettes. Plants show no safety data. The Rustcap Fungus looks identical whether it's safe or toxic until you've studied it enough to know which is which. The world reveals itself as you interact with it.
 
-**Leader-issued directives** are their own category — your leaders will flag problems they need resolved, and ignoring them long enough escalates the issue into a full quest. Resolve it well and your leader's morale and effectiveness improve. Ignore it until it boils over and you're dealing with a crisis.
-
----
-
-## Exploration
-
-The moon is procedurally generated around a world seed — same geography rules every run, laid out differently each time. Biomes shift from the dense Smokebark groves to open ridgeline terrain to the crystalline lowlands near the water veins where the Rustcap grows thickest.
-
-Scattered across the world are **points of interest**: remnants from the crash, pre-existing structures of uncertain origin, outposts from other survivor groups, and anomalous formations that your researchers get increasingly interested in the closer you get to the Rift. Some hold supplies. Some hold people. Some hold answers.
-
-**Scent, noise, and line of sight** all matter during exploration. Wildlife can track you by smell — carrying raw meat makes you a target. Predators won't charge a group but will follow a solo traveler. Moving quietly through dense cover is a learnable skill. Surviving on Tharsis IV is as much about reading the environment as it is about fighting back.
+Scattered among the Codex entries, when you find enough of them, are lore fragments from the classified mission data. They don't paint a complete picture immediately. They build toward one.
 
 ---
 
-## The Ending
+## The Story
 
-There is no one way this ends.
+Here's what you piece together over the course of the game:
 
-The Colonial Authority has an interest in what you find. Other survivor factions have competing interests. The Rift itself, the deeper you investigate it, starts to suggest possibilities that weren't in any mission briefing. What you do with the knowledge, which factions you side with, and what state your colony is in when the final choice arrives — all of it determines which of several endings you reach.
+The moon didn't arrive in 2040. It was placed. Long before 2040 — long before humanity had anything that could do the placing. What appeared in Jupiter's orbit that year was a structure designed to be found: a deliberate signal, an artifact positioned where an emerging civilization would eventually reach it.
 
-Some endings get your people home. Some get some of them home. Some keep you on Tharsis IV permanently, for reasons that, by the time you reach that ending, make complete sense.
+The seventeen probes that disappeared didn't malfunction. The classified cargo on the *Meridian's Threshold* included a device designed to interface with the structure. The Colonial Authority knew more than they published. Not everything, but enough to know this wasn't a natural phenomenon, and enough to decide that the first contact needed to be managed.
+
+The meteor that broke the ship wasn't in any navigation chart because it wasn't a naturally occurring debris field. Someone put it there. Or something did, a very long time ago — a final test, a filter, a gate that asks whether the people arriving are capable enough to survive the approach on their own. Every probe that was destroyed passed that gate cleanly. The manned mission wasn't supposed to.
+
+You survived anyway.
+
+The **Quiet Rift** is the entrance — a massive seismic formation on the surface that opens into the structure below. The signal originates there. The closer your research gets to it, the more the structure responds: weather events increasing in frequency, wildlife behavior shifting, strange formations appearing on the surface that weren't there before.
+
+By late game, your colony has to make a decision about what to do with what you've found.
+
+---
+
+## The Endings
+
+There are several ways this resolves, and none of them is simply "good" or "bad."
+
+**Activate the Rift** — Complete the research track, interface with the structure, and open the channel it was designed to open. What's on the other end isn't hostile. It isn't human either. Whether that's a beginning or an ending depends on how prepared your colony is and what choices you made getting there.
+
+**Transmit and Leave** — Document everything, uplink it to the Colonial Authority, and find a way off the moon. You go home. The knowledge reaches Earth. What the Colonial Authority does with it is out of your hands, and given what you know about them by this point, that's not a comfortable thought.
+
+**Destroy the Rift** — Collapse the structure. Silence the signal. Remove the thing that killed four hundred people on the way here. The moon becomes an ordinary moon. No one who doesn't already know will ever know. Your colony survives. Whether that's the right call is the question you'll spend the rest of the game with.
+
+**Stay** — Some survivors, by the end, don't want to leave. The structure is too important. The knowledge is too significant. They stay to continue the research, with no guarantee of rescue and a full understanding of what they're choosing. This is the hardest ending to reach and the only one that feels, depending on how you played, completely earned.
 
 ---
 
 ## The Vibe
 
-This isn't a power fantasy. You will lose survivors. You will make a bad call on a leader and watch morale crater. You will eat the wrong mushroom. You will be out at night, alone, running low on everything, with something circling you in the dark that you can hear but can't see.
+You will lose survivors. You will make a bad call on a leader and watch morale crater. You will eat the wrong mushroom. You will be out at night, alone, running low on everything, with something circling you in the dark that you can hear but can't see.
 
-But when the colony is working — the depots are full, the Pantry is running three shifts, your Security leader held the line through a night raid without losing anyone, and your Researcher just unlocked the first real clue about what's under the rock — it feels like something you actually built.
+But when the colony is working — the supply chain humming, your security leader holding the line through a night raid, your researcher finally cracking the first tier of Rift study — it feels like something you actually built.
 
 Because you did.
 
 ---
 
-*Quiet Rift: Enigma is currently in development. All features described are subject to change.*
+*Quiet Rift: Enigma is currently in development. All features subject to change.*

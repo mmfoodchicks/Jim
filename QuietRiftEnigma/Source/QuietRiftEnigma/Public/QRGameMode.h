@@ -55,6 +55,18 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Save")
 	TObjectPtr<UQRSaveGameSystem> SaveSystem;
 
+	// ── Session Setup ─────────────────────────
+	// Maximum players this session was created for (set by lobby before travel).
+	// Drives starting NPC count: solo=3, 2p=2, 3p=1, 4p+=0.
+	// Blueprint subclass reads this to spawn the correct number of starting survivors.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Session")
+	int32 MaxPlayers = 1;
+
+	// Returns how many NPC survivors should be pre-spawned at session start.
+	// Scales inversely with player count so the total effective workforce stays balanced.
+	UFUNCTION(BlueprintPure, Category = "Session")
+	int32 GetStartingNPCCount() const;
+
 	// ── Interface ────────────────────────────
 	UFUNCTION(BlueprintCallable, Category = "World")
 	float GetDayProgress() const;

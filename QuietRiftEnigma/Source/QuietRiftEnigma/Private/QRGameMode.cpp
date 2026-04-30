@@ -62,6 +62,12 @@ void AQRGameMode::Tick(float DeltaTime)
 	}
 }
 
+int32 AQRGameMode::GetStartingNPCCount() const
+{
+	// Solo = 3, 2 players = 2, 3 players = 1, 4+ players = 0
+	return FMath::Max(0, 4 - MaxPlayers);
+}
+
 float AQRGameMode::GetDayProgress() const
 {
 	return FMath::Fmod(WorldTimeSeconds, DayLengthRealSeconds) / DayLengthRealSeconds;

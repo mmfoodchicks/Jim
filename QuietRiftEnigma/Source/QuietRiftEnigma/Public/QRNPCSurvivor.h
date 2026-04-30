@@ -60,6 +60,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")
 	TObjectPtr<UBehaviorTree> SurvivorBehaviorTree;
 
+	// ── Innate Moral Compass ─────────────────
+	// Per-axis values [-1..1] matching the 8 EQRMoralCompassAxis slots.
+	// Set at spawn; compared against camp's CampPolicyVector to produce alignment score.
+	// High misalignment causes morale drain; extreme misalignment causes the NPC to leave.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Identity")
+	TArray<float> InnateCompassVector;
+
+	// Cached alignment score with current camp policy [-1..1]. Recalculated when camp
+	// policy changes or this NPC's morale is evaluated.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Colony")
+	float CampAlignmentScore = 0.0f;
+
 	// ── Night Panic ───────────────────────────
 	// NPC may panic at night if morale is very low
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Colony")
@@ -85,6 +97,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "NPC")
 	void SetRaidState(EQRCivilianRaidState NewState);
+
+	// Recompute CampAlignmentScore by dot-product of InnateCompassVector vs camp policy.
+	// Call this when the camp's policy vector changes or when evaluating whether an NPC stays.
+	// Returns the new score; Blueprint can check against a leave threshold (e.g. < -0.6).
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "NPC")
+	float UpdateCampAlignment(const TArray<float>& CampPolicyVector);
 
 	UFUNCTION(BlueprintPure, Category = "NPC")
 	bool IsAlive() const;
