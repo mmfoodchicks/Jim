@@ -61,6 +61,13 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Colony")
 	FGameplayTagContainer CampStyleTags;
 
+	// ── Leadership Stability ──────────────────
+	// Accumulates each time a leader is promoted or replaced. Decays over time.
+	// High instability drags colony morale down and is visible in the colony report UI.
+	// Range [0..100]. Each leadership swap adds to this; it decays ~5 pts per game-minute.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Colony")
+	float LeadershipInstabilityScore = 0.0f;
+
 	// ── Ending State ─────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Colony")
 	EQREndingPath ActiveEndingPath = EQREndingPath::None;
@@ -93,6 +100,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Colony")
 	void SetEndingPath(EQREndingPath Path);
+
+	// Call whenever a leader is promoted, demoted, or replaced.
+	// Severity [0..50]: 0 = new leader first promotion, higher = repeat swap on same role.
+	// World-found leaders should pass severity 0 — the colony respects their background.
+	// Applies an immediate morale hit and raises LeadershipInstabilityScore.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Colony")
+	void ApplyLeadershipChurn(float Severity);
 
 	UFUNCTION(BlueprintPure, Category = "Colony")
 	int32 CountSurvivorsWithRole(EQRNPCRole Role) const;

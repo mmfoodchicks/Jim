@@ -80,6 +80,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Leader")
 	EQRLeaderType LeaderType = EQRLeaderType::None;
 
+	// The leader type this NPC is naturally suited for, based on their primary role.
+	// Set once during NPC creation or discovery. Mismatching LeaderType vs NativeLeaderType
+	// triggers the cross-craft penalty applied to LeaderBuff and condition debuffs.
+	// None = generalist / no affinity (no penalty in any type).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Leader")
+	EQRLeaderType NativeLeaderType = EQRLeaderType::None;
+
+	// Set true when this NPC was discovered as an existing leader in the world rather than
+	// promoted from scratch. World-found leaders start with meaningful XP already set and
+	// receive a reduced cross-craft penalty (0.8 instead of 0.6) because their experience
+	// lets them adapt to new roles more readily than a freshly promoted survivor.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Leader")
+	bool bIsWorldFoundLeader = false;
+
+	// Cross-craft penalty multiplier applied to LeaderBuff. Also amplifies condition debuffs.
+	// 1.0 = no penalty (native craft or generalist).
+	// 0.8 = experienced cross-craft (world-found leader in wrong type).
+	// 0.6 = fresh cross-craft (locally promoted into a type outside their native affinity).
+	// Recomputed by RecalculateLeaderDerivedStats().
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Leader|Aptitude")
+	float CrossCraftPenaltyMult = 1.0f;
+
 	// ── Core Aptitude (v1.4 Leader_Parameters) ──
 	// Leadership aptitude L [0..10]. LeaderBuff = Clamp(1+0.02*L+0.01*S, 1.0, 1.35)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Leader|Aptitude",
@@ -202,9 +224,15 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")
 	void GainLeaderXP(float XP);
 
-	// Recompute LeaderBuff, LeaderLevel, bIsInexperiencedLeader from current L/S
+	// Recompute LeaderBuff, LeaderLevel, bIsInexperiencedLeader, and CrossCraftPenaltyMult
+	// from current L/S and the NativeLeaderType vs LeaderType comparison.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")
 	void RecalculateLeaderDerivedStats();
+
+	// Maps an NPC's primary work role to the leader type they are naturally suited for.
+	// Used to populate NativeLeaderType during NPC creation.
+	UFUNCTION(BlueprintPure, Category = "Leader")
+	static EQRLeaderType GetNaturalLeaderTypeForRole(EQRNPCRole Role);
 
 	// Tick the issue escalation score and transition IssueState FSM
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")

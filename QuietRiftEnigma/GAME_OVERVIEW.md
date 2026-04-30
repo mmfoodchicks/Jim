@@ -22,9 +22,13 @@ Each survivor has **roles** you assign them: Gatherer, Hauler, Cook, Guard, or o
 
 ## Leadership
 
-Every role type — Gatherers, Haulers, Guards, and the rest — can have a **leader promoted from within**. The leader of a craft gains experience over time, gets better at their job, and boosts the people under them. A veteran Cook leader produces better meals with less waste. A seasoned Guard leader keeps watch patterns tighter and responds to threats faster.
+Every craft in your colony — Security, Engineering, Logistics, Research, Agriculture, Medical, and more — can have a **leader promoted from within your survivors**. Leaders gain experience over time and actively buff the people under them. A veteran Logistics leader keeps haulers efficient. A seasoned Security leader tightens patrol rotations and responds to threats faster.
 
-But here's the tension: **swap leaders too often and you pay for it**. Survivors don't trust sudden changes. Shake up the leadership chain repeatedly and you'll see morale dip, work slow down, and a general sense of instability ripple through camp. Consistency matters. Build someone up, keep them there, and they'll repay you. Constantly reshuffling power because you think someone else might be slightly better is how colonies fall apart.
+**But craft matters.** Every survivor has a natural affinity based on what they do. A Guard is naturally suited for Security leadership. A Researcher leads Research well. If you promote your Woodcutter to run your Military — because he's the toughest person in camp — his buff to the people under him will be noticeably weaker, and the conditions he imposes when things go wrong will hit harder than they would under someone who grew up doing that job. He's not incompetent, he's just out of his element.
+
+**Swapping leaders too often is its own punishment.** Every time you demote a leader or shuffle the role to someone else, the colony feels it. A small first swap barely registers. But keep reshuffling and you'll see instability build — morale takes a hit, work slows, and survivors start questioning who's actually in charge. This instability score decays over time as things settle, but it doesn't go away overnight.
+
+**The most powerful leaders aren't ones you make — they're ones you find.** As you explore the world, you'll occasionally encounter survivors who are already leading something: a camp of their own, a scavenger crew, a research post. These leaders come with real experience already built in. Get a quest from a struggling Research leader, help them solve their problem, and they might agree to join your colony. Bring them back alive and you can **promote them to leader immediately** — because they've already done the job. Their buff starts higher than any freshly promoted survivor, and if you put them in a role that doesn't match their background, they adapt better than a rookie would.
 
 ---
 

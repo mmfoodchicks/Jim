@@ -19,12 +19,19 @@ void UQRColonyStateComponent::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 	DOREPLIFETIME(UQRColonyStateComponent, WaterSupplyDays);
 	DOREPLIFETIME(UQRColonyStateComponent, CampStyleTags);
 	DOREPLIFETIME(UQRColonyStateComponent, ActiveEndingPath);
+	DOREPLIFETIME(UQRColonyStateComponent, LeadershipInstabilityScore);
 }
 
 void UQRColonyStateComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (!GetOwner()->HasAuthority()) return;
+
+	// Instability decays toward 0 at ~5 pts per game-minute (TickInterval = 60s)
+	if (LeadershipInstabilityScore > 0.0f)
+	{
+		LeadershipInstabilityScore = FMath::Max(LeadershipInstabilityScore - 5.0f, 0.0f);
+	}
 
 	RecalculateColonyStats();
 }
@@ -88,6 +95,9 @@ void UQRColonyStateComponent::RecalculateColonyStats()
 	if (Alive > 0)
 	{
 		float NewMorale = TotalMorale / Alive;
+		// Instability drags aggregate morale down: at score 100, penalty is -10 morale
+		NewMorale -= LeadershipInstabilityScore * 0.1f;
+		NewMorale  = FMath::Clamp(NewMorale, 0.0f, 100.0f);
 		if (!FMath::IsNearlyEqual(NewMorale, ColonyMorale, 0.5f))
 		{
 			ColonyMorale = NewMorale;
@@ -111,6 +121,17 @@ void UQRColonyStateComponent::ApplyColonyMoraleEvent(float Delta)
 void UQRColonyStateComponent::SetEndingPath(EQREndingPath Path)
 {
 	ActiveEndingPath = Path;
+}
+
+void UQRColonyStateComponent::ApplyLeadershipChurn(float Severity)
+{
+	const float SafeSeverity = FMath::Clamp(Severity, 0.0f, 50.0f);
+	LeadershipInstabilityScore = FMath::Clamp(LeadershipInstabilityScore + SafeSeverity, 0.0f, 100.0f);
+
+	// Immediate morale hit proportional to severity — survivors notice the leadership shake-up
+	const float MoraleHit = SafeSeverity * 0.2f;
+	if (MoraleHit > 0.0f)
+		ApplyColonyMoraleEvent(-MoraleHit);
 }
 
 int32 UQRColonyStateComponent::CountSurvivorsWithRole(EQRNPCRole Role) const

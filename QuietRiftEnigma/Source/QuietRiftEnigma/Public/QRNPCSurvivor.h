@@ -9,6 +9,7 @@ class UQRInventoryComponent;
 class UQRSurvivalComponent;
 class UQRNPCRoleComponent;
 class UQRLeaderComponent;
+class UQRColonyStateComponent;
 class UBehaviorTree;
 
 // Full NPC survivor with survival needs, role task system, and optional leadership
@@ -63,6 +64,11 @@ public:
 	// NPC may panic at night if morale is very low
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Colony")
 	bool bHasNightPanic = false;
+
+	// How many times this NPC has been promoted to any leader role.
+	// Used to scale churn severity: first promotion = no churn, each swap after = escalating cost.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Colony")
+	int32 LeaderPromotionCount = 0;
 
 	// ── Interface ────────────────────────────
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "NPC")
