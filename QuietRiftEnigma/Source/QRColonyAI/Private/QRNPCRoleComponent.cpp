@@ -10,7 +10,6 @@ UQRNPCRoleComponent::UQRNPCRoleComponent()
 void UQRNPCRoleComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(UQRNPCRoleComponent, RoleSkillLevels);
 	DOREPLIFETIME(UQRNPCRoleComponent, CurrentRole);
 	DOREPLIFETIME(UQRNPCRoleComponent, CurrentTaskId);
 	DOREPLIFETIME(UQRNPCRoleComponent, bIsWorking);

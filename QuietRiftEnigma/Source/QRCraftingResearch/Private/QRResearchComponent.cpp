@@ -16,7 +16,6 @@ void UQRResearchComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME(UQRResearchComponent, MicroResearchStates);
 	DOREPLIFETIME(UQRResearchComponent, MicroResearchQueue);
 	DOREPLIFETIME(UQRResearchComponent, ResearchPointsPerSecond);
-	DOREPLIFETIME(UQRResearchComponent, CodexStates);
 }
 
 void UQRResearchComponent::InitializeTechNodes(const TArray<UQRTechNode*>& AllNodes)

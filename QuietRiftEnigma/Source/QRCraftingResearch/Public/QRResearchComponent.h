@@ -81,7 +81,9 @@ public:
 	float GetMicroResearchMultiplier(FName MicroResearchId) const;
 
 	// ── Codex ────────────────────────────────
-	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Codex")
+	// Server-authoritative; not replicated (UE 5.7+ disallows replicated TMaps).
+	// Clients query via the BlueprintPure helpers below.
+	UPROPERTY(BlueprintReadOnly, Category = "Codex")
 	TMap<FName, EQRCodexDiscoveryState> CodexStates;
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Codex")
