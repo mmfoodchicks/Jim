@@ -43,6 +43,27 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Item")
 	FGuid InstanceGuid;
 
+	// ── Spatial Placement (Tarkov-style) ─────
+	// Which logical grid this instance currently occupies. Body / ChestRig /
+	// Backpack are valid; None means the instance hasn't been placed yet
+	// (newly created or being moved). Updated through UQRInventoryComponent
+	// placement APIs — never set this directly.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Placement, Category = "Item|Placement")
+	EQRContainerKind ContainerKind = EQRContainerKind::None;
+
+	// Top-left grid cell of this item's footprint within ContainerKind. -1
+	// when unplaced. Combined with the definition's GridFootprintW/H (and
+	// bRotated) it determines which cells the item occupies.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Placement, Category = "Item|Placement")
+	int32 GridX = -1;
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Placement, Category = "Item|Placement")
+	int32 GridY = -1;
+
+	// True when the item is rotated 90°, swapping its W and H footprint.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Placement, Category = "Item|Placement")
+	bool bRotated = false;
+
 	// ── Accessors ────────────────────────────
 	UFUNCTION(BlueprintPure, Category = "Item")
 	bool IsValid() const { return Definition != nullptr && Quantity > 0; }
@@ -73,6 +94,9 @@ private:
 
 	UFUNCTION()
 	void OnRep_Spoil();
+
+	UFUNCTION()
+	void OnRep_Placement();
 
 	void RefreshSpoilState();
 };

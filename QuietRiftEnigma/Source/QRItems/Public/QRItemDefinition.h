@@ -73,6 +73,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical", meta = (ClampMin = "1"))
 	int32 MaxStackSize = 1;
 
+	// Tarkov-style spatial footprint when laid out in an inventory grid.
+	// The item occupies GridFootprintW × GridFootprintH cells. A placed item
+	// can be rotated 90°, swapping these dimensions. Most items are 1×1;
+	// long items (rifles, scopes) are 1×N or 2×N, and worn containers like
+	// rigs and packs use larger footprints when stowed in another grid.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical", meta = (ClampMin = "1"))
+	int32 GridFootprintW = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical", meta = (ClampMin = "1"))
+	int32 GridFootprintH = 1;
+
 	// v1.17: bulk items (e.g. Bulk Meat Sack, Fuel Barrel) occupy the hands slot and
 	// cannot be placed in the grid inventory — requires HandsSlotState == Occupied.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical")

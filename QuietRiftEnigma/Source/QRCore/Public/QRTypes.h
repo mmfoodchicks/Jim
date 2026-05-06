@@ -41,6 +41,18 @@ enum class EQRContainerSlotType : uint8
 	Backpack        UMETA(DisplayName = "Backpack"),
 };
 
+// Which logical grid an item lives in. Body is the player's base inventory
+// (always present); ChestRig and Backpack are only valid when the matching
+// container is equipped via UQRInventoryComponent.
+UENUM(BlueprintType)
+enum class EQRContainerKind : uint8
+{
+	None            UMETA(DisplayName = "None / Unplaced"),
+	Body            UMETA(DisplayName = "Body"),
+	ChestRig        UMETA(DisplayName = "Chest Rig"),
+	Backpack        UMETA(DisplayName = "Backpack"),
+};
+
 UENUM(BlueprintType)
 enum class EQREdibilityState : uint8
 {
