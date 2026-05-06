@@ -54,6 +54,48 @@ enum class EQRContainerKind : uint8
 	Backpack        UMETA(DisplayName = "Backpack"),
 };
 
+// ─────────────────────────────────────────────
+//  PLAYER IDENTITY (Batch A — pronoun + dialogue substitution layer)
+// ─────────────────────────────────────────────
+
+// Player-selected pronoun set. Drives third-person dialogue substitution
+// performed by UQRPronounLibrary. Three options are intentionally all that
+// exist — the dropdown is a neutral selector, not a politicized feature.
+UENUM(BlueprintType)
+enum class EQRPronouns : uint8
+{
+	He      UMETA(DisplayName = "He / Him"),
+	She     UMETA(DisplayName = "She / Her"),
+	They    UMETA(DisplayName = "They / Them"),
+};
+
+// The player's persistent character identity — name, pronouns, voice line set.
+// Stored on the player save state and read by every dialogue line / NPC barks
+// system through UQRPronounLibrary::Substitute.
+USTRUCT(BlueprintType)
+struct QRCORE_API FQRPlayerIdentity
+{
+	GENERATED_BODY()
+
+	// Display name the player chose at character creation. Used for the
+	// {name} dialogue token. Empty string is a valid sentinel meaning
+	// "fall back to the default 'Survivor' label".
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Identity")
+	FString DisplayName;
+
+	// Player-selected pronoun set. Defaults to They so dialogue stays
+	// gender-neutral until the player makes a choice — the same reason
+	// "Customer" is the default form-letter salutation.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Identity")
+	EQRPronouns Pronouns = EQRPronouns::They;
+
+	// Voice profile asset the player's character speaks with. Soft-pointer
+	// so unselected slots don't pull audio packages. Authored later by the
+	// voice-acting pass; this field just reserves the hook.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Identity")
+	TSoftObjectPtr<class USoundBase> VoiceProfile;
+};
+
 UENUM(BlueprintType)
 enum class EQREdibilityState : uint8
 {

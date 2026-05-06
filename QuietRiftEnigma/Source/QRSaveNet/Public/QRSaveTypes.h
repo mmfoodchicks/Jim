@@ -168,6 +168,10 @@ struct QRSAVENET_API FQRGameSaveData
 	UPROPERTY() FQRSurvivorSaveData PlayerData;
 	UPROPERTY() FQRInventorySaveData PlayerInventory;
 
+	// Player identity (name, pronouns, voice profile reference). Defaulted
+	// by UQRPronounLibrary::MakeDefaultIdentity for legacy saves.
+	UPROPERTY() FQRPlayerIdentity PlayerIdentity;
+
 	// Colony data
 	UPROPERTY() TArray<FQRSurvivorSaveData> SurvivorData;
 	UPROPERTY() FQRResearchSaveData ResearchData;
