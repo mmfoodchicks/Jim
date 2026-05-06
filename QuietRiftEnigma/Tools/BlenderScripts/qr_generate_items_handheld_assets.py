@@ -1,15 +1,31 @@
 """
 Quiet Rift: Enigma — Handheld Items Procedural Asset Generator (Blender 4.x)
 
-Run this in Blender's Scripting workspace or via:
-    blender --background --python qr_generate_items_handheld_assets.py
+Upgraded in Batch 3 of the Blender detail pass — every handheld item flows
+through qr_blender_detail.py for production finalization (palette dedupe,
+smooth shading, bevels, smart UV, sockets where they matter, UCX collision).
 
 Reads every "handheld" row in DT_Items_Master.csv (Equipment, Consumable,
 Item, Tech, Leadership, Weapon Kit, Equipment/Logistics, Equipment/Armor,
-Component/Container) and exports one placeholder mesh per row using the
-helpers in qr_blender_common.py. Each silhouette is parameterized by an
-ItemId substring match so similar items share a template but stay
-distinguishable. Sized for UE5 import (1 UU = 1 cm).
+Component/Container) — 63 rows total — and routes each ItemId through
+12 parameterized template builders dispatched by substring match. Each
+builder pulls its colors from qr_blender_detail's canonical palette so
+material zones dedupe across the whole asset library.
+
+Per-item sockets where meaningful:
+    Tools (hatchet, pickaxe, multi-tool):  SOCKET_Grip, SOCKET_BusinessEnd
+    Sewing kit:                            SOCKET_Lid
+    Tubes / bottles / sprays / vials:      SOCKET_Cap
+    Pouches / bags / bundles:              SOCKET_TiePoint
+    Battery cell:                          SOCKET_Terminal
+    Garments (vest / jacket / barding):    SOCKET_WaistAttach
+    Respirator:                            SOCKET_FaceAttach
+    Water filter:                          SOCKET_Spout
+    Drag sled / travois:                   SOCKET_Hitch
+    Casing sets / kit bundles:             SOCKET_Center
+
+Other items (slabs, pads, loose piles, generic parts) skip sockets —
+nothing meaningful to attach.
 
 Usage inside Blender:
     1. Open Blender > Scripting tab
@@ -30,8 +46,13 @@ from qr_blender_common import (  # noqa: E402
     SCALE,
     clear_scene,
     export_fbx,
-    add_material,
-    join_and_rename,
+)
+from qr_blender_detail import (  # noqa: E402
+    palette_material,
+    get_or_create_material,
+    assign_material,
+    add_socket,
+    finalize_asset,
 )
 
 # ── Configuration ──────────────────────────────────────────────────────────────
@@ -46,253 +67,306 @@ HANDHELD_CATEGORIES = {
     "Equipment / Logistics", "Equipment / Armor", "Component / Container",
 }
 
-CATEGORY_COLORS = {
-    "Consumable":              (0.55, 0.60, 0.65, 1.0),
-    "Equipment":               (0.35, 0.30, 0.25, 1.0),
-    "Item":                    (0.45, 0.45, 0.48, 1.0),
-    "Tech":                    (0.30, 0.65, 0.75, 1.0),
-    "Leadership":              (0.85, 0.70, 0.30, 1.0),
-    "Weapon Kit":              (0.40, 0.45, 0.30, 1.0),
-    "Equipment / Logistics":   (0.55, 0.40, 0.25, 1.0),
-    "Equipment / Armor":       (0.40, 0.30, 0.20, 1.0),
-    "Component / Container":   (0.50, 0.40, 0.30, 1.0),
+# Map each Category to a primary palette material name. Builders look up these
+# via palette_material() so a Consumable item stays the same Polymer color
+# everywhere it appears.
+CATEGORY_PALETTE = {
+    "Consumable":              "Polymer",
+    "Equipment":               "DarkCanvas",
+    "Item":                    "Gunmetal",
+    "Tech":                    "DarkSteel",
+    "Leadership":              "Brass",
+    "Weapon Kit":              "Olive",
+    "Equipment / Logistics":   "Wood",
+    "Equipment / Armor":       "Leather",
+    "Component / Container":   "DarkLeather",
 }
 
 
-def _color(category):
-    return CATEGORY_COLORS.get(category.strip(), (0.5, 0.5, 0.5, 1.0))
+def _category_mat(category):
+    return palette_material(CATEGORY_PALETTE.get(category.strip(), "Steel"))
+
+
+def _add(obj, mat):
+    assign_material(obj, mat)
+    return obj
+
+
+def _finalize_handheld(name, sockets=None, lods=None):
+    """Standard finalize for handheld items: subtle bevel, smooth shading,
+    convex collision, optional sockets + LODs."""
+    if sockets:
+        for s in sockets:
+            add_socket(s["name"], location=s.get("loc", (0, 0, 0)),
+                        rotation=s.get("rot", (0, 0, 0)))
+    finalize_asset(name,
+                    bevel_width=0.0015, bevel_angle_deg=30,
+                    smooth_angle_deg=50, collision="convex",
+                    lods=list(lods) if lods else None,
+                    pivot="geometry_center")
 
 
 # ── Template Builders ─────────────────────────────────────────────────────────
 
-def build_cyl(item_id, color, radius=0.04, depth=0.16, cap="none"):
+def build_cyl(item_id, body_mat, radius=0.04, depth=0.16, cap="none"):
     """Cylinder with optional cap. cap in {none, dome, cone, nozzle}."""
     clear_scene()
-    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=depth, location=(0, 0, depth / 2))
-    add_material(bpy.context.active_object, color, f"{item_id}_Body_Mat")
+    cap_mat = get_or_create_material(f"Cyl_Cap_{item_id}",
+                                      (body_mat.diffuse_color[0] * 0.65,
+                                       body_mat.diffuse_color[1] * 0.65,
+                                       body_mat.diffuse_color[2] * 0.65, 1.0),
+                                      roughness=0.55)
+    nozzle_mat = palette_material("DarkSteel")
+    tip_mat = palette_material("Polymer")
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=depth,
+                                         location=(0, 0, depth / 2))
+    _add(bpy.context.active_object, body_mat)
+    sockets = []
     if cap == "dome":
         bpy.ops.mesh.primitive_uv_sphere_add(radius=radius * 0.95, location=(0, 0, depth))
-        cap_obj = bpy.context.active_object
-        cap_obj.scale.z = 0.5
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(cap_obj, (color[0] * 0.6, color[1] * 0.6, color[2] * 0.6, 1.0), f"{item_id}_Cap_Mat")
+        c = bpy.context.active_object
+        c.scale.z = 0.5; bpy.ops.object.transform_apply(scale=True)
+        _add(c, cap_mat)
+        sockets.append({"name": "Cap", "loc": (0, 0, depth + radius * 0.5)})
     elif cap == "cone":
-        bpy.ops.mesh.primitive_cone_add(radius1=radius, radius2=radius * 0.3, depth=depth * 0.25,
+        bpy.ops.mesh.primitive_cone_add(radius1=radius, radius2=radius * 0.3,
+                                        depth=depth * 0.25,
                                         location=(0, 0, depth + depth * 0.125))
-        add_material(bpy.context.active_object, (color[0] * 0.7, color[1] * 0.7, color[2] * 0.7, 1.0), f"{item_id}_Cap_Mat")
+        _add(bpy.context.active_object, cap_mat)
+        sockets.append({"name": "Cap", "loc": (0, 0, depth + depth * 0.25)})
     elif cap == "nozzle":
         bpy.ops.mesh.primitive_cylinder_add(radius=radius * 0.4, depth=depth * 0.3,
-                                            location=(0, 0, depth + depth * 0.15))
-        add_material(bpy.context.active_object, (0.20, 0.20, 0.22, 1.0), f"{item_id}_Nozzle_Mat")
-        bpy.ops.mesh.primitive_uv_sphere_add(radius=radius * 0.2, location=(0, 0, depth + depth * 0.32))
-        add_material(bpy.context.active_object, (0.10, 0.10, 0.12, 1.0), f"{item_id}_Tip_Mat")
-    join_and_rename(f"SM_{item_id}")
+                                             location=(0, 0, depth + depth * 0.15))
+        _add(bpy.context.active_object, nozzle_mat)
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=radius * 0.2,
+                                              location=(0, 0, depth + depth * 0.32))
+        _add(bpy.context.active_object, tip_mat)
+        sockets.append({"name": "Cap", "loc": (0, 0, depth + depth * 0.4)})
+    _finalize_handheld(f"SM_{item_id}", sockets=sockets)
 
 
-def build_pouch(item_id, color, w=0.18, d=0.12, h=0.14):
+def build_pouch(item_id, body_mat, w=0.18, d=0.12, h=0.14):
     """Soft bag/pouch — rounded cuboid with a tied neck."""
     clear_scene()
+    tie_mat = get_or_create_material(f"Pouch_Tie_{item_id}",
+                                      (body_mat.diffuse_color[0] * 0.55,
+                                       body_mat.diffuse_color[1] * 0.55,
+                                       body_mat.diffuse_color[2] * 0.55, 1.0),
+                                      roughness=0.85)
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, location=(0, 0, h / 2))
     body = bpy.context.active_object
-    body.scale = (w, d, h * 0.55)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(body, color, f"{item_id}_Body_Mat")
-    # Tied neck
+    body.scale = (w, d, h * 0.55); bpy.ops.object.transform_apply(scale=True)
+    _add(body, body_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=w * 0.25, depth=h * 0.25, location=(0, 0, h * 0.95))
-    add_material(bpy.context.active_object, (color[0] * 0.6, color[1] * 0.6, color[2] * 0.6, 1.0), f"{item_id}_Tie_Mat")
-    join_and_rename(f"SM_{item_id}")
+    _add(bpy.context.active_object, tie_mat)
+    _finalize_handheld(f"SM_{item_id}",
+                        sockets=[{"name": "TiePoint", "loc": (0, 0, h * 1.05)}])
 
 
-def build_torus_roll(item_id, color, major=0.07, minor=0.02):
-    """Tape roll / fiber roll — torus."""
+def build_torus_roll(item_id, body_mat, major=0.07, minor=0.02):
+    """Tape roll / fiber roll — torus with inner core."""
     clear_scene()
+    core_mat = get_or_create_material(f"Roll_Core_{item_id}",
+                                       (body_mat.diffuse_color[0] * 0.75,
+                                        body_mat.diffuse_color[1] * 0.75,
+                                        body_mat.diffuse_color[2] * 0.75, 1.0),
+                                       roughness=0.85)
     bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, location=(0, 0, minor))
-    add_material(bpy.context.active_object, color, f"{item_id}_Roll_Mat")
+    _add(bpy.context.active_object, body_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=major * 0.55, depth=minor * 1.6, location=(0, 0, minor))
-    add_material(bpy.context.active_object, (color[0] * 0.8, color[1] * 0.8, color[2] * 0.8, 1.0), f"{item_id}_Core_Mat")
-    join_and_rename(f"SM_{item_id}")
+    _add(bpy.context.active_object, core_mat)
+    _finalize_handheld(f"SM_{item_id}")
 
 
-def build_slab(item_id, color, w=0.14, d=0.10, h=0.012):
+def build_slab(item_id, body_mat, w=0.14, d=0.10, h=0.012):
     """Flat slab — pad, strip, sheet, token, data fragment."""
     clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, h / 2))
     obj = bpy.context.active_object
-    obj.scale = (w, d, h)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(obj, color, f"{item_id}_Slab_Mat")
-    join_and_rename(f"SM_{item_id}")
+    obj.scale = (w, d, h); bpy.ops.object.transform_apply(scale=True)
+    _add(obj, body_mat)
+    _finalize_handheld(f"SM_{item_id}")
 
 
-def build_battery(item_id, color):
+def build_battery(item_id, body_mat):
     """Boxy cell with positive terminal."""
     clear_scene()
+    term_mat = palette_material("Brass")
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.07))
     body = bpy.context.active_object
-    body.scale = (0.05, 0.05, 0.14)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(body, color, f"{item_id}_Body_Mat")
+    body.scale = (0.05, 0.05, 0.14); bpy.ops.object.transform_apply(scale=True)
+    _add(body, body_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.018, depth=0.02, location=(0, 0, 0.15))
-    add_material(bpy.context.active_object, (0.85, 0.85, 0.30, 1.0), f"{item_id}_Term_Mat")
-    join_and_rename(f"SM_{item_id}")
+    _add(bpy.context.active_object, term_mat)
+    _finalize_handheld(f"SM_{item_id}",
+                        sockets=[{"name": "Terminal", "loc": (0, 0, 0.16)}])
 
 
-def build_tool(item_id, color, head_kind):
+def build_tool(item_id, body_mat, head_kind):
     """Tool with handle and head. head_kind in {axe, pick, multi, sewing}."""
     clear_scene()
-    # Handle
+    handle_mat = palette_material("Wood")
+    steel_mat = palette_material("Steel")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.02, depth=0.55, location=(0, 0, 0.275))
     handle = bpy.context.active_object
-    add_material(handle, (0.35, 0.25, 0.18, 1.0), f"{item_id}_Handle_Mat")
+    _add(handle, handle_mat)
+
+    sockets = [{"name": "Grip", "loc": (0, 0, 0.05)}]
+
     if head_kind == "axe":
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0.07, 0, 0.55))
         head = bpy.context.active_object
-        head.scale = (0.13, 0.04, 0.10)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(head, color, f"{item_id}_Head_Mat")
+        head.scale = (0.13, 0.04, 0.10); bpy.ops.object.transform_apply(scale=True)
+        _add(head, steel_mat)
+        sockets.append({"name": "BusinessEnd", "loc": (0.13, 0, 0.55)})
     elif head_kind == "pick":
         bpy.ops.mesh.primitive_cone_add(radius1=0.03, radius2=0.0, depth=0.20, location=(0.10, 0, 0.55))
-        head = bpy.context.active_object
-        head.rotation_euler.y = math.pi / 2
-        add_material(head, color, f"{item_id}_Head_Mat")
+        h = bpy.context.active_object
+        h.rotation_euler.y = math.pi / 2
+        _add(h, steel_mat)
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.55))
         sleeve = bpy.context.active_object
-        sleeve.scale = (0.05, 0.04, 0.05)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(sleeve, color, f"{item_id}_Sleeve_Mat")
+        sleeve.scale = (0.05, 0.04, 0.05); bpy.ops.object.transform_apply(scale=True)
+        _add(sleeve, steel_mat)
+        sockets.append({"name": "BusinessEnd", "loc": (0.20, 0, 0.55)})
     elif head_kind == "multi":
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.55))
         head = bpy.context.active_object
-        head.scale = (0.06, 0.025, 0.06)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(head, color, f"{item_id}_Head_Mat")
-        # Pliers nose
+        head.scale = (0.06, 0.025, 0.06); bpy.ops.object.transform_apply(scale=True)
+        _add(head, steel_mat)
         bpy.ops.mesh.primitive_cone_add(radius1=0.025, radius2=0.005, depth=0.06, location=(0, 0, 0.65))
-        add_material(bpy.context.active_object, color, f"{item_id}_Nose_Mat")
+        _add(bpy.context.active_object, steel_mat)
+        sockets.append({"name": "BusinessEnd", "loc": (0, 0, 0.68)})
     elif head_kind == "sewing":
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.07))
         kit = bpy.context.active_object
-        kit.scale = (0.10, 0.06, 0.025)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(kit, color, f"{item_id}_Kit_Mat")
-        # We don't want the long handle for the sewing kit — delete it
+        kit.scale = (0.10, 0.06, 0.025); bpy.ops.object.transform_apply(scale=True)
+        _add(kit, body_mat)
+        # Sewing kit doesn't need the long handle.
         bpy.data.objects.remove(handle, do_unlink=True)
-    join_and_rename(f"SM_{item_id}")
+        sockets = [{"name": "Lid", "loc": (0, 0, 0.085)}]
+    _finalize_handheld(f"SM_{item_id}", sockets=sockets)
 
 
-def build_garment(item_id, color, style="vest"):
+def build_garment(item_id, body_mat, style="vest"):
     """Folded garment silhouette. style in {vest, jacket, barding, underlayer}."""
     clear_scene()
+    plate_mat = get_or_create_material(f"Garment_Plate_{item_id}",
+                                        (body_mat.diffuse_color[0] * 0.7,
+                                         body_mat.diffuse_color[1] * 0.7,
+                                         body_mat.diffuse_color[2] * 0.7, 1.0),
+                                        roughness=0.85)
+    strip_mat = palette_material("DarkSteel")
     if style == "vest":
-        # Torso
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.20))
         torso = bpy.context.active_object
-        torso.scale = (0.30, 0.10, 0.32)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(torso, color, f"{item_id}_Torso_Mat")
-        # Front plates
+        torso.scale = (0.30, 0.10, 0.32); bpy.ops.object.transform_apply(scale=True)
+        _add(torso, body_mat)
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.05, 0.20))
         plate = bpy.context.active_object
-        plate.scale = (0.20, 0.02, 0.25)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(plate, (color[0] * 0.7, color[1] * 0.7, color[2] * 0.7, 1.0), f"{item_id}_Plate_Mat")
+        plate.scale = (0.20, 0.02, 0.25); bpy.ops.object.transform_apply(scale=True)
+        _add(plate, plate_mat)
     elif style == "jacket":
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.22))
         torso = bpy.context.active_object
-        torso.scale = (0.32, 0.12, 0.36)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(torso, color, f"{item_id}_Torso_Mat")
-        # Sleeves
+        torso.scale = (0.32, 0.12, 0.36); bpy.ops.object.transform_apply(scale=True)
+        _add(torso, body_mat)
         for side in [-1, 1]:
             bpy.ops.mesh.primitive_cylinder_add(radius=0.06, depth=0.30, location=(side * 0.36, 0, 0.22))
             sleeve = bpy.context.active_object
             sleeve.rotation_euler.y = math.pi / 2
-            add_material(sleeve, color, f"{item_id}_Sleeve_Mat")
+            _add(sleeve, body_mat)
     elif style == "barding":
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.18))
         body = bpy.context.active_object
-        body.scale = (0.40, 0.18, 0.20)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(body, color, f"{item_id}_Body_Mat")
-        # Plate strips
+        body.scale = (0.40, 0.18, 0.20); bpy.ops.object.transform_apply(scale=True)
+        _add(body, body_mat)
         for i in range(4):
             bpy.ops.mesh.primitive_cube_add(size=1, location=((i - 1.5) * 0.18, 0.18, 0.18))
             strip = bpy.context.active_object
-            strip.scale = (0.07, 0.01, 0.16)
-            bpy.ops.object.transform_apply(scale=True)
-            add_material(strip, (0.30, 0.30, 0.32, 1.0), f"{item_id}_Strip_Mat")
+            strip.scale = (0.07, 0.01, 0.16); bpy.ops.object.transform_apply(scale=True)
+            _add(strip, strip_mat)
     else:  # underlayer (folded)
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.05))
         fold = bpy.context.active_object
-        fold.scale = (0.20, 0.14, 0.04)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(fold, color, f"{item_id}_Fold_Mat")
-    join_and_rename(f"SM_{item_id}")
+        fold.scale = (0.20, 0.14, 0.04); bpy.ops.object.transform_apply(scale=True)
+        _add(fold, body_mat)
+    _finalize_handheld(f"SM_{item_id}",
+                        sockets=[{"name": "WaistAttach", "loc": (0, 0, 0.05)}])
 
 
-def build_respirator(item_id, color, beast=False):
+def build_respirator(item_id, body_mat, beast=False):
     """Mask shell + dual filter cans."""
     clear_scene()
-    # Mask shell
+    filter_mat = get_or_create_material(f"Respirator_Filter_{item_id}",
+                                         (body_mat.diffuse_color[0] * 0.55,
+                                          body_mat.diffuse_color[1] * 0.55,
+                                          body_mat.diffuse_color[2] * 0.55, 1.0),
+                                         roughness=0.55)
+    strap_mat = palette_material("Leather")
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.10, location=(0, 0, 0.10))
     mask = bpy.context.active_object
     mask.scale = (1.0, 0.7, 1.1) if not beast else (1.4, 0.9, 1.3)
     bpy.ops.object.transform_apply(scale=True)
-    add_material(mask, color, f"{item_id}_Mask_Mat")
-    # Filter cans
+    _add(mask, body_mat)
     for side in [-1, 1]:
         bpy.ops.mesh.primitive_cylinder_add(radius=0.035, depth=0.06, location=(side * 0.08, 0.07, 0.08))
         can = bpy.context.active_object
         can.rotation_euler.x = math.pi / 2
-        add_material(can, (color[0] * 0.6, color[1] * 0.6, color[2] * 0.6, 1.0), f"{item_id}_Filter_Mat")
-    # Strap loop
+        _add(can, filter_mat)
     bpy.ops.mesh.primitive_torus_add(major_radius=0.10, minor_radius=0.008, location=(0, -0.04, 0.10))
-    add_material(bpy.context.active_object, (0.20, 0.18, 0.15, 1.0), f"{item_id}_Strap_Mat")
-    join_and_rename(f"SM_{item_id}")
+    _add(bpy.context.active_object, strap_mat)
+    _finalize_handheld(f"SM_{item_id}",
+                        sockets=[{"name": "FaceAttach", "loc": (0, -0.05, 0.10)}])
 
 
-def build_water_filter(item_id, color):
+def build_water_filter(item_id, body_mat):
     """Vertical filter: cylinder + spout + cap."""
     clear_scene()
+    cap_mat = palette_material("DarkSteel")
+    spout_mat = palette_material("Gunmetal")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.05, depth=0.30, location=(0, 0, 0.15))
-    add_material(bpy.context.active_object, color, f"{item_id}_Body_Mat")
+    _add(bpy.context.active_object, body_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.055, depth=0.03, location=(0, 0, 0.31))
-    add_material(bpy.context.active_object, (0.25, 0.25, 0.28, 1.0), f"{item_id}_Cap_Mat")
+    _add(bpy.context.active_object, cap_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.06, location=(0.06, 0, 0.05))
     spout = bpy.context.active_object
     spout.rotation_euler.y = math.pi / 2
-    add_material(spout, (0.20, 0.20, 0.22, 1.0), f"{item_id}_Spout_Mat")
-    join_and_rename(f"SM_{item_id}")
+    _add(spout, spout_mat)
+    _finalize_handheld(f"SM_{item_id}",
+                        sockets=[{"name": "Spout", "loc": (0.10, 0, 0.05)}])
 
 
-def build_carrier(item_id, color, style="sled"):
+def build_carrier(item_id, body_mat, style="sled"):
     """Logistics carrier. style in {sled, travois}."""
     clear_scene()
-    # Platform
+    runner_mat = palette_material("DarkWood")
+    rope_mat = palette_material("Leather")
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.05))
     platform = bpy.context.active_object
-    platform.scale = (0.50, 0.25, 0.04)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(platform, color, f"{item_id}_Plat_Mat")
+    platform.scale = (0.50, 0.25, 0.04); bpy.ops.object.transform_apply(scale=True)
+    _add(platform, body_mat)
     if style == "sled":
         for side in [-1, 1]:
             bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.55, location=(0, side * 0.22, 0.02))
             runner = bpy.context.active_object
             runner.rotation_euler.y = math.pi / 2
-            add_material(runner, (0.25, 0.20, 0.15, 1.0), f"{item_id}_Runner_Mat")
-        # Pull rope
+            _add(runner, runner_mat)
         bpy.ops.mesh.primitive_torus_add(major_radius=0.04, minor_radius=0.005, location=(0.30, 0, 0.10))
-        add_material(bpy.context.active_object, (0.45, 0.32, 0.18, 1.0), f"{item_id}_Rope_Mat")
-    else:  # travois — two angled poles forming a V
+        _add(bpy.context.active_object, rope_mat)
+        hitch_loc = (0.32, 0, 0.10)
+    else:
         for side in [-1, 1]:
             bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.7, location=(0.05, side * 0.10, 0.13))
             pole = bpy.context.active_object
             pole.rotation_euler = (0, math.pi / 2.4, side * 0.18)
-            add_material(pole, (0.40, 0.30, 0.20, 1.0), f"{item_id}_Pole_Mat")
-    join_and_rename(f"SM_{item_id}")
+            _add(pole, runner_mat)
+        hitch_loc = (0.45, 0, 0.20)
+    _finalize_handheld(f"SM_{item_id}",
+                        sockets=[{"name": "Hitch", "loc": hitch_loc}])
 
 
-def build_loose_pile(item_id, color, count=20):
+def build_loose_pile(item_id, body_mat, count=20):
     """Pile of loose granules / strands."""
     clear_scene()
     import random
@@ -302,84 +376,99 @@ def build_loose_pile(item_id, color, count=20):
         y = random.uniform(-0.06, 0.06)
         z = random.uniform(0.005, 0.04)
         bpy.ops.mesh.primitive_ico_sphere_add(radius=0.012, subdivisions=1, location=(x, y, z))
-        add_material(bpy.context.active_object, color, f"{item_id}_Granule_Mat")
-    join_and_rename(f"SM_{item_id}")
+        _add(bpy.context.active_object, body_mat)
+    _finalize_handheld(f"SM_{item_id}")
 
 
-def build_part(item_id, color, kind="block"):
-    """Generic mechanical part. kind in {block, barrel, casing_set, sheet, tub, kit_bundle, data_core, token}."""
+def build_part(item_id, body_mat, kind="block"):
+    """Generic mechanical part. kind in {block, barrel, casing_set, sheet, tub,
+    kit_bundle, data_core, token}."""
     clear_scene()
+    sockets = []
     if kind == "barrel":
+        steel_mat = palette_material("Gunmetal")
         bpy.ops.mesh.primitive_cylinder_add(radius=0.015, depth=0.30, location=(0, 0, 0.15))
-        add_material(bpy.context.active_object, color, f"{item_id}_Bore_Mat")
+        _add(bpy.context.active_object, steel_mat)
         bpy.ops.mesh.primitive_cylinder_add(radius=0.025, depth=0.04, location=(0, 0, 0.30))
-        add_material(bpy.context.active_object, color, f"{item_id}_Muzzle_Mat")
+        _add(bpy.context.active_object, steel_mat)
     elif kind == "casing_set":
+        brass = palette_material("Brass")
         for i in range(6):
             x = (i % 3 - 1) * 0.025
             y = (i // 3 - 0.5) * 0.025
             bpy.ops.mesh.primitive_cylinder_add(radius=0.008, depth=0.04, location=(x, y, 0.02))
-            add_material(bpy.context.active_object, (0.75, 0.55, 0.20, 1.0), f"{item_id}_Brass_Mat")
+            _add(bpy.context.active_object, brass)
+        sockets.append({"name": "Center", "loc": (0, 0, 0.04)})
     elif kind == "sheet":
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.005))
         sheet = bpy.context.active_object
-        sheet.scale = (0.20, 0.14, 0.008)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(sheet, color, f"{item_id}_Sheet_Mat")
+        sheet.scale = (0.20, 0.14, 0.008); bpy.ops.object.transform_apply(scale=True)
+        _add(sheet, body_mat)
     elif kind == "tub":
+        inner_mat = get_or_create_material(f"Tub_Inner_{item_id}",
+                                            (body_mat.diffuse_color[0] * 0.5,
+                                             body_mat.diffuse_color[1] * 0.5,
+                                             body_mat.diffuse_color[2] * 0.5, 1.0),
+                                            roughness=0.85)
         bpy.ops.mesh.primitive_cylinder_add(radius=0.10, depth=0.10, location=(0, 0, 0.05))
-        add_material(bpy.context.active_object, color, f"{item_id}_Wall_Mat")
+        _add(bpy.context.active_object, body_mat)
         bpy.ops.mesh.primitive_cylinder_add(radius=0.085, depth=0.085, location=(0, 0, 0.06))
-        inner = bpy.context.active_object
-        add_material(inner, (color[0] * 0.5, color[1] * 0.5, color[2] * 0.5, 1.0), f"{item_id}_Inner_Mat")
+        _add(bpy.context.active_object, inner_mat)
     elif kind == "kit_bundle":
-        # Outer wrap
+        strap_mat = palette_material("DarkLeather")
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.06))
         wrap = bpy.context.active_object
-        wrap.scale = (0.20, 0.10, 0.10)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(wrap, color, f"{item_id}_Wrap_Mat")
-        # Tied straps
+        wrap.scale = (0.20, 0.10, 0.10); bpy.ops.object.transform_apply(scale=True)
+        _add(wrap, body_mat)
         for x in [-0.06, 0.06]:
             bpy.ops.mesh.primitive_torus_add(major_radius=0.10, minor_radius=0.006, location=(x, 0, 0.06))
             strap = bpy.context.active_object
             strap.rotation_euler.y = math.pi / 2
-            add_material(strap, (0.20, 0.18, 0.15, 1.0), f"{item_id}_Strap_Mat")
+            _add(strap, strap_mat)
+        sockets.append({"name": "Center", "loc": (0, 0, 0.12)})
     elif kind == "data_core":
+        glow_mat = get_or_create_material(f"DataCore_Glow_{item_id}",
+                                           (0.30, 0.85, 0.95, 1.0), roughness=0.20,
+                                           emissive=(0.30, 0.85, 0.95, 1.0))
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.025))
-        body = bpy.context.active_object
-        body.scale = (0.08, 0.05, 0.025)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(body, color, f"{item_id}_Shell_Mat")
-        # Glow stripe
+        b = bpy.context.active_object
+        b.scale = (0.08, 0.05, 0.025); bpy.ops.object.transform_apply(scale=True)
+        _add(b, body_mat)
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.052))
         stripe = bpy.context.active_object
-        stripe.scale = (0.06, 0.01, 0.003)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(stripe, (0.30, 0.85, 0.95, 1.0), f"{item_id}_Glow_Mat")
+        stripe.scale = (0.06, 0.01, 0.003); bpy.ops.object.transform_apply(scale=True)
+        _add(stripe, glow_mat)
     elif kind == "token":
+        ring_mat = get_or_create_material(f"Token_Ring_{item_id}",
+                                           (body_mat.diffuse_color[0] * 0.7,
+                                            body_mat.diffuse_color[1] * 0.7,
+                                            body_mat.diffuse_color[2] * 0.7, 1.0),
+                                           roughness=0.55, metallic=0.85)
         bpy.ops.mesh.primitive_cylinder_add(radius=0.04, depth=0.006, location=(0, 0, 0.003))
-        add_material(bpy.context.active_object, color, f"{item_id}_Disc_Mat")
+        _add(bpy.context.active_object, body_mat)
         bpy.ops.mesh.primitive_torus_add(major_radius=0.030, minor_radius=0.003, location=(0, 0, 0.006))
-        add_material(bpy.context.active_object, (color[0] * 0.7, color[1] * 0.7, color[2] * 0.7, 1.0), f"{item_id}_Ring_Mat")
+        _add(bpy.context.active_object, ring_mat)
     else:  # block — generic part
+        pin_mat = get_or_create_material(f"Block_Pin_{item_id}",
+                                          (body_mat.diffuse_color[0] * 0.6,
+                                           body_mat.diffuse_color[1] * 0.6,
+                                           body_mat.diffuse_color[2] * 0.6, 1.0),
+                                          roughness=0.55)
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.04))
         block = bpy.context.active_object
-        block.scale = (0.10, 0.05, 0.07)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(block, color, f"{item_id}_Block_Mat")
+        block.scale = (0.10, 0.05, 0.07); bpy.ops.object.transform_apply(scale=True)
+        _add(block, body_mat)
         bpy.ops.mesh.primitive_cylinder_add(radius=0.008, depth=0.05, location=(0.05, 0, 0.04))
         pin = bpy.context.active_object
         pin.rotation_euler.y = math.pi / 2
-        add_material(pin, (color[0] * 0.6, color[1] * 0.6, color[2] * 0.6, 1.0), f"{item_id}_Pin_Mat")
-    join_and_rename(f"SM_{item_id}")
+        _add(pin, pin_mat)
+    _finalize_handheld(f"SM_{item_id}", sockets=sockets)
 
 
 # ── Dispatch (token → builder + params) ───────────────────────────────────────
 
 # First match wins. Ordered so longer / more specific tokens go before shorter ones.
 DISPATCH = [
-    # Substring,           builder,             kwargs (item_id + color filled in by main)
     ("HATCHET",             build_tool,          {"head_kind": "axe"}),
     ("PICKAXE",             build_tool,          {"head_kind": "pick"}),
     ("MULTI_TOOL",          build_tool,          {"head_kind": "multi"}),
@@ -440,7 +529,6 @@ DISPATCH = [
 
 
 def dispatch_for(item_id):
-    """Return (builder_fn, kwargs) for the first matching token, else None."""
     for token, fn, kwargs in DISPATCH:
         if token in item_id:
             return fn, dict(kwargs)
@@ -450,7 +538,7 @@ def dispatch_for(item_id):
 # ── Main export pipeline ───────────────────────────────────────────────────────
 
 def main():
-    print("\n=== Quiet Rift: Enigma — Handheld Items Asset Generator ===")
+    print("\n=== Quiet Rift: Enigma — Handheld Items Asset Generator (Batch 3 detail upgrade) ===")
     csv_abs = os.path.abspath(CSV_PATH)
     if not os.path.isfile(csv_abs):
         print(f"ERROR: CSV not found at {csv_abs}")
@@ -466,18 +554,16 @@ def main():
     for row in rows:
         item_id = row["ItemId"].strip()
         category = row["Category"].strip()
-        color = _color(category)
+        body_mat = _category_mat(category)
         match = dispatch_for(item_id)
         if match is None:
             unmatched.append(item_id)
-            # Fallback: generic block in category color
-            build_part(item_id, color, kind="block")
-        else:
-            fn, kwargs = match
-            kwargs.setdefault("color", color)
-            print(f"\n[{item_id}] {row.get('Item', item_id)} ({category}) -> {fn.__name__}")
-            fn(item_id, **kwargs)
-
+            build_part(item_id, body_mat, kind="block")
+            continue
+        fn, kwargs = match
+        kwargs.setdefault("body_mat", body_mat)
+        print(f"\n[{item_id}] {row.get('Item', item_id)} ({category}) -> {fn.__name__}")
+        fn(item_id, **kwargs)
         out_path = os.path.join(OUTPUT_DIR, f"SM_{item_id}.fbx")
         export_fbx(item_id, out_path)
 
@@ -488,7 +574,9 @@ def main():
 
     print("\n=== Generation complete ===")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
-    print("Import these FBX files into UE5 via Content Browser > Import.")
+    print("Each FBX exports SM_<id> + UCX_ collision; tools / pouches / containers /")
+    print("tubes / batteries / garments / respirator / water filter / carriers / kit")
+    print("bundles also export their meaningful SOCKET_* attach points.")
 
 
 if __name__ == "__main__":
