@@ -21,6 +21,11 @@ void UQRInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME(UQRInventoryComponent, MaxCarryWeightKg);
 	DOREPLIFETIME(UQRInventoryComponent, MaxVolumeLiters);
 	DOREPLIFETIME(UQRInventoryComponent, MaxSlots);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedChestRig);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedBackpack);
+	DOREPLIFETIME(UQRInventoryComponent, BaseCarryWeightKg);
+	DOREPLIFETIME(UQRInventoryComponent, BaseVolumeLiters);
+	DOREPLIFETIME(UQRInventoryComponent, BaseSlots);
 }
 
 EQRInventoryResult UQRInventoryComponent::TryAddItem(UQRItemInstance* Item, int32& OutRemainder)
@@ -236,7 +241,95 @@ void UQRInventoryComponent::SetShoulderStackFromSTR(int32 STR)
 
 void UQRInventoryComponent::SetCarryCapacityFromSTR(int32 STR)
 {
-	MaxCarryWeightKg = UQRMath::CarryCapacityKg(STR);
+	BaseCarryWeightKg = UQRMath::CarryCapacityKg(STR);
+	RecomputeCapacityFromContainers();
+}
+
+void UQRInventoryComponent::RecomputeCapacityFromContainers()
+{
+	float WeightBonus = 0.0f;
+	float VolumeBonus = 0.0f;
+	int32 SlotBonus   = 0;
+
+	auto AddBonusFor = [&](UQRItemInstance* Container)
+	{
+		if (!Container || !Container->Definition) return;
+		const UQRItemDefinition* Def = Container->Definition;
+		if (Def->ContainerSlot == EQRContainerSlotType::None) return;
+		WeightBonus += FMath::Max(Def->ContainerCarryBonusKg, 0.0f);
+		VolumeBonus += FMath::Max(Def->ContainerVolumeBonusLiters, 0.0f);
+		SlotBonus   += FMath::Max(Def->ContainerGridW * Def->ContainerGridH, 0);
+	};
+
+	AddBonusFor(EquippedChestRig);
+	AddBonusFor(EquippedBackpack);
+
+	MaxCarryWeightKg = BaseCarryWeightKg + WeightBonus;
+	MaxVolumeLiters  = BaseVolumeLiters  + VolumeBonus;
+	MaxSlots         = BaseSlots         + SlotBonus;
+
+	OnInventoryChanged.Broadcast();
+}
+
+UQRItemInstance* UQRInventoryComponent::GetEquippedContainer(EQRContainerSlotType Slot) const
+{
+	switch (Slot)
+	{
+		case EQRContainerSlotType::ChestRig: return EquippedChestRig;
+		case EQRContainerSlotType::Backpack: return EquippedBackpack;
+		default:                              return nullptr;
+	}
+}
+
+EQRInventoryResult UQRInventoryComponent::TryEquipContainer(UQRItemInstance* Item)
+{
+	if (!Item || !Item->Definition) return EQRInventoryResult::InvalidItem;
+
+	const EQRContainerSlotType Slot = Item->Definition->ContainerSlot;
+	if (Slot != EQRContainerSlotType::ChestRig && Slot != EQRContainerSlotType::Backpack)
+		return EQRInventoryResult::WrongSlot;
+
+	if (GetEquippedContainer(Slot) != nullptr) return EQRInventoryResult::SlotOccupied;
+
+	// Detach from flat inventory if it's living there. Don't touch the array
+	// otherwise — the caller may pass a freshly-spawned instance from a
+	// dropped pickup, world container, or trade flow.
+	Items.Remove(Item);
+
+	if (Slot == EQRContainerSlotType::ChestRig) EquippedChestRig = Item;
+	else                                          EquippedBackpack = Item;
+
+	RecomputeCapacityFromContainers();
+	OnItemAdded.Broadcast(Item, /*SlotIndex*/ -1);
+	return EQRInventoryResult::Success;
+}
+
+EQRInventoryResult UQRInventoryComponent::TryUnequipContainer(EQRContainerSlotType Slot, UQRItemInstance*& OutRemovedContainer)
+{
+	OutRemovedContainer = nullptr;
+	UQRItemInstance* Container = GetEquippedContainer(Slot);
+	if (!Container || !Container->Definition) return EQRInventoryResult::InvalidItem;
+
+	// Capacity *after* removing the container's bonus.
+	const float WouldLoseKg     = FMath::Max(Container->Definition->ContainerCarryBonusKg, 0.0f);
+	const float WouldLoseLiters = FMath::Max(Container->Definition->ContainerVolumeBonusLiters, 0.0f);
+	const int32 WouldLoseSlots  = FMath::Max(Container->Definition->ContainerGridW * Container->Definition->ContainerGridH, 0);
+
+	const float CurrentWeight = GetCurrentWeightKg();
+	const float CurrentVolume = GetCurrentVolumeLiters();
+	const int32 CurrentSlotsUsed = Items.Num();
+
+	if (CurrentWeight     > MaxCarryWeightKg - WouldLoseKg)     return EQRInventoryResult::WouldNotFit;
+	if (CurrentVolume     > MaxVolumeLiters  - WouldLoseLiters) return EQRInventoryResult::WouldNotFit;
+	if (CurrentSlotsUsed  > MaxSlots         - WouldLoseSlots)  return EQRInventoryResult::WouldNotFit;
+
+	if (Slot == EQRContainerSlotType::ChestRig) EquippedChestRig = nullptr;
+	else                                          EquippedBackpack = nullptr;
+
+	RecomputeCapacityFromContainers();
+	OutRemovedContainer = Container;
+	OnItemRemoved.Broadcast(Container, 1);
+	return EQRInventoryResult::Success;
 }
 
 TArray<UQRItemInstance*> UQRInventoryComponent::GetItemsByCategory(EQRItemCategory Category) const
@@ -279,3 +372,9 @@ UQRItemInstance* UQRInventoryComponent::FindExistingStack(FName ItemId, int32 Ma
 
 void UQRInventoryComponent::OnRep_Items()    { OnInventoryChanged.Broadcast(); }
 void UQRInventoryComponent::OnRep_HandSlot() { OnInventoryChanged.Broadcast(); }
+void UQRInventoryComponent::OnRep_EquippedContainers()
+{
+	// Server is authoritative on Max* values, but recompute on clients too so
+	// local prediction sees the same totals during the rep window.
+	RecomputeCapacityFromContainers();
+}

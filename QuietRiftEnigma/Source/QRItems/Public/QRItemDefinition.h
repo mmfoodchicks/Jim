@@ -124,6 +124,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Crafting")
 	bool bIsReusableCraftingInput = false;
 
+	// ── Container (Chest Rig / Backpack) ──────
+	// If non-None, equipping this item into the matching equipment slot
+	// extends the owning inventory's grid + carry weight + carry volume
+	// by ContainerGridW*ContainerGridH slots, ContainerCarryBonusKg kg,
+	// and ContainerVolumeBonusLiters L. Items in those grid cells are
+	// stored in the owning inventory's flat Items array; UI partitions
+	// by metadata. Unequipping fails if remaining items wouldn't fit.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container")
+	EQRContainerSlotType ContainerSlot = EQRContainerSlotType::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "1"))
+	int32 ContainerGridW = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "1"))
+	int32 ContainerGridH = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "0"))
+	float ContainerCarryBonusKg = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "0"))
+	float ContainerVolumeBonusLiters = 0.0f;
+
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{
 		return FPrimaryAssetId(TEXT("QRItem"), ItemId);

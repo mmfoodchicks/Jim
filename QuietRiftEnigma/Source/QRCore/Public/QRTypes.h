@@ -27,6 +27,18 @@ enum class EQRItemCategory : uint8
 	Seed            UMETA(DisplayName = "Seed"),
 	Flora           UMETA(DisplayName = "Flora"),
 	Wildlife        UMETA(DisplayName = "Wildlife Product"),
+	ChestRig        UMETA(DisplayName = "Chest Rig"),
+	Backpack        UMETA(DisplayName = "Backpack"),
+};
+
+// Wearable container slot. Equipping a container of this type extends the
+// owning inventory's grid + weight + volume capacity. None = not a container.
+UENUM(BlueprintType)
+enum class EQRContainerSlotType : uint8
+{
+	None            UMETA(DisplayName = "None"),
+	ChestRig        UMETA(DisplayName = "Chest Rig"),
+	Backpack        UMETA(DisplayName = "Backpack"),
 };
 
 UENUM(BlueprintType)
