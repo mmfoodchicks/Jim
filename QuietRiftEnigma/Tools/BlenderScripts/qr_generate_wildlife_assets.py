@@ -365,6 +365,142 @@ def gen_embermane_alpha(role):
     join_and_rename("SM_ANM_EmbermaneAlpha")
 
 
+# ── Legacy fauna (relocated from qr_generate_flora_assets.py during the
+#    Batch 1 detail upgrade). These four species are NOT in
+#    DT_Species_Wildlife.csv yet. They export alongside the CSV-driven set
+#    via the EXTRAS pass in main(). When the CSV is updated to canonicalize
+#    them (or merge/rename them onto existing entries), move them into the
+#    main GENERATORS dict and remove the EXTRAS loop. The Batch 2 wildlife
+#    detail upgrade will rework these alongside the rest.
+
+def gen_shardback_grazer_legacy():
+    """Low hexapod with ceramic back plates and tri-lobed mouth."""
+    clear_scene()
+    # Body
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.6, location=(0, 0, 0.5))
+    body = bpy.context.active_object
+    body.scale = (1.4, 0.8, 0.6)
+    bpy.ops.object.transform_apply(scale=True)
+    add_material(body, (0.78, 0.72, 0.60, 1.0), "Shardback_Body_Mat")
+    # Ceramic plates (flat cuboid segments on dorsal surface)
+    for i in range(5):
+        bpy.ops.mesh.primitive_cube_add(size=1, location=((i - 2) * 0.22, 0, 0.72))
+        plate = bpy.context.active_object
+        plate.scale = (0.20, 0.50, 0.06)
+        bpy.ops.object.transform_apply(scale=True)
+        add_material(plate, (0.88, 0.85, 0.78, 1.0), "Shardback_Plate_Mat")
+    # Six legs
+    for i in range(6):
+        side = 1 if i < 3 else -1
+        row = (i % 3) - 1
+        bpy.ops.mesh.primitive_cylinder_add(
+            radius=0.05, depth=0.45,
+            location=(row * 0.35, side * 0.65, 0.25)
+        )
+        leg = bpy.context.active_object
+        leg.rotation_euler.x = math.pi / 6
+        add_material(leg, (0.60, 0.55, 0.45, 1.0), "Shardback_Leg_Mat")
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.join()
+    bpy.context.active_object.name = "SM_ANM_ShardbackGrazer"
+
+
+def gen_ironstag_stalker_legacy():
+    """Tall territorial predator with antler-like ferric blade growths."""
+    clear_scene()
+    # Body
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.7, location=(0, 0, 1.2))
+    body = bpy.context.active_object
+    body.scale = (1.6, 0.9, 0.9)
+    bpy.ops.object.transform_apply(scale=True)
+    add_material(body, (0.15, 0.10, 0.10, 1.0), "Ironstag_Body_Mat")
+    # Neck
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.2, depth=0.6, location=(0.7, 0, 1.6))
+    neck = bpy.context.active_object
+    neck.rotation_euler.y = math.pi / 4
+    add_material(neck, (0.12, 0.08, 0.08, 1.0), "Ironstag_Neck_Mat")
+    # Head
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.3, location=(1.1, 0, 1.9))
+    head = bpy.context.active_object
+    add_material(head, (0.12, 0.08, 0.08, 1.0), "Ironstag_Head_Mat")
+    # Antler blades (flat elongated cuboids)
+    for side in [-1, 1]:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(1.0, side * 0.25, 2.3))
+        antler = bpy.context.active_object
+        antler.scale = (0.05, 0.08, 0.55)
+        antler.rotation_euler.z = math.pi / 8 * side
+        bpy.ops.object.transform_apply(scale=True)
+        add_material(antler, (0.65, 0.22, 0.08, 1.0), "Ironstag_Antler_Mat")
+    # Chest plate
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 1.0))
+    plate = bpy.context.active_object
+    plate.scale = (0.35, 0.55, 0.28)
+    bpy.ops.object.transform_apply(scale=True)
+    add_material(plate, (0.30, 0.28, 0.35, 1.0), "Ironstag_ChestPlate_Mat")
+    # Four legs
+    for i in range(4):
+        row = 1 if i < 2 else -1
+        side = 1 if i % 2 == 0 else -1
+        bpy.ops.mesh.primitive_cylinder_add(
+            radius=0.08, depth=1.0,
+            location=(row * 0.5, side * 0.4, 0.5)
+        )
+        leg = bpy.context.active_object
+        add_material(leg, (0.13, 0.09, 0.09, 1.0), "Ironstag_Leg_Mat")
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.join()
+    bpy.context.active_object.name = "SM_ANM_IronstagStalker"
+
+
+def gen_shellmaw_ambusher_legacy():
+    """Broad shell-backed beast; hides as mineral hump until opening trapdoor maw."""
+    clear_scene()
+    # Shell (hemisphere)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.9, location=(0, 0, 0.4))
+    shell = bpy.context.active_object
+    shell.scale.z = 0.45
+    bpy.ops.object.transform_apply(scale=True)
+    add_material(shell, (0.38, 0.28, 0.20, 1.0), "Shellmaw_Shell_Mat")
+    # Mud/mineral encrustation layer
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.95, location=(0, 0, 0.38))
+    crust = bpy.context.active_object
+    crust.scale.z = 0.43
+    bpy.ops.object.transform_apply(scale=True)
+    add_material(crust, (0.42, 0.35, 0.25, 0.6), "Shellmaw_Crust_Mat")
+    # Maw opening (torus at front)
+    bpy.ops.mesh.primitive_torus_add(
+        major_radius=0.45, minor_radius=0.12, location=(0.65, 0, 0.25)
+    )
+    maw = bpy.context.active_object
+    maw.rotation_euler.y = math.pi / 2
+    add_material(maw, (0.65, 0.48, 0.40, 1.0), "Shellmaw_Maw_Mat")
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.join()
+    bpy.context.active_object.name = "SM_ANM_ShellmawAmbusher"
+
+
+def gen_fogleech_swarm_legacy():
+    """Swarm cloud: many small leech bodies grouped together."""
+    clear_scene()
+    import random
+    random.seed(42)
+    for i in range(40):
+        x = random.uniform(-0.8, 0.8)
+        y = random.uniform(-0.8, 0.8)
+        z = random.uniform(0.2, 1.2)
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=0.07, subdivisions=2, location=(x, y, z)
+        )
+        leech = bpy.context.active_object
+        leech.scale.z = 2.0
+        bpy.ops.object.transform_apply(scale=True)
+        green_tint = random.uniform(0.0, 0.15)
+        add_material(leech, (0.12, 0.18 + green_tint, 0.12, 1.0), "Fogleech_Mat")
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.join()
+    bpy.context.active_object.name = "SM_ANM_FogleechSwarm"
+
+
 # ── Dispatch table — every SpeciesId in the CSV must map to a generator. ─────
 
 GENERATORS = {
@@ -380,6 +516,14 @@ GENERATORS = {
     "ANM_PaleRafter":         gen_pale_rafter,
     "ANM_StonebellyTortoise": gen_stonebelly_tortoise,
     "ANM_EmbermaneAlpha":     gen_embermane_alpha,
+}
+
+# Legacy fauna not yet in the wildlife CSV. Exported in their own loop in main().
+EXTRAS = {
+    "ANM_ShardbackGrazer":   gen_shardback_grazer_legacy,
+    "ANM_IronstagStalker":   gen_ironstag_stalker_legacy,
+    "ANM_ShellmawAmbusher":  gen_shellmaw_ambusher_legacy,
+    "ANM_FogleechSwarm":     gen_fogleech_swarm_legacy,
 }
 
 
@@ -407,6 +551,16 @@ def main():
             continue
         print(f"\n[{sid}] {row.get('DisplayName', sid)} ({row.get('BehaviorRole', '?')})")
         gen(row.get("BehaviorRole", "Ambient"))
+        out_path = os.path.join(OUTPUT_DIR, f"SM_{sid}.fbx")
+        export_fbx(sid, out_path)
+
+    # Legacy fauna pulled in from the old flora script. These have no CSV row
+    # yet so they bypass the loop above and export by hand. Remove this loop
+    # once they're either canonicalized into DT_Species_Wildlife.csv (move
+    # them into GENERATORS) or merged onto existing entries (delete here).
+    for sid, gen in EXTRAS.items():
+        print(f"\n[EXTRA {sid}] (not yet in DT_Species_Wildlife.csv)")
+        gen()
         out_path = os.path.join(OUTPUT_DIR, f"SM_{sid}.fbx")
         export_fbx(sid, out_path)
 
