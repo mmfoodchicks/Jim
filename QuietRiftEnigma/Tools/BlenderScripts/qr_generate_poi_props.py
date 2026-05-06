@@ -1,20 +1,32 @@
 """
 Quiet Rift: Enigma — POI Archetype Set-Dressing Generator (Blender 4.x)
 
-Run this in Blender's Scripting workspace or via:
-    blender --background --python qr_generate_poi_props.py
+Upgraded in Batch 8 of the Blender detail pass — every POI archetype
+flows through qr_blender_detail.py for production finalization (palette
+dedupe, smooth shading, bevels, smart UV, sockets, UCX collision, LOD
+chain).
 
-Reads every row in DT_POIArchetypes.csv and exports one placeholder
-"hero prop cluster" FBX per archetype using the helpers in
-qr_blender_common.py. Each cluster is a small composed scene
-(typically 4–8 sub-meshes joined into one) representing the visual
-identity of that POI type — wreckage debris, cave mouth, rover bay,
-remnant site, etc. Sized for UE5 import (1 UU = 1 cm).
+Reads every row in DT_POIArchetypes.csv and exports one composed-scene
+FBX per archetype. Wreck-type archetypes share a _wreck_floor helper
+for visual consistency; world-feature archetypes use bespoke geometry.
 
-Wreck-type archetypes share the _wreck_floor helper (scorched twisted
-deck plate) so the family reads consistently. World-feature archetypes
-(cave, ridge, vent field, sinkhole, meteor field) use bespoke
-geometry.
+Per-archetype sockets (gameplay-critical):
+    Wreck archetypes:
+        SOCKET_LootSpawnA / SOCKET_LootSpawnB — where loot containers spawn
+        SOCKET_PlayerEntry                     — natural player approach point
+    Cave / Sinkhole / Vent:
+        SOCKET_Entrance, SOCKET_Interior, plus archetype-specific points
+    Comms Relay:
+        SOCKET_DishCenter, SOCKET_TowerBase
+    Cryo Pod Cluster:
+        SOCKET_PodA-D
+    Meteor Impact:
+        SOCKET_CraterCenter, SOCKET_ChunkA-C
+    Remnant Site:
+        SOCKET_StudyPoint, SOCKET_ApexCrest
+
+Random scatter is seeded per-archetype so output is stable.
+Filenames sanitize the slash in FloodedSinkhole/IceTunnel.
 
 Usage inside Blender:
     1. Open Blender > Scripting tab
@@ -36,8 +48,15 @@ from qr_blender_common import (  # noqa: E402
     SCALE,
     clear_scene,
     export_fbx,
-    add_material,
-    join_and_rename,
+)
+from qr_blender_detail import (  # noqa: E402
+    palette_material,
+    get_or_create_material,
+    assign_material,
+    add_socket,
+    add_panel_seam_strip,
+    add_rivet_grid,
+    finalize_asset,
 )
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "../../Content/Meshes/poi_props")
@@ -46,49 +65,75 @@ CSV_PATH = os.path.join(
     "../../Content/QuietRift/Data/DT_POIArchetypes.csv",
 )
 
-# Palette
-HULL       = (0.45, 0.42, 0.40, 1.0)
-SCORCHED   = (0.18, 0.16, 0.14, 1.0)
-STEEL      = (0.30, 0.32, 0.36, 1.0)
-DARK_STEEL = (0.18, 0.20, 0.24, 1.0)
-COPPER     = (0.65, 0.42, 0.22, 1.0)
-ROCK       = (0.45, 0.42, 0.38, 1.0)
-DARK_ROCK  = (0.25, 0.22, 0.20, 1.0)
-ORE        = (0.55, 0.45, 0.30, 1.0)
-ICE_BLUE   = (0.55, 0.75, 0.88, 0.7)
-WATER      = (0.20, 0.35, 0.50, 0.6)
-STEAM      = (0.92, 0.92, 0.95, 0.4)
-GLOW_RED   = (0.85, 0.20, 0.15, 1.0)
-GLOW_CYAN  = (0.30, 0.85, 0.95, 1.0)
-CLOTH      = (0.55, 0.42, 0.30, 1.0)
-LUGGAGE    = (0.30, 0.20, 0.15, 1.0)
 
-
-def _slab(x, y, z, w, d, h, color, name):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z))
-    obj = bpy.context.active_object
-    obj.scale = (w, d, h)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(obj, color, name)
+def _add(obj, mat):
+    assign_material(obj, mat)
     return obj
 
 
+def _slab(x, y, z, w, d, h, mat, name):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z))
+    obj = bpy.context.active_object
+    obj.scale = (w, d, h); bpy.ops.object.transform_apply(scale=True)
+    _add(obj, mat); obj.name = name
+    return obj
+
+
+# Bespoke palette materials shared across POI archetypes.
+def _hull():     return get_or_create_material("POI_Hull",     (0.45, 0.42, 0.40, 1.0), roughness=0.85)
+def _scorched(): return get_or_create_material("POI_Scorched", (0.18, 0.16, 0.14, 1.0), roughness=0.95)
+def _ore():      return get_or_create_material("POI_Ore",      (0.55, 0.45, 0.30, 1.0),
+                                                 roughness=0.55, emissive=(0.40, 0.30, 0.10, 0.6))
+def _ice():      return get_or_create_material("POI_Ice",      (0.55, 0.75, 0.88, 0.7), roughness=0.20)
+def _water():    return get_or_create_material("POI_Water",    (0.20, 0.35, 0.50, 0.6), roughness=0.05)
+def _steam():    return get_or_create_material("POI_Steam",    (0.92, 0.92, 0.95, 0.4),
+                                                 roughness=0.20, emissive=(0.85, 0.85, 0.90, 0.5))
+def _ammo_box(): return get_or_create_material("POI_AmmoBox",  (0.35, 0.40, 0.25, 1.0))
+def _toolbox(): return get_or_create_material("POI_Toolbox",  (0.55, 0.20, 0.10, 1.0))
+def _crate():   return get_or_create_material("POI_FoodCrate",(0.50, 0.35, 0.20, 1.0))
+def _shelf():   return get_or_create_material("POI_Shelf",    (0.45, 0.32, 0.20, 1.0))
+def _luggage(): return get_or_create_material("POI_Luggage",  (0.30, 0.20, 0.15, 1.0))
+def _cloth():   return get_or_create_material("POI_Cloth",    (0.55, 0.42, 0.30, 1.0))
+def _grain():   return get_or_create_material("POI_Grain",    (0.85, 0.72, 0.40, 1.0))
+def _frost():   return get_or_create_material("POI_Frost",    (0.85, 0.92, 0.95, 1.0),
+                                                 roughness=0.30, emissive=(0.55, 0.75, 0.88, 0.4))
+
+
 def _wreck_floor(width=4.0, depth=3.0, tilt=0.12):
-    """Twisted scorched deck plate — base for any wreck POI."""
+    """Twisted scorched deck plate with seam lines + bolt pattern."""
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.05))
     floor = bpy.context.active_object
     floor.scale = (width, depth, 0.10)
     floor.rotation_euler = (tilt, -tilt * 0.6, 0)
     bpy.ops.object.transform_apply(scale=True, rotation=True)
-    add_material(floor, SCORCHED, "Wreck_Floor_Mat")
-    # Tear along one edge — small jagged splinters
+    _add(floor, _scorched()); floor.name = "Wreck_Floor"
     for i in range(5):
         bpy.ops.mesh.primitive_cube_add(size=1, location=(width / 2 - 0.1 - i * 0.1, depth / 2 - 0.05, 0.06 + i * 0.04))
         sh = bpy.context.active_object
         sh.scale = (0.10, 0.05, 0.08 + i * 0.02)
         sh.rotation_euler.z = i * 0.4
         bpy.ops.object.transform_apply(scale=True, rotation=True)
-        add_material(sh, HULL, f"Wreck_Tear_{i}_Mat")
+        _add(sh, _hull()); sh.name = f"Wreck_Tear_{i}"
+    # Decking panel seams running across the floor
+    for sx in [-width / 4, width / 4]:
+        add_panel_seam_strip((sx, -depth / 2 + 0.1, 0.105), (sx, depth / 2 - 0.1, 0.105),
+                              width=0.04, depth=0.012, material_name="DarkSteel",
+                              name=f"Wreck_FloorSeam_{int(sx*10)}")
+    # Rivet rows along one edge
+    add_rivet_grid(origin=(-width / 2 + 0.2, -depth / 2 + 0.15, 0.11),
+                    spacing=(0.4, 0.0), rows=1, cols=int(width / 0.4) - 1,
+                    rivet_radius=0.02, depth=0.012, normal_axis='Z',
+                    material_name="DarkSteel")
+
+
+def _finalize_poi(name, sockets, lods=(0.40, 0.15), pivot="bottom_center", collision="convex"):
+    for s in sockets:
+        add_socket(s["name"], location=s.get("loc", (0, 0, 0)),
+                    rotation=s.get("rot", (0, 0, 0)))
+    finalize_asset(name,
+                    bevel_width=0.004, bevel_angle_deg=30,
+                    smooth_angle_deg=50, collision=collision,
+                    lods=list(lods), pivot=pivot)
 
 
 # ── Wreck Archetypes ─────────────────────────────────────────────────────────
@@ -97,234 +142,256 @@ def gen_armory_wreck():
     """Tilted gun rack + ammo crate stack on scorched deck."""
     clear_scene()
     _wreck_floor()
-    # Gun rack frame (vertical)
-    _slab(-1.0, 0.6, 0.95, 0.10, 0.30, 1.80, DARK_STEEL, "Armory_RackFrame")
-    # Rack horizontal bars
+    rack_mat = palette_material("DarkSteel")
+    bar_mat = palette_material("Steel")
+    _slab(-1.0, 0.6, 0.95, 0.10, 0.30, 1.80, rack_mat, "Armory_RackFrame")
     for z in [0.40, 1.00, 1.60]:
-        _slab(-1.0, 0.5, z, 0.06, 0.50, 0.04, STEEL, f"Armory_RackBar_{int(z*100)}")
-    # Three weapon stand-ins on rack
+        _slab(-1.0, 0.5, z, 0.06, 0.50, 0.04, bar_mat, f"Armory_RackBar_{int(z*100)}")
     for i in range(3):
         z = 0.42 + i * 0.6
-        _slab(-1.0, 0.7, z, 0.10, 0.05, 0.50, STEEL, f"Armory_Weapon_{i}")
-    # Ammo crate stack (right side)
-    _slab(0.8, -0.4, 0.30, 0.50, 0.40, 0.60, (0.35, 0.40, 0.25, 1.0), "Armory_AmmoCrate_Lo")
-    _slab(0.6, -0.3, 0.85, 0.45, 0.35, 0.50, (0.35, 0.40, 0.25, 1.0), "Armory_AmmoCrate_Hi")
-    # Spilled brass casings
+        _slab(-1.0, 0.7, z, 0.10, 0.05, 0.50, bar_mat, f"Armory_Weapon_{i}")
+    _slab(0.8, -0.4, 0.30, 0.50, 0.40, 0.60, _ammo_box(), "Armory_AmmoCrate_Lo")
+    _slab(0.6, -0.3, 0.85, 0.45, 0.35, 0.50, _ammo_box(), "Armory_AmmoCrate_Hi")
+    brass_mat = palette_material("Brass")
     for _ in range(6):
         x = random.uniform(-0.5, 0.5); y = random.uniform(-1.0, -0.4)
         bpy.ops.mesh.primitive_cylinder_add(radius=0.02, depth=0.04, location=(x, y, 0.12))
         c = bpy.context.active_object
         c.rotation_euler = (random.random(), 0, random.random() * math.tau)
-        add_material(c, COPPER, "Armory_Brass_Mat")
-    join_and_rename("SM_POI_ArmoryWreck")
+        _add(c, brass_mat); c.name = "Armory_Brass"
+    _finalize_poi("SM_POI_ArmoryWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-1.0, 0.7, 0.95)},
+        {"name": "LootSpawnB", "loc": (0.7, -0.35, 0.85)},
+        {"name": "PlayerEntry", "loc": (2.0, 0, 0)},
+    ])
 
 
 def gen_avionics_wreck():
     """Tilted console bank + cracked displays + bent antenna."""
     clear_scene()
     _wreck_floor()
-    # Console bank
-    _slab(-0.6, 0.5, 0.55, 1.6, 0.6, 1.10, DARK_STEEL, "Avi_Console_Body")
-    # Three display panels
+    console_mat = palette_material("DarkSteel")
+    display_mat = palette_material("GlowCyan")
+    mast_mat = palette_material("DarkSteel")
+    dish_mat = palette_material("Steel")
+    _slab(-0.6, 0.5, 0.55, 1.6, 0.6, 1.10, console_mat, "Avi_Console_Body")
     for i in range(3):
         x = -1.1 + i * 0.55
-        _slab(x, 0.81, 0.95, 0.42, 0.02, 0.30, GLOW_CYAN, f"Avi_Display_{i}")
-    # Bent antenna mast
+        _slab(x, 0.81, 0.95, 0.42, 0.02, 0.30, display_mat, f"Avi_Display_{i}")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.025, depth=2.0, location=(0.9, 0.4, 1.05))
     mast = bpy.context.active_object
     mast.rotation_euler = (0.4, 0, 0)
-    add_material(mast, DARK_STEEL, "Avi_Antenna_Mat")
-    # Antenna dish at top
+    _add(mast, mast_mat); mast.name = "Avi_Antenna"
     bpy.ops.mesh.primitive_cone_add(radius1=0.30, radius2=0.0, depth=0.10, location=(0.9, 1.2, 1.95))
     dish = bpy.context.active_object
     dish.rotation_euler = (math.pi / 2, 0, 0)
-    add_material(dish, STEEL, "Avi_Dish_Mat")
-    join_and_rename("SM_POI_AvionicsWreck")
+    _add(dish, dish_mat); dish.name = "Avi_Dish"
+    _finalize_poi("SM_POI_AvionicsWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-0.6, 0.5, 1.10)},
+        {"name": "LootSpawnB", "loc": (0.9, 1.2, 1.95)},
+        {"name": "PlayerEntry", "loc": (-2.0, 0, 0)},
+    ])
 
 
 def gen_engineering_wreck():
-    """Cylindrical machinery hulk + scattered tools + spilled fluid."""
+    """Cylindrical machinery hulk + scattered tools + bent pipe."""
     clear_scene()
     _wreck_floor()
-    # Reactor / generator cylinder lying on side
+    cyl_mat = palette_material("Steel")
+    cap_mat = palette_material("DarkSteel")
+    pipe_mat = palette_material("Copper")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.55, depth=2.0, location=(-0.4, 0, 0.65))
     cyl = bpy.context.active_object
-    cyl.rotation_euler.y = math.pi / 2
-    cyl.rotation_euler.z = 0.2
-    add_material(cyl, STEEL, "Eng_Cylinder_Mat")
-    # End cap with bolts
+    cyl.rotation_euler.y = math.pi / 2; cyl.rotation_euler.z = 0.2
+    _add(cyl, cyl_mat); cyl.name = "Eng_Cylinder"
     bpy.ops.mesh.primitive_cylinder_add(radius=0.50, depth=0.06, location=(0.6, 0, 0.65))
     cap = bpy.context.active_object
     cap.rotation_euler.y = math.pi / 2
-    add_material(cap, DARK_STEEL, "Eng_Cap_Mat")
-    # Bent pipe extending out
+    _add(cap, cap_mat); cap.name = "Eng_Cap"
     bpy.ops.mesh.primitive_cylinder_add(radius=0.06, depth=0.8, location=(0.9, 0.3, 0.65))
     pipe = bpy.context.active_object
     pipe.rotation_euler = (0, 0.6, 0.4)
-    add_material(pipe, COPPER, "Eng_Pipe_Mat")
-    # Scattered tool boxes
+    _add(pipe, pipe_mat); pipe.name = "Eng_Pipe"
     for sx, sy in [(0.6, -0.8), (-0.9, 0.8)]:
-        _slab(sx, sy, 0.18, 0.30, 0.20, 0.20, (0.55, 0.20, 0.10, 1.0), "Eng_Toolbox")
-    join_and_rename("SM_POI_EngineeringWreck")
+        _slab(sx, sy, 0.18, 0.30, 0.20, 0.20, _toolbox(), "Eng_Toolbox")
+    add_rivet_grid(origin=(0.55, -0.45, 0.66), spacing=(0.0, 0.18),
+                    rows=6, cols=1, rivet_radius=0.018, depth=0.01,
+                    normal_axis='X', material_name="DarkSteel")
+    _finalize_poi("SM_POI_EngineeringWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-0.4, 0, 1.10)},
+        {"name": "LootSpawnB", "loc": (0.6, -0.8, 0.30)},
+        {"name": "PlayerEntry", "loc": (2.0, 0, 0)},
+    ])
 
 
 def gen_food_wreck():
     """Broken pantry shelving + spilled grain + dented food crates."""
     clear_scene()
     _wreck_floor(width=3.5, depth=3.0)
-    # Tilted shelf unit
     bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.4, 0.7, 0.85))
     shelf = bpy.context.active_object
-    shelf.scale = (1.4, 0.30, 1.50)
-    shelf.rotation_euler.z = 0.3
-    shelf.rotation_euler.x = 0.2
+    shelf.scale = (1.4, 0.30, 1.50); shelf.rotation_euler.z = 0.3; shelf.rotation_euler.x = 0.2
     bpy.ops.object.transform_apply(scale=True, rotation=True)
-    add_material(shelf, (0.45, 0.32, 0.20, 1.0), "Food_Shelf_Mat")
-    # Shelf horizontal boards visible
+    _add(shelf, _shelf()); shelf.name = "Food_Shelf"
+    board_mat = get_or_create_material("POI_FoodBoard", (0.30, 0.20, 0.12, 1.0), roughness=0.95)
     for z in [0.4, 0.85, 1.30]:
-        _slab(-0.4, 0.7, z, 1.30, 0.32, 0.04, (0.30, 0.20, 0.12, 1.0), f"Food_Board_{int(z*100)}")
-    # Crates on the floor
-    _slab(0.8, -0.5, 0.25, 0.55, 0.45, 0.50, (0.50, 0.35, 0.20, 1.0), "Food_Crate_1")
-    _slab(0.4, -0.9, 0.20, 0.45, 0.40, 0.40, (0.50, 0.35, 0.20, 1.0), "Food_Crate_2")
-    # Spilled grain pile
+        _slab(-0.4, 0.7, z, 1.30, 0.32, 0.04, board_mat, f"Food_Board_{int(z*100)}")
+    _slab(0.8, -0.5, 0.25, 0.55, 0.45, 0.50, _crate(), "Food_Crate_1")
+    _slab(0.4, -0.9, 0.20, 0.45, 0.40, 0.40, _crate(), "Food_Crate_2")
+    grain_mat = _grain()
     for _ in range(15):
         x = random.uniform(0.2, 0.9); y = random.uniform(-0.6, -0.1); z = random.uniform(0.10, 0.18)
         bpy.ops.mesh.primitive_ico_sphere_add(radius=0.04, subdivisions=1, location=(x, y, z))
-        add_material(bpy.context.active_object, (0.85, 0.72, 0.40, 1.0), "Food_Grain_Mat")
-    join_and_rename("SM_POI_FoodWreck")
+        _add(bpy.context.active_object, grain_mat)
+    _finalize_poi("SM_POI_FoodWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-0.4, 0.7, 0.85)},
+        {"name": "LootSpawnB", "loc": (0.7, -0.7, 0.50)},
+        {"name": "PlayerEntry", "loc": (-2.0, 0, 0)},
+    ])
 
 
 def gen_galley_wreck():
     """Toppled galley oven + broken prep table + scattered cookware."""
     clear_scene()
     _wreck_floor()
-    # Toppled oven (cube on its side)
+    oven_mat = palette_material("Steel")
+    door_mat = palette_material("DarkSteel")
+    pot_mat = palette_material("DarkSteel")
     bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.6, 0.4, 0.40))
     oven = bpy.context.active_object
-    oven.scale = (0.80, 0.70, 0.80)
-    oven.rotation_euler = (0, 0, 0.4)
+    oven.scale = (0.80, 0.70, 0.80); oven.rotation_euler = (0, 0, 0.4)
     bpy.ops.object.transform_apply(scale=True, rotation=True)
-    add_material(oven, STEEL, "Galley_Oven_Mat")
-    # Oven door (darker recess)
-    _slab(-0.20, 0.45, 0.40, 0.10, 0.55, 0.55, DARK_STEEL, "Galley_OvenDoor")
-    # Broken prep table
-    _slab(0.7, -0.2, 0.42, 1.20, 0.6, 0.04, STEEL, "Galley_TableTop")
-    # One leg standing, three broken
-    _slab(1.20, 0.05, 0.20, 0.06, 0.06, 0.40, DARK_STEEL, "Galley_Leg")
-    # Pots / pans (spheres + cylinders flat on ground)
+    _add(oven, oven_mat); oven.name = "Galley_Oven"
+    _slab(-0.20, 0.45, 0.40, 0.10, 0.55, 0.55, door_mat, "Galley_OvenDoor")
+    _slab(0.7, -0.2, 0.42, 1.20, 0.6, 0.04, oven_mat, "Galley_TableTop")
+    _slab(1.20, 0.05, 0.20, 0.06, 0.06, 0.40, door_mat, "Galley_Leg")
     for sx, sy, r in [(0.3, 0.7, 0.18), (-0.2, -0.6, 0.14)]:
         bpy.ops.mesh.primitive_uv_sphere_add(radius=r, location=(sx, sy, 0.10))
         pot = bpy.context.active_object
-        pot.scale = (1, 1, 0.55)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(pot, DARK_STEEL, "Galley_Pot_Mat")
-    join_and_rename("SM_POI_GalleyWreck")
+        pot.scale = (1, 1, 0.55); bpy.ops.object.transform_apply(scale=True)
+        _add(pot, pot_mat); pot.name = "Galley_Pot"
+    _finalize_poi("SM_POI_GalleyWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-0.6, 0.4, 0.80)},
+        {"name": "LootSpawnB", "loc": (0.7, -0.2, 0.55)},
+        {"name": "PlayerEntry", "loc": (2.0, 0, 0)},
+    ])
 
 
 def gen_luggage_wreck():
     """Pile of personal-effect cases of varying sizes + spilled cloth."""
     clear_scene()
     _wreck_floor(width=3.0, depth=3.0)
-    # 6 luggage cases of varying sizes, slightly randomized
+    luggage_mat = _luggage()
+    strap_mat = palette_material("DarkSteel")
     bag_sizes = [(0.5, 0.3, 0.5), (0.4, 0.25, 0.4), (0.6, 0.35, 0.45),
                  (0.35, 0.22, 0.35), (0.55, 0.30, 0.50), (0.45, 0.28, 0.40)]
     positions = [(-0.5, 0.5), (0.3, 0.7), (-0.7, -0.3), (0.6, -0.5), (0.0, 0.0), (-0.2, -0.8)]
-    heights   = [0.25, 0.20, 0.42, 0.18, 0.55, 0.20]
+    heights = [0.25, 0.20, 0.42, 0.18, 0.55, 0.20]
     for (w, d, h), (x, y), z in zip(bag_sizes, positions, heights):
-        _slab(x, y, z, w, d, h, LUGGAGE, "Luggage_Case")
-        # Strap band
-        _slab(x, y + d / 2 + 0.005, z, w + 0.02, 0.01, h * 0.18, DARK_STEEL, "Luggage_Strap")
-    # Spilled cloth pile
+        _slab(x, y, z, w, d, h, luggage_mat, "Luggage_Case")
+        _slab(x, y + d / 2 + 0.005, z, w + 0.02, 0.01, h * 0.18, strap_mat, "Luggage_Strap")
+    cloth_mat = _cloth()
     for _ in range(4):
         x = random.uniform(-0.8, 0.8); y = random.uniform(-1.0, 1.0)
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.18, location=(x, y, 0.13))
         cloth = bpy.context.active_object
-        cloth.scale = (1.4, 1.0, 0.25)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(cloth, CLOTH, "Luggage_Cloth_Mat")
-    join_and_rename("SM_POI_LuggageWreck")
+        cloth.scale = (1.4, 1.0, 0.25); bpy.ops.object.transform_apply(scale=True)
+        _add(cloth, cloth_mat); cloth.name = "Luggage_Cloth"
+    _finalize_poi("SM_POI_LuggageWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-0.5, 0.5, 0.50)},
+        {"name": "LootSpawnB", "loc": (0.6, -0.5, 0.40)},
+        {"name": "LootSpawnC", "loc": (0.0, 0.0, 0.55)},
+        {"name": "PlayerEntry", "loc": (-1.6, 0, 0)},
+    ])
 
 
 def gen_medbay_wreck():
     """Bed frame + IV stand + broken cabinet."""
     clear_scene()
     _wreck_floor()
-    # Bed frame
-    _slab(-0.4, 0.5, 0.40, 1.80, 0.80, 0.08, STEEL, "Med_BedTop")
+    steel_mat = palette_material("Steel")
+    dark_steel = palette_material("DarkSteel")
+    mattress_mat = get_or_create_material("POI_Mattress", (0.85, 0.85, 0.82, 1.0), roughness=0.95)
+    iv_bag_mat = get_or_create_material("POI_IVBag", (0.95, 0.85, 0.55, 0.7), roughness=0.20)
+    _slab(-0.4, 0.5, 0.40, 1.80, 0.80, 0.08, steel_mat, "Med_BedTop")
     for sx, sy in [(0.5, 0.85), (-1.3, 0.85), (0.5, 0.15), (-1.3, 0.15)]:
-        _slab(sx, sy, 0.20, 0.06, 0.06, 0.40, DARK_STEEL, "Med_BedLeg")
-    # Mattress pad
-    _slab(-0.4, 0.5, 0.46, 1.70, 0.70, 0.06, (0.85, 0.85, 0.82, 1.0), "Med_Mattress")
-    # IV stand
-    _slab(0.7, 0.9, 0.85, 0.04, 0.04, 1.70, STEEL, "Med_IVPole")
+        _slab(sx, sy, 0.20, 0.06, 0.06, 0.40, dark_steel, "Med_BedLeg")
+    _slab(-0.4, 0.5, 0.46, 1.70, 0.70, 0.06, mattress_mat, "Med_Mattress")
+    _slab(0.7, 0.9, 0.85, 0.04, 0.04, 1.70, steel_mat, "Med_IVPole")
     bpy.ops.mesh.primitive_torus_add(major_radius=0.20, minor_radius=0.015, location=(0.7, 0.9, 0.04))
-    add_material(bpy.context.active_object, STEEL, "Med_IVBase_Mat")
-    # IV bag
+    _add(bpy.context.active_object, steel_mat)
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.10, location=(0.7, 0.85, 1.55))
     bag = bpy.context.active_object
-    bag.scale = (0.7, 0.7, 1.4)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(bag, (0.95, 0.85, 0.55, 0.7), "Med_IVBag_Mat")
-    # Broken cabinet
-    _slab(0.9, -0.6, 0.55, 0.50, 0.40, 1.10, STEEL, "Med_Cabinet")
-    # Broken door hanging open
-    _slab(0.65, -0.45, 0.55, 0.04, 0.40, 1.00, DARK_STEEL, "Med_CabDoor")
-    join_and_rename("SM_POI_MedBayWreck")
+    bag.scale = (0.7, 0.7, 1.4); bpy.ops.object.transform_apply(scale=True)
+    _add(bag, iv_bag_mat); bag.name = "Med_IVBag"
+    _slab(0.9, -0.6, 0.55, 0.50, 0.40, 1.10, steel_mat, "Med_Cabinet")
+    _slab(0.65, -0.45, 0.55, 0.04, 0.40, 1.00, dark_steel, "Med_CabDoor")
+    _finalize_poi("SM_POI_MedBayWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (0.9, -0.6, 1.10)},
+        {"name": "LootSpawnB", "loc": (-0.4, 0.5, 0.50)},
+        {"name": "PlayerEntry", "loc": (-2.0, 0, 0)},
+    ])
 
 
 def gen_powermodule_wreck():
-    """Broken reactor cylinder + bent conduit + sparking glow node."""
+    """Broken reactor torus + bent conduit + sparking glow node."""
     clear_scene()
     _wreck_floor()
-    # Reactor torus (broken open ring)
+    torus_mat = palette_material("DarkSteel")
+    core_mat = palette_material("GlowRed")
+    conduit_mat = palette_material("Copper")
+    spark_mat = palette_material("GlowGold")
     bpy.ops.mesh.primitive_torus_add(major_radius=0.65, minor_radius=0.18, location=(-0.4, 0.2, 0.50))
     torus = bpy.context.active_object
     torus.rotation_euler = (math.pi / 2, 0, 0.3)
-    add_material(torus, DARK_STEEL, "Power_Torus_Mat")
-    # Inner core (glowing)
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.18, location=(-0.4, 0.2, 0.50))
-    add_material(bpy.context.active_object, GLOW_RED, "Power_Core_Mat")
-    # Bent conduit pipes
+    _add(torus, torus_mat); torus.name = "Power_Torus"
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.18, subdivisions=3, location=(-0.4, 0.2, 0.50))
+    _add(bpy.context.active_object, core_mat)
     for sx, ang in [(0.3, 0.6), (0.7, -0.4)]:
         bpy.ops.mesh.primitive_cylinder_add(radius=0.06, depth=1.4, location=(sx, -0.3, 0.55))
         pipe = bpy.context.active_object
         pipe.rotation_euler = (ang, 0, 0.3)
-        add_material(pipe, COPPER, "Power_Conduit_Mat")
-    # Sparking node (bright dot)
-    bpy.ops.mesh.primitive_ico_sphere_add(radius=0.05, location=(0.5, -0.5, 0.85))
-    add_material(bpy.context.active_object, (0.95, 0.85, 0.30, 1.0), "Power_Spark_Mat")
-    join_and_rename("SM_POI_PowerModuleWreck")
+        _add(pipe, conduit_mat); pipe.name = "Power_Conduit"
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=0.05, subdivisions=2, location=(0.5, -0.5, 0.85))
+    _add(bpy.context.active_object, spark_mat)
+    _finalize_poi("SM_POI_PowerModuleWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-0.4, 0.2, 1.10)},
+        {"name": "GlowEffect", "loc": (-0.4, 0.2, 0.50)},
+        {"name": "PlayerEntry", "loc": (2.0, 0, 0)},
+    ])
 
 
 def gen_roverbay_wreck():
     """Broken rover chassis + access ramp + tire pile."""
     clear_scene()
     _wreck_floor(width=4.5, depth=3.5)
-    # Rover chassis (rectangular hull)
-    _slab(-0.4, 0.4, 0.55, 1.80, 1.00, 0.50, HULL, "Rover_Chassis")
-    # Cabin module on top
-    _slab(-0.7, 0.4, 1.00, 1.00, 0.85, 0.40, DARK_STEEL, "Rover_Cabin")
-    # Cabin window
-    _slab(-0.20, 0.85, 1.05, 0.50, 0.02, 0.20, GLOW_CYAN, "Rover_Window")
-    # Wheels (3 attached, 1 missing)
+    hull_mat = _hull()
+    cabin_mat = palette_material("DarkSteel")
+    window_mat = palette_material("GlowCyan")
+    wheel_mat = _scorched()
+    ramp_mat = palette_material("Steel")
+    _slab(-0.4, 0.4, 0.55, 1.80, 1.00, 0.50, hull_mat, "Rover_Chassis")
+    _slab(-0.7, 0.4, 1.00, 1.00, 0.85, 0.40, cabin_mat, "Rover_Cabin")
+    _slab(-0.20, 0.85, 1.05, 0.50, 0.02, 0.20, window_mat, "Rover_Window")
     for sx, sy in [(0.4, 1.0), (-1.2, 1.0), (-1.2, -0.2)]:
         bpy.ops.mesh.primitive_cylinder_add(radius=0.30, depth=0.20, location=(sx, sy, 0.30))
         w = bpy.context.active_object
         w.rotation_euler.x = math.pi / 2
-        add_material(w, SCORCHED, "Rover_Wheel_Mat")
-    # Detached tire on the ground
+        _add(w, wheel_mat); w.name = "Rover_Wheel"
     bpy.ops.mesh.primitive_cylinder_add(radius=0.30, depth=0.20, location=(1.6, -0.6, 0.30))
     tire = bpy.context.active_object
     tire.rotation_euler.x = math.pi / 2
-    add_material(tire, SCORCHED, "Rover_Tire_Mat")
-    # Drop ramp at rear
+    _add(tire, wheel_mat); tire.name = "Rover_Tire"
     bpy.ops.mesh.primitive_cube_add(size=1, location=(1.0, 0.4, 0.20))
     ramp = bpy.context.active_object
-    ramp.scale = (1.0, 1.0, 0.06)
-    ramp.rotation_euler.y = -0.4
+    ramp.scale = (1.0, 1.0, 0.06); ramp.rotation_euler.y = -0.4
     bpy.ops.object.transform_apply(scale=True, rotation=True)
-    add_material(ramp, STEEL, "Rover_Ramp_Mat")
-    join_and_rename("SM_POI_RoverBayWreck")
+    _add(ramp, ramp_mat); ramp.name = "Rover_Ramp"
+    _finalize_poi("SM_POI_RoverBayWreck", sockets=[
+        {"name": "LootSpawnA", "loc": (-0.7, 0.4, 1.30)},
+        {"name": "LootSpawnB", "loc": (1.6, -0.6, 0.40)},
+        {"name": "PlayerEntry", "loc": (2.5, 0, 0)},
+    ])
 
 
 # ── World-Feature Archetypes ─────────────────────────────────────────────────
@@ -332,42 +399,42 @@ def gen_roverbay_wreck():
 def gen_cave_mouth_deepvein():
     """Rock arch over a cave mouth with an exposed ore vein."""
     clear_scene()
-    # Arch — two side pillars + lintel mound
+    rock_mat = palette_material("Rock")
+    interior_mat = get_or_create_material("POI_CaveInterior", (0.05, 0.05, 0.06, 1.0), roughness=0.95)
+    ore_mat = _ore()
     for sy in [-1.5, 1.5]:
         bpy.ops.mesh.primitive_cylinder_add(radius=0.7, depth=3.0, vertices=8, location=(0, sy, 1.5))
         p = bpy.context.active_object
-        p.scale = (1.2, 1.0, 1.0)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(p, ROCK, "Cave_Pillar_Mat")
-    # Lintel
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, location=(0, 0, 3.0))
+        p.scale = (1.2, 1.0, 1.0); bpy.ops.object.transform_apply(scale=True)
+        _add(p, rock_mat); p.name = "Cave_Pillar"
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, subdivisions=3, location=(0, 0, 3.0))
     lintel = bpy.context.active_object
-    lintel.scale = (1.5, 2.5, 0.8)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(lintel, ROCK, "Cave_Lintel_Mat")
-    # Dark interior (gives "mouth" silhouette)
-    _slab(0.6, 0, 1.2, 0.4, 2.4, 2.4, (0.05, 0.05, 0.06, 1.0), "Cave_Interior")
-    # Ore vein (zigzag of ore chunks on the right pillar)
+    lintel.scale = (1.5, 2.5, 0.8); bpy.ops.object.transform_apply(scale=True)
+    _add(lintel, rock_mat); lintel.name = "Cave_Lintel"
+    _slab(0.6, 0, 1.2, 0.4, 2.4, 2.4, interior_mat, "Cave_Interior")
     for i in range(5):
         z = 0.5 + i * 0.5
         sy = -1.4 if i % 2 else -1.6
-        bpy.ops.mesh.primitive_ico_sphere_add(radius=0.10, subdivisions=1, location=(-0.6, sy, z))
-        add_material(bpy.context.active_object, ORE, "Cave_Ore_Mat")
-    join_and_rename("SM_POI_CaveMouthDeepVein")
+        bpy.ops.mesh.primitive_ico_sphere_add(radius=0.10, subdivisions=2, location=(-0.6, sy, z))
+        _add(bpy.context.active_object, ore_mat)
+    _finalize_poi("SM_POI_CaveMouthDeepVein", sockets=[
+        {"name": "Entrance",  "loc": (0.4, 0, 1.0)},
+        {"name": "Interior",  "loc": (1.0, 0, 1.2)},
+        {"name": "OreVein",   "loc": (-0.6, -1.5, 1.5)},
+    ])
 
 
 def gen_commsrelay_debris():
-    """Toppled comms tower + bent dish array."""
+    """Toppled comms tower + bent dish array + cable spool."""
     clear_scene()
-    # Tower base (still upright)
+    dark_steel = palette_material("DarkSteel")
+    steel_mat = palette_material("Steel")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.30, depth=2.0, vertices=4, location=(-1.5, 0, 1.0))
-    add_material(bpy.context.active_object, DARK_STEEL, "Comms_TowerBase_Mat")
-    # Tower top section (toppled, lying)
+    _add(bpy.context.active_object, dark_steel)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=4.0, vertices=4, location=(0.8, 0.3, 0.30))
     top = bpy.context.active_object
     top.rotation_euler = (0, math.pi / 2 - 0.2, 0.4)
-    add_material(top, DARK_STEEL, "Comms_TowerTop_Mat")
-    # Lattice cross bracing on the toppled section
+    _add(top, dark_steel); top.name = "Comms_TowerTop"
     for i in range(4):
         x = -0.5 + i * 0.7
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, 0.3, 0.30))
@@ -375,188 +442,200 @@ def gen_commsrelay_debris():
         brace.scale = (0.30, 0.04, 0.04)
         brace.rotation_euler.z = (i % 2) * math.pi / 4 - math.pi / 8
         bpy.ops.object.transform_apply(scale=True, rotation=True)
-        add_material(brace, STEEL, "Comms_Brace_Mat")
-    # Broken dish lying on ground
+        _add(brace, steel_mat); brace.name = "Comms_Brace"
     bpy.ops.mesh.primitive_cone_add(radius1=0.9, radius2=0.0, depth=0.18, location=(2.1, -0.2, 0.20))
     dish = bpy.context.active_object
     dish.rotation_euler = (math.pi / 2 - 0.5, 0, 0.4)
-    add_material(dish, STEEL, "Comms_Dish_Mat")
-    # Cable spool
+    _add(dish, steel_mat); dish.name = "Comms_Dish"
     bpy.ops.mesh.primitive_torus_add(major_radius=0.25, minor_radius=0.06, location=(-0.5, -1.0, 0.10))
-    add_material(bpy.context.active_object, DARK_STEEL, "Comms_Cable_Mat")
-    join_and_rename("SM_POI_CommsRelayDebris")
+    _add(bpy.context.active_object, dark_steel)
+    _finalize_poi("SM_POI_CommsRelayDebris", sockets=[
+        {"name": "DishCenter", "loc": (2.1, -0.2, 0.30)},
+        {"name": "TowerBase", "loc": (-1.5, 0, 0)},
+        {"name": "PlayerEntry", "loc": (3.0, 0, 0)},
+    ])
 
 
 def gen_cryopod_cluster():
-    """4 cryo pods arranged in a cluster, one cracked open."""
+    """4 cryo pods arranged in a cluster, one cracked open + frost."""
     clear_scene()
+    pod_mat = palette_material("Steel")
+    window_mat = _ice()
+    cracked_mat = get_or_create_material("POI_CryoPodCracked", (0.20, 0.20, 0.25, 0.5),
+                                           roughness=0.60)
+    frost_mat = _frost()
     positions = [(-1.0, 0.5, 0.0), (0.4, 0.7, 0.3), (-0.6, -0.7, 0.0), (0.8, -0.5, 0.6)]
-    rotations = [0.0, 0.3, -0.2, 1.2]   # last pod tilted (cracked open)
-    for i, ((x, y, rot_z), tilt) in enumerate(zip(positions, rotations)):
-        # Pod body (capsule = cylinder + two hemispheres)
+    for i, (x, y, tilt) in enumerate(positions):
         bpy.ops.mesh.primitive_cylinder_add(radius=0.35, depth=1.40, location=(x, y, 0.45))
         body = bpy.context.active_object
         body.rotation_euler = (math.pi / 2, 0, tilt)
-        add_material(body, STEEL, f"Cryo_Body_{i}_Mat")
-        # End caps
+        _add(body, pod_mat); body.name = f"Cryo_Body_{i}"
         for end in [-0.7, 0.7]:
             ex = x + math.cos(tilt) * end
             ey = y + math.sin(tilt) * end
             bpy.ops.mesh.primitive_uv_sphere_add(radius=0.35, location=(ex, ey, 0.45))
-            add_material(bpy.context.active_object, STEEL, f"Cryo_Cap_{i}_Mat")
-        # Window on top
+            _add(bpy.context.active_object, pod_mat)
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, 0.78))
         win = bpy.context.active_object
-        win.scale = (0.80, 0.20, 0.02)
-        win.rotation_euler.z = tilt
+        win.scale = (0.80, 0.20, 0.02); win.rotation_euler.z = tilt
         bpy.ops.object.transform_apply(scale=True, rotation=True)
-        add_material(win, ICE_BLUE if i < 3 else (0.20, 0.20, 0.25, 0.5), f"Cryo_Window_{i}_Mat")
-    # Frost crystals around the cracked pod
+        _add(win, window_mat if i < 3 else cracked_mat); win.name = f"Cryo_Window_{i}"
     for _ in range(8):
         x = 0.8 + random.uniform(-0.6, 0.6); y = -0.5 + random.uniform(-0.5, 0.5)
         bpy.ops.mesh.primitive_cone_add(radius1=0.05, radius2=0.0, depth=0.12, location=(x, y, 0.06))
-        add_material(bpy.context.active_object, ICE_BLUE, "Cryo_Frost_Mat")
-    join_and_rename("SM_POI_CryoPodCluster")
+        _add(bpy.context.active_object, frost_mat)
+    _finalize_poi("SM_POI_CryoPodCluster", sockets=[
+        {"name": "PodA", "loc": (-1.0, 0.5, 0.45)},
+        {"name": "PodB", "loc": (0.4, 0.7, 0.45)},
+        {"name": "PodC", "loc": (-0.6, -0.7, 0.45)},
+        {"name": "PodD", "loc": (0.8, -0.5, 0.45)},
+    ])
 
 
 def gen_flooded_sinkhole():
-    """Circular pit with water surface + jagged rim debris (also ice tunnel variant)."""
+    """Circular pit with water surface + jagged rim debris + ice shelf."""
     clear_scene()
-    # Crater rim (8 boulders in a ring)
+    rock_mat = palette_material("Rock")
+    water_mat = _water()
+    ice_mat = _ice()
     for i in range(8):
-        angle = (i / 8.0) * math.tau
-        x = math.cos(angle) * 1.8
-        y = math.sin(angle) * 1.8
+        ang = (i / 8.0) * math.tau
+        x = math.cos(ang) * 1.8; y = math.sin(ang) * 1.8
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.45 + (i % 2) * 0.15, location=(x, y, 0.20))
         b = bpy.context.active_object
-        b.scale = (1.0, 1.0, 0.6)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(b, ROCK, "Sinkhole_Rim_Mat")
-    # Water surface
+        b.scale = (1.0, 1.0, 0.6); bpy.ops.object.transform_apply(scale=True)
+        _add(b, rock_mat); b.name = "Sinkhole_Rim"
     bpy.ops.mesh.primitive_cylinder_add(radius=1.4, depth=0.04, vertices=24, location=(0, 0, 0.05))
-    add_material(bpy.context.active_object, WATER, "Sinkhole_Water_Mat")
-    # Ice shelf (one frozen segment for the IceTunnel variant)
+    _add(bpy.context.active_object, water_mat)
     bpy.ops.mesh.primitive_cube_add(size=1, location=(1.0, 0.3, 0.10))
     ice = bpy.context.active_object
-    ice.scale = (0.8, 1.0, 0.10)
-    ice.rotation_euler.z = 0.4
+    ice.scale = (0.8, 1.0, 0.10); ice.rotation_euler.z = 0.4
     bpy.ops.object.transform_apply(scale=True, rotation=True)
-    add_material(ice, ICE_BLUE, "Sinkhole_Ice_Mat")
-    join_and_rename("SM_POI_FloodedSinkhole_IceTunnel")
+    _add(ice, ice_mat); ice.name = "Sinkhole_Ice"
+    _finalize_poi("SM_POI_FloodedSinkhole_IceTunnel", sockets=[
+        {"name": "Entrance",  "loc": (0, -2.0, 0)},
+        {"name": "Interior",  "loc": (0, 0, 0.05)},
+        {"name": "IceShelf",  "loc": (1.0, 0.3, 0.15)},
+    ])
 
 
 def gen_meteor_impact_field():
-    """Crater rim + 4 charred meteor chunks of decreasing size."""
+    """Crater rim + 4 charred meteor chunks of decreasing size + glowing fissures."""
     clear_scene()
-    # Crater bowl (negative — represented by a darker disc)
+    crater_mat = _scorched()
+    rim_mat = palette_material("DarkRock")
+    chunk_mat = _scorched()
+    fissure_mat = palette_material("GlowRed")
     bpy.ops.mesh.primitive_cylinder_add(radius=1.8, depth=0.10, vertices=20, location=(0, 0, 0.05))
-    add_material(bpy.context.active_object, SCORCHED, "Meteor_Crater_Mat")
-    # Crater rim (low circular wall of small rocks)
+    _add(bpy.context.active_object, crater_mat)
     for i in range(12):
-        angle = (i / 12.0) * math.tau
-        x = math.cos(angle) * 1.8
-        y = math.sin(angle) * 1.8
+        ang = (i / 12.0) * math.tau
+        x = math.cos(ang) * 1.8; y = math.sin(ang) * 1.8
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.18, location=(x, y, 0.16))
         s = bpy.context.active_object
-        s.scale = (1.4, 1.0, 0.7)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(s, DARK_ROCK, "Meteor_Rim_Mat")
-    # 4 meteor chunks (decreasing size, scattered)
+        s.scale = (1.4, 1.0, 0.7); bpy.ops.object.transform_apply(scale=True)
+        _add(s, rim_mat); s.name = "Meteor_Rim"
     chunks = [(0.0, 0.0, 0.50), (1.2, -0.6, 0.35), (-0.8, 0.9, 0.25), (0.4, 0.4, 0.15)]
     for x, y, r in chunks:
         bpy.ops.mesh.primitive_ico_sphere_add(radius=r, subdivisions=2, location=(x, y, r * 0.7))
         chunk = bpy.context.active_object
         chunk.rotation_euler = (random.random(), random.random(), random.random())
-        add_material(chunk, SCORCHED, "Meteor_Chunk_Mat")
-        # Glowing fissures (small bright cracks)
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, r * 0.7 + r * 0.4))
-        fis = bpy.context.active_object
-        fis.scale = (r * 0.6, r * 0.05, r * 0.05)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(fis, GLOW_RED, "Meteor_Fissure_Mat")
-    join_and_rename("SM_POI_MeteorImpactField")
+        _add(chunk, chunk_mat); chunk.name = "Meteor_Chunk"
+        _slab(x, y, r * 0.7 + r * 0.4, r * 0.6, r * 0.05, r * 0.05, fissure_mat, "Meteor_Fissure")
+    _finalize_poi("SM_POI_MeteorImpactField", sockets=[
+        {"name": "CraterCenter", "loc": (0.0, 0.0, 0.10)},
+        {"name": "ChunkA", "loc": (0.0, 0.0, 0.50)},
+        {"name": "ChunkB", "loc": (1.2, -0.6, 0.35)},
+        {"name": "ChunkC", "loc": (-0.8, 0.9, 0.25)},
+    ])
 
 
 def gen_razorstone_ridge():
     """Jagged ridgeline of sharp blade-like stones."""
     clear_scene()
-    # Ridge base
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.30))
-    base = bpy.context.active_object
-    base.scale = (4.0, 0.8, 0.60)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(base, ROCK, "Razor_Base_Mat")
-    # 7 jagged blade stones along the ridge
+    rock_mat = palette_material("Rock")
+    blade_mat = palette_material("DarkRock")
+    _slab(0, 0, 0.30, 4.0, 0.8, 0.60, rock_mat, "Razor_Base")
     for i in range(7):
         x = -1.7 + i * 0.55
         h = 1.2 + (i % 3) * 0.6
-        bpy.ops.mesh.primitive_cone_add(radius1=0.28, radius2=0.04, depth=h, vertices=4,
-                                        location=(x, 0, 0.6 + h / 2))
+        bpy.ops.mesh.primitive_cone_add(radius1=0.28, radius2=0.04, depth=h, vertices=4, location=(x, 0, 0.6 + h / 2))
         blade = bpy.context.active_object
         blade.rotation_euler = ((i % 2 - 0.5) * 0.3, 0, math.pi / 4 + i * 0.1)
-        add_material(blade, DARK_ROCK, f"Razor_Blade_{i}_Mat")
-    join_and_rename("SM_POI_RazorstoneRidge")
+        _add(blade, blade_mat); blade.name = f"Razor_Blade_{i}"
+    _finalize_poi("SM_POI_RazorstoneRidge", sockets=[
+        {"name": "RidgeA", "loc": (-1.5, 0, 1.5)},
+        {"name": "RidgeB", "loc": (1.5, 0, 1.5)},
+        {"name": "PlayerEntry", "loc": (0, -2.0, 0)},
+    ])
 
 
 def gen_remnant_site():
-    """Half-buried Progenitor obelisk fragment + two short standing pillars + glow."""
+    """Half-buried Progenitor obelisk fragment + standing pillars + glow ring."""
     clear_scene()
-    # Sunken disc / dais
+    dais_mat = palette_material("DarkStone")
+    obelisk_mat = palette_material("ProgenitorStone")
+    glow_mat = palette_material("GlowCyan")
     bpy.ops.mesh.primitive_cylinder_add(radius=2.0, depth=0.15, vertices=8, location=(0, 0, 0.075))
-    add_material(bpy.context.active_object, (0.30, 0.32, 0.36, 1.0), "Remnant_Dais_Mat")
-    # Tilted broken obelisk fragment
+    _add(bpy.context.active_object, dais_mat)
     bpy.ops.mesh.primitive_cone_add(radius1=0.40, radius2=0.10, depth=3.0, vertices=6, location=(-0.6, 0.3, 1.4))
     obel = bpy.context.active_object
     obel.rotation_euler = (0.5, 0.3, 0)
-    add_material(obel, (0.62, 0.66, 0.72, 1.0), "Remnant_Obelisk_Mat")
-    # Two short standing pillars
+    _add(obel, obelisk_mat); obel.name = "Remnant_Obelisk"
     for sx in [0.8, 1.4]:
         bpy.ops.mesh.primitive_cone_add(radius1=0.20, radius2=0.08, depth=1.2, vertices=6, location=(sx, -0.4, 0.75))
-        add_material(bpy.context.active_object, (0.62, 0.66, 0.72, 1.0), "Remnant_Pillar_Mat")
-    # Cyan glow ring on the dais
+        _add(bpy.context.active_object, obelisk_mat)
     bpy.ops.mesh.primitive_torus_add(major_radius=0.6, minor_radius=0.04, location=(0, 0, 0.16))
-    add_material(bpy.context.active_object, GLOW_CYAN, "Remnant_GlowRing_Mat")
-    # Apex shard on the broken obelisk
+    _add(bpy.context.active_object, glow_mat)
     bpy.ops.mesh.primitive_cone_add(radius1=0.06, radius2=0.0, depth=0.3, location=(-1.1, 0.7, 2.6))
     apex = bpy.context.active_object
     apex.rotation_euler = (0.5, 0.3, 0)
-    add_material(apex, GLOW_CYAN, "Remnant_Apex_Mat")
-    join_and_rename("SM_POI_RemnantSite")
+    _add(apex, glow_mat); apex.name = "Remnant_Apex"
+    _finalize_poi("SM_POI_RemnantSite", sockets=[
+        {"name": "StudyPoint", "loc": (0, 0, 0.20)},
+        {"name": "ApexCrest", "loc": (-1.1, 0.7, 2.7)},
+        {"name": "GlowRing", "loc": (0, 0, 0.16)},
+    ])
 
 
 def gen_thermal_vent_field():
-    """Cracked rock floor + 4 vent stacks with steam puffs."""
+    """Cracked rock floor + 4 vent stacks with steam puffs + glow cracks."""
     clear_scene()
-    # Cracked rock floor
+    floor_mat = palette_material("DarkRock")
+    crack_mat = palette_material("GlowRed")
+    vent_mat = palette_material("Rock")
+    rim_mat = palette_material("DarkRock")
+    steam_mat = _steam()
     bpy.ops.mesh.primitive_cylinder_add(radius=2.5, depth=0.10, vertices=16, location=(0, 0, 0.05))
-    add_material(bpy.context.active_object, DARK_ROCK, "Vent_Floor_Mat")
-    # Crack lines (slim glowing slabs)
+    _add(bpy.context.active_object, floor_mat)
     for i in range(4):
-        angle = (i / 4.0) * math.tau
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(math.cos(angle) * 0.9, math.sin(angle) * 0.9, 0.105))
+        ang = (i / 4.0) * math.tau
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(math.cos(ang) * 0.9, math.sin(ang) * 0.9, 0.105))
         crack = bpy.context.active_object
-        crack.scale = (1.5, 0.04, 0.005)
-        crack.rotation_euler.z = angle
+        crack.scale = (1.5, 0.04, 0.005); crack.rotation_euler.z = ang
         bpy.ops.object.transform_apply(scale=True, rotation=True)
-        add_material(crack, GLOW_RED, "Vent_Crack_Mat")
-    # 4 vent stacks
+        _add(crack, crack_mat); crack.name = "Vent_Crack"
     for sx, sy in [(0.8, 0.8), (-0.9, 0.6), (0.3, -1.0), (-0.7, -0.7)]:
         bpy.ops.mesh.primitive_cylinder_add(radius=0.18, depth=0.40, location=(sx, sy, 0.30))
-        add_material(bpy.context.active_object, ROCK, "Vent_Stack_Mat")
+        _add(bpy.context.active_object, vent_mat)
         bpy.ops.mesh.primitive_torus_add(major_radius=0.16, minor_radius=0.025, location=(sx, sy, 0.50))
-        add_material(bpy.context.active_object, DARK_ROCK, "Vent_Rim_Mat")
-        # Steam puffs (3 spheres of decreasing radius)
+        _add(bpy.context.active_object, rim_mat)
         for j in range(3):
             z = 0.65 + j * 0.30
             r = 0.16 + j * 0.06
             bpy.ops.mesh.primitive_uv_sphere_add(radius=r, location=(sx + j * 0.05, sy, z))
-            add_material(bpy.context.active_object, STEAM, "Vent_Steam_Mat")
-    join_and_rename("SM_POI_ThermalVentField")
+            _add(bpy.context.active_object, steam_mat)
+    _finalize_poi("SM_POI_ThermalVentField", sockets=[
+        {"name": "VentA", "loc": (0.8, 0.8, 0.50)},
+        {"name": "VentB", "loc": (-0.9, 0.6, 0.50)},
+        {"name": "VentC", "loc": (0.3, -1.0, 0.50)},
+        {"name": "VentD", "loc": (-0.7, -0.7, 0.50)},
+        {"name": "CenterCrack", "loc": (0, 0, 0.10)},
+    ])
 
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
-# CSV uses display names with mixed punctuation; map them to generators.
 GENERATORS = {
     "ArmoryWreck":              gen_armory_wreck,
     "AvionicsWreck":            gen_avionics_wreck,
@@ -583,16 +662,13 @@ def _safe_filename(s):
 
 
 def main():
-    print("\n=== Quiet Rift: Enigma — POI Props Asset Generator ===")
+    print("\n=== Quiet Rift: Enigma — POI Props Asset Generator (Batch 8 detail upgrade) ===")
     csv_abs = os.path.abspath(CSV_PATH)
     if not os.path.isfile(csv_abs):
         print(f"ERROR: CSV not found at {csv_abs}")
         return
-
     with open(csv_abs, newline='', encoding='utf-8') as f:
         rows = [r for r in csv.DictReader(f) if r.get("POITypeId / Archetype")]
-
-    # Seed the random generator deterministically per archetype so output is stable.
     missing = []
     for row in rows:
         pid = row["POITypeId / Archetype"].strip()
@@ -605,13 +681,12 @@ def main():
         gen()
         out_path = os.path.join(OUTPUT_DIR, f"SM_POI_{_safe_filename(pid)}.fbx")
         export_fbx(pid, out_path)
-
     if missing:
         print(f"\nWARN: no generator registered for: {missing}")
-
     print("\n=== Generation complete ===")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
-    print("Import these FBX files into UE5 via Content Browser > Import.")
+    print("Each FBX exports SM_POI_<id> + UCX_ collision + LOD chain (0.40, 0.15) +")
+    print("per-archetype gameplay sockets (LootSpawn / Entrance / Interior / VentA-D / etc).")
 
 
 if __name__ == "__main__":
