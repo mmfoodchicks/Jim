@@ -29,6 +29,7 @@ enum class EQRItemCategory : uint8
 	Wildlife        UMETA(DisplayName = "Wildlife Product"),
 	ChestRig        UMETA(DisplayName = "Chest Rig"),
 	Backpack        UMETA(DisplayName = "Backpack"),
+	Cosmetic        UMETA(DisplayName = "Cosmetic"),
 };
 
 // Wearable container slot. Equipping a container of this type extends the

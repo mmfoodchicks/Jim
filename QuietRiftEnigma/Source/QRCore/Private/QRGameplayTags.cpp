@@ -13,6 +13,7 @@ namespace QRGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Item_Category_Clothing,           "Item.Category.Clothing")
 	UE_DEFINE_GAMEPLAY_TAG(Item_Category_ChestRig,           "Item.Category.ChestRig")
 	UE_DEFINE_GAMEPLAY_TAG(Item_Category_Backpack,           "Item.Category.Backpack")
+	UE_DEFINE_GAMEPLAY_TAG(Item_Category_Cosmetic,           "Item.Category.Cosmetic")
 	UE_DEFINE_GAMEPLAY_TAG(Item_Category_Seed,               "Item.Category.Seed")
 
 	UE_DEFINE_GAMEPLAY_TAG(Equipment_Slot_ChestRig,          "Equipment.Slot.ChestRig")

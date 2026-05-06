@@ -257,3 +257,22 @@ PACK_PATROL_RUCKSACK,Patrol Rucksack,Backpack,2,Uncommon,Crafted,Crafted at: Cam
 PACK_OUTPOST_HAULER,Outpost Hauler,Backpack,2,Uncommon,Crafted,Crafted at: Camp Workbench / Machine Bench,Camp Workbench,Tailoring T2 / Metalwork T1,"Big-capacity hauler with side-strap kit slots. 7×6 grid, +14kg carry, +48L volume.",Equipment / Tarkov-style backpacks,Recipe Output: RC_PACK_OUTPOST_HAULER
 PACK_VANGUARD_ASSAULT,Vanguard Assault Pack,Backpack,3,Rare,Crafted,Crafted at: Machine Bench,Machine Bench,Metalwork T2,"Vanguard-pattern assault pack with composite back panel. 6×7 grid, +14kg carry, +50L volume.",Equipment / Tarkov-style backpacks,Recipe Output: RC_PACK_VANGUARD_ASSAULT
 PACK_EXPEDITION_LONGHAUL,Expedition Longhaul,Backpack,3,Rare,Crafted,Crafted at: Machine Bench,Machine Bench,Metalwork T2,"Frame pack tuned for multi-day expeditions. 8×8 grid, +18kg carry, +70L volume.",Equipment / Tarkov-style backpacks,Recipe Output: RC_PACK_EXPEDITION_LONGHAUL
+COS_BOOTS_HIKING,Hiking Boots,Cosmetic,0,Common,Found,Survivor pods / wreck salvage,—,—,"Cosmetic only — heavy ankle-high lace-up boots. No gameplay effect.",Cosmetic / Footwear,Cosmetic Set
+COS_BOOTS_TACTICAL,Tactical Boots,Cosmetic,0,Common,Found,Vanguard cache / armory wreck,—,—,"Cosmetic only — tall reinforced black tactical boots. No gameplay effect.",Cosmetic / Footwear,Cosmetic Set
+COS_SHOES_TENNIS,Tennis Shoes,Cosmetic,0,Common,Found,Luggage wreck / personal effects,—,—,"Cosmetic only — soft-soled canvas tennis shoes. No gameplay effect.",Cosmetic / Footwear,Cosmetic Set
+COS_SHOES_RUNNING,Running Shoes,Cosmetic,0,Common,Found,Luggage wreck / civilian containers,—,—,"Cosmetic only — lightweight running shoes with rubber sole. No gameplay effect.",Cosmetic / Footwear,Cosmetic Set
+COS_PANTS_CARGO,Cargo Pants,Cosmetic,0,Common,Found,Luggage wreck / civilian containers,—,—,"Cosmetic only — multi-pocket cargo pants. No gameplay effect.",Cosmetic / Pants,Cosmetic Set
+COS_PANTS_JEANS,Jeans,Cosmetic,0,Common,Found,Luggage wreck / personal effects,—,—,"Cosmetic only — denim jeans. No gameplay effect.",Cosmetic / Pants,Cosmetic Set
+COS_SHORTS_ATHLETIC,Athletic Shorts,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — knee-length athletic shorts. No gameplay effect.",Cosmetic / Pants,Cosmetic Set
+COS_SHORTS_CARGO,Cargo Shorts,Cosmetic,0,Common,Found,Luggage wreck / civilian containers,—,—,"Cosmetic only — knee-length cargo shorts with side pockets. No gameplay effect.",Cosmetic / Pants,Cosmetic Set
+COS_SHIRT_TSHIRT,T-Shirt,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — short-sleeve crew-neck T-shirt. No gameplay effect.",Cosmetic / Shirt,Cosmetic Set
+COS_SHIRT_LONGSLEEVE,Long-Sleeve Shirt,Cosmetic,0,Common,Found,Luggage wreck / civilian containers,—,—,"Cosmetic only — long-sleeve crew-neck shirt. No gameplay effect.",Cosmetic / Shirt,Cosmetic Set
+COS_SHIRT_SLEEVELESS,Tank Top,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — sleeveless tank-top shirt. No gameplay effect.",Cosmetic / Shirt,Cosmetic Set
+COS_SHIRT_BUTTONUP,Button-Up Shirt,Cosmetic,0,Common,Found,Luggage wreck / personal effects,—,—,"Cosmetic only — collared button-up shirt with chest pocket. No gameplay effect.",Cosmetic / Shirt,Cosmetic Set
+COS_HOODIE,Hoodie,Cosmetic,0,Common,Found,Luggage wreck / civilian containers,—,—,"Cosmetic only — pullover hoodie with kangaroo pocket and drawstring. No gameplay effect.",Cosmetic / Outerwear,Cosmetic Set
+COS_JACKET_DENIM,Denim Jacket,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — short denim jacket with chest pockets. No gameplay effect.",Cosmetic / Outerwear,Cosmetic Set
+COS_JACKET_BOMBER,Bomber Jacket,Cosmetic,0,Common,Found,Luggage wreck / pilot survivor pods,—,—,"Cosmetic only — short bomber jacket with ribbed cuffs and waistband. No gameplay effect.",Cosmetic / Outerwear,Cosmetic Set
+COS_BRA_SPORTS,Sports Bra,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — sports bra. No gameplay effect.",Cosmetic / Undergarment,Cosmetic Set
+COS_UNDERWEAR_BRIEFS,Briefs,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — basic briefs. No gameplay effect.",Cosmetic / Undergarment,Cosmetic Set
+COS_UNDERWEAR_BOXERS,Boxer Shorts,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — boxer shorts. No gameplay effect.",Cosmetic / Undergarment,Cosmetic Set
+COS_UNDERWEAR_PANTIES,Panties,Cosmetic,0,Common,Found,Luggage wreck,—,—,"Cosmetic only — basic panties. No gameplay effect.",Cosmetic / Undergarment,Cosmetic Set

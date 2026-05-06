@@ -23,6 +23,7 @@ namespace QRGameplayTags
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Clothing)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_ChestRig)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Backpack)
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Cosmetic)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Seed)
 
 	// ── Equipment Slot Tags ──
