@@ -172,6 +172,13 @@ struct QRSAVENET_API FQRGameSaveData
 	// by UQRPronounLibrary::MakeDefaultIdentity for legacy saves.
 	UPROPERTY() FQRPlayerIdentity PlayerIdentity;
 
+	// Player character appearance (body sliders, face shape, skin / hair /
+	// eye colors, hair / facial-hair indices). Defaulted by
+	// UQRCharacterCustomizationLibrary::MakeDefaultAppearance for legacy
+	// saves. Decoupled from PlayerIdentity so body type and pronouns stay
+	// orthogonal — a Feminine-bodied character with He pronouns is valid.
+	UPROPERTY() FQRCharacterAppearance PlayerAppearance;
+
 	// Colony data
 	UPROPERTY() TArray<FQRSurvivorSaveData> SurvivorData;
 	UPROPERTY() FQRResearchSaveData ResearchData;
