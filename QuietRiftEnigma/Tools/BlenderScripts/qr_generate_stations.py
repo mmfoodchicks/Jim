@@ -1,15 +1,24 @@
 """
 Quiet Rift: Enigma — Station Asset Generator (Blender 4.x)
 
-Run this in Blender's Scripting workspace or via:
-    blender --background --python qr_generate_stations.py
+Upgraded in Batch 6 of the Blender detail pass — every crafting station
+flows through qr_blender_detail.py for production finalization (palette
+dedupe, smooth shading, bevels, smart UV, sockets, UCX collision, LOD
+chain).
 
 Generates placeholder meshes for every crafting / processing station
 (AQRStationBase derivatives) referenced by recipes in the data tables:
 camp workbench, sawbench, anvil forge, kiln furnace, kiln oven,
 cookfire, chem bench, machine bench, electronics bench, armory bench,
 grinder, plus the storage depot used by AQRStationBase::FindNearbyDepots.
-Sized for UE5 import (1 UU = 1 cm).
+
+Per-station gameplay sockets — these matter for the colony AI
+(QRStationBase / QRDepotComponent already reference equivalent logic):
+
+    SOCKET_WorkPoint   — where the assigned NPC stands while operating
+    SOCKET_InputDrop   — where carriers drop input materials
+    SOCKET_OutputDrop  — where finished outputs spawn
+    SOCKET_DepotSlot   — only on Depot — where deposit pulls accept items
 
 Usage inside Blender:
     1. Open Blender > Scripting tab
@@ -29,41 +38,61 @@ from qr_blender_common import (  # noqa: E402
     SCALE,
     clear_scene,
     export_fbx,
-    add_material,
-    join_and_rename,
+)
+from qr_blender_detail import (  # noqa: E402
+    palette_material,
+    get_or_create_material,
+    assign_material,
+    add_socket,
+    add_panel_seam_strip,
+    add_rivet_grid,
+    finalize_asset,
 )
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "../../Content/Meshes/stations")
 
-# Station palette
-WOOD       = (0.45, 0.30, 0.18, 1.0)
-DARK_WOOD  = (0.28, 0.18, 0.10, 1.0)
-STEEL      = (0.30, 0.32, 0.36, 1.0)
-DARK_STEEL = (0.18, 0.20, 0.24, 1.0)
-STONE      = (0.42, 0.42, 0.40, 1.0)
-ASH        = (0.18, 0.16, 0.14, 1.0)
-EMBER      = (0.95, 0.42, 0.05, 1.0)
-COPPER_PIPE = (0.65, 0.42, 0.22, 1.0)
-GLASS_BLUE = (0.20, 0.40, 0.55, 0.6)
+
+def _add(obj, mat):
+    assign_material(obj, mat)
+    return obj
 
 
-def _bench_top(width=2.0, depth=1.0, height=0.92, top_thickness=0.12, top_color=WOOD, leg_color=DARK_WOOD):
-    """Standard four-legged workbench. Returns nothing — caller joins after."""
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, height - top_thickness / 2))
-    top = bpy.context.active_object
-    top.scale = (width, depth, top_thickness)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(top, top_color, "Bench_Top_Mat")
+def _slab(x, y, z, w, d, h, mat, name):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z))
+    obj = bpy.context.active_object
+    obj.scale = (w, d, h); bpy.ops.object.transform_apply(scale=True)
+    _add(obj, mat); obj.name = name
+    return obj
+
+
+def _bench_top(width=2.0, depth=1.0, height=0.92, top_thickness=0.12,
+                top_mat=None, leg_mat=None):
+    if top_mat is None:
+        top_mat = palette_material("Wood")
+    if leg_mat is None:
+        leg_mat = palette_material("DarkWood")
+    _slab(0, 0, height - top_thickness / 2, width, depth, top_thickness, top_mat, "Bench_Top")
     leg_h = height - top_thickness
     for sx, sy in [(width / 2 - 0.06, depth / 2 - 0.06),
                    (-width / 2 + 0.06, depth / 2 - 0.06),
                    (width / 2 - 0.06, -depth / 2 + 0.06),
                    (-width / 2 + 0.06, -depth / 2 + 0.06)]:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(sx, sy, leg_h / 2))
-        leg = bpy.context.active_object
-        leg.scale = (0.08, 0.08, leg_h)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(leg, leg_color, "Bench_Leg_Mat")
+        _slab(sx, sy, leg_h / 2, 0.08, 0.08, leg_h, leg_mat, "Bench_Leg")
+    # Cross-stretcher seam under the top
+    add_panel_seam_strip((-width / 2 + 0.10, 0, leg_h - 0.05),
+                          (width / 2 - 0.10, 0, leg_h - 0.05),
+                          width=0.04, depth=0.012, material_name="DarkWood",
+                          name="Bench_Stretcher")
+
+
+def _finalize_station(name, work, input_drop, output_drop, lods=(0.50,)):
+    add_socket("WorkPoint", location=work)
+    add_socket("InputDrop", location=input_drop)
+    add_socket("OutputDrop", location=output_drop)
+    finalize_asset(name,
+                    bevel_width=0.0035, bevel_angle_deg=30,
+                    smooth_angle_deg=50, collision="convex",
+                    lods=list(lods), pivot="bottom_corner")
 
 
 # ── Generators ────────────────────────────────────────────────────────────────
@@ -72,398 +101,272 @@ def gen_camp_workbench():
     """Rough wood bench with a hand-axe and rope coil — earliest station."""
     clear_scene()
     _bench_top(width=1.8, depth=0.9, height=0.90)
-    # Axe head on top
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.5, 0, 0.96))
-    head = bpy.context.active_object
-    head.scale = (0.16, 0.06, 0.10)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(head, STEEL, "CampBench_Axe_Mat")
-    # Rope coil
+    _slab(-0.5, 0, 0.96, 0.16, 0.06, 0.10, palette_material("Steel"), "Axe_Head")
     bpy.ops.mesh.primitive_torus_add(major_radius=0.10, minor_radius=0.025, location=(0.5, 0.1, 0.93))
-    add_material(bpy.context.active_object, (0.55, 0.42, 0.25, 1.0), "CampBench_Rope_Mat")
-    join_and_rename("SM_ST_CAMP_WORKBENCH")
+    _add(bpy.context.active_object,
+          get_or_create_material("Station_Rope", (0.55, 0.42, 0.25, 1.0), roughness=0.95))
+    _finalize_station("SM_ST_CAMP_WORKBENCH",
+                       work=(0, -0.7, 0), input_drop=(-1.0, 0, 0), output_drop=(1.0, 0, 0))
 
 
 def gen_sawbench():
     """Heavier wood bench with a circular saw blade and stack of planks."""
     clear_scene()
     _bench_top(width=2.2, depth=1.0, height=0.90)
-    # Saw blade (disc on edge)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.30, depth=0.025, location=(-0.5, 0, 1.20))
     blade = bpy.context.active_object
     blade.rotation_euler.x = math.pi / 2
-    add_material(blade, STEEL, "Sawbench_Blade_Mat")
-    # Blade housing
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.5, 0.18, 1.20))
-    housing = bpy.context.active_object
-    housing.scale = (0.36, 0.10, 0.36)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(housing, DARK_STEEL, "Sawbench_Housing_Mat")
-    # Stack of planks on the right
+    _add(blade, palette_material("Steel"))
+    _slab(-0.5, 0.18, 1.20, 0.36, 0.10, 0.36, palette_material("DarkSteel"), "Sawbench_Housing")
     for i in range(3):
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(0.6, 0, 0.95 + i * 0.04))
-        plank = bpy.context.active_object
-        plank.scale = (0.50, 0.18, 0.04)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(plank, WOOD, f"Sawbench_Plank_{i}_Mat")
-    join_and_rename("SM_ST_SAWBENCH")
+        _slab(0.6, 0, 0.95 + i * 0.04, 0.50, 0.18, 0.04, palette_material("Wood"), f"Sawbench_Plank_{i}")
+    _finalize_station("SM_ST_SAWBENCH",
+                       work=(0, -0.7, 0), input_drop=(-1.2, 0, 0), output_drop=(1.2, 0, 0))
 
 
 def gen_anvil_forge():
-    """Stone hearth + chimney + anvil. Heavy metalwork station."""
+    """Stone hearth + chimney + anvil — heavy metalwork station."""
     clear_scene()
-    # Hearth base (stone block)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.55))
-    hearth = bpy.context.active_object
-    hearth.scale = (1.6, 1.2, 1.10)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(hearth, STONE, "Forge_Hearth_Mat")
-    # Coal bed (top recess)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 1.13))
-    coal = bpy.context.active_object
-    coal.scale = (1.20, 0.85, 0.10)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(coal, ASH, "Forge_Coal_Mat")
-    # Embers
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 1.18))
-    emb = bpy.context.active_object
-    emb.scale = (0.80, 0.55, 0.04)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(emb, EMBER, "Forge_Ember_Mat")
-    # Chimney
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.45, 2.00))
-    chim = bpy.context.active_object
-    chim.scale = (0.6, 0.4, 1.6)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(chim, STONE, "Forge_Chimney_Mat")
-    # Anvil to the side
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(1.30, 0, 0.45))
-    anvil_base = bpy.context.active_object
-    anvil_base.scale = (0.40, 0.30, 0.30)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(anvil_base, DARK_WOOD, "Forge_AnvilStump_Mat")
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(1.30, 0, 0.72))
-    anvil = bpy.context.active_object
-    anvil.scale = (0.45, 0.16, 0.16)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(anvil, STEEL, "Forge_Anvil_Mat")
-    # Anvil horn
+    stone_mat = palette_material("Stone")
+    coal_mat = get_or_create_material("Station_Coal", (0.18, 0.16, 0.14, 1.0), roughness=0.95)
+    ember_mat = palette_material("Ember")
+    anvil_mat = palette_material("Steel")
+    _slab(0, 0, 0.55, 1.6, 1.2, 1.10, stone_mat, "Forge_Hearth")
+    _slab(0, 0, 1.13, 1.20, 0.85, 0.10, coal_mat, "Forge_Coal")
+    _slab(0, 0, 1.18, 0.80, 0.55, 0.04, ember_mat, "Forge_Ember")
+    _slab(0, 0.45, 2.00, 0.6, 0.4, 1.6, stone_mat, "Forge_Chimney")
+    _slab(1.30, 0, 0.45, 0.40, 0.30, 0.30, palette_material("DarkWood"), "Forge_AnvilStump")
+    _slab(1.30, 0, 0.72, 0.45, 0.16, 0.16, anvil_mat, "Forge_Anvil")
     bpy.ops.mesh.primitive_cone_add(radius1=0.08, radius2=0.0, depth=0.18, location=(1.62, 0, 0.72))
     horn = bpy.context.active_object
     horn.rotation_euler.y = math.pi / 2
-    add_material(horn, STEEL, "Forge_AnvilHorn_Mat")
-    join_and_rename("SM_ST_ANVIL_FORGE")
+    _add(horn, anvil_mat)
+    _finalize_station("SM_ST_ANVIL_FORGE",
+                       work=(1.30, -0.6, 0), input_drop=(-1.0, 0, 0), output_drop=(1.30, 0.5, 0))
 
 
 def gen_kiln_furnace():
-    """Brick beehive furnace for smelting / firing — large dome with vent."""
+    """Brick beehive furnace for smelting / firing."""
     clear_scene()
-    # Stone base
+    stone_mat = palette_material("Stone")
     bpy.ops.mesh.primitive_cylinder_add(radius=1.1, depth=0.4, vertices=12, location=(0, 0, 0.20))
-    add_material(bpy.context.active_object, STONE, "Kiln_Base_Mat")
-    # Beehive dome
+    _add(bpy.context.active_object, stone_mat)
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, location=(0, 0, 0.40))
     dome = bpy.context.active_object
-    dome.scale.z = 1.2
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(dome, STONE, "Kiln_Dome_Mat")
-    # Front opening
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -0.95, 0.55))
-    opening = bpy.context.active_object
-    opening.scale = (0.6, 0.30, 0.55)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(opening, ASH, "Kiln_Opening_Mat")
-    # Embers in opening
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -1.05, 0.40))
-    add_material(bpy.context.active_object, EMBER, "Kiln_Ember_Mat")
-    # Vent stack on top
+    dome.scale.z = 1.2; bpy.ops.object.transform_apply(scale=True)
+    _add(dome, stone_mat)
+    _slab(0, -0.95, 0.55, 0.6, 0.30, 0.55,
+           get_or_create_material("Station_KilnAsh", (0.18, 0.16, 0.14, 1.0), roughness=0.95),
+           "Kiln_Opening")
+    _slab(0, -1.05, 0.40, 0.5, 0.10, 0.20, palette_material("Ember"), "Kiln_Ember")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.15, depth=0.6, location=(0, 0, 1.85))
-    add_material(bpy.context.active_object, DARK_STEEL, "Kiln_Stack_Mat")
-    join_and_rename("SM_ST_KILN_FURNACE")
+    _add(bpy.context.active_object, palette_material("DarkSteel"))
+    _finalize_station("SM_ST_KILN_FURNACE",
+                       work=(0, -1.5, 0), input_drop=(-1.5, 0, 0), output_drop=(1.5, 0, 0))
 
 
 def gen_kiln_oven():
     """Lower, broader oven for ceramics / food firing — flat-topped masonry."""
     clear_scene()
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.55))
-    body = bpy.context.active_object
-    body.scale = (1.6, 1.2, 1.10)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(body, STONE, "Oven_Body_Mat")
-    # Domed top hump
+    stone_mat = palette_material("Stone")
+    _slab(0, 0, 0.55, 1.6, 1.2, 1.10, stone_mat, "Oven_Body")
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.7, location=(0, 0, 1.10))
     hump = bpy.context.active_object
-    hump.scale = (1.0, 0.75, 0.4)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(hump, STONE, "Oven_Hump_Mat")
-    # Iron door
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -0.62, 0.55))
-    door = bpy.context.active_object
-    door.scale = (0.55, 0.05, 0.55)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(door, DARK_STEEL, "Oven_Door_Mat")
-    # Door handle
+    hump.scale = (1.0, 0.75, 0.4); bpy.ops.object.transform_apply(scale=True)
+    _add(hump, stone_mat)
+    _slab(0, -0.62, 0.55, 0.55, 0.05, 0.55, palette_material("DarkSteel"), "Oven_Door")
     bpy.ops.mesh.primitive_torus_add(major_radius=0.06, minor_radius=0.012, location=(0, -0.65, 0.55))
     handle = bpy.context.active_object
     handle.rotation_euler.x = math.pi / 2
-    add_material(handle, STEEL, "Oven_Handle_Mat")
-    # Small chimney
+    _add(handle, palette_material("Steel"))
     bpy.ops.mesh.primitive_cylinder_add(radius=0.10, depth=0.50, location=(0, 0.30, 1.55))
-    add_material(bpy.context.active_object, DARK_STEEL, "Oven_Chimney_Mat")
-    join_and_rename("SM_ST_KILN_OVEN")
+    _add(bpy.context.active_object, palette_material("DarkSteel"))
+    _finalize_station("SM_ST_KILN_OVEN",
+                       work=(0, -1.0, 0), input_drop=(-1.0, 0, 0), output_drop=(1.0, 0, 0))
 
 
 def gen_cookfire():
     """Stone fire ring + spit + tripod with hanging pot."""
     clear_scene()
-    # Stone ring (8 stones)
+    stone_mat = palette_material("Stone")
+    ash_mat = get_or_create_material("Station_Ash", (0.30, 0.28, 0.25, 1.0), roughness=0.95)
+    log_mat = palette_material("DarkWood")
+    ember_mat = palette_material("Ember")
+    pot_mat = palette_material("DarkSteel")
     for i in range(8):
-        angle = (i / 8.0) * math.tau
-        x = math.cos(angle) * 0.55
-        y = math.sin(angle) * 0.55
+        ang = (i / 8.0) * math.tau
+        x = math.cos(ang) * 0.55; y = math.sin(ang) * 0.55
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.14, location=(x, y, 0.07))
         st = bpy.context.active_object
-        st.scale.z = 0.55
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(st, STONE, "Cookfire_Stone_Mat")
-    # Ash bed
+        st.scale.z = 0.55; bpy.ops.object.transform_apply(scale=True)
+        _add(st, stone_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.45, depth=0.04, location=(0, 0, 0.05))
-    add_material(bpy.context.active_object, ASH, "Cookfire_Ash_Mat")
-    # Crossed logs
+    _add(bpy.context.active_object, ash_mat)
     for ang in (0, math.pi / 2):
         bpy.ops.mesh.primitive_cylinder_add(radius=0.04, depth=0.7, location=(0, 0, 0.10))
         log = bpy.context.active_object
         log.rotation_euler = (math.pi / 2, 0, ang)
-        add_material(log, DARK_WOOD, "Cookfire_Log_Mat")
-    # Embers
+        _add(log, log_mat)
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.10, location=(0, 0, 0.10))
-    add_material(bpy.context.active_object, EMBER, "Cookfire_Ember_Mat")
-    # Tripod legs
+    _add(bpy.context.active_object, ember_mat)
     for i in range(3):
-        angle = (i / 3.0) * math.tau
-        x = math.cos(angle) * 0.55
-        y = math.sin(angle) * 0.55
+        ang = (i / 3.0) * math.tau
+        x = math.cos(ang) * 0.55; y = math.sin(ang) * 0.55
         bpy.ops.mesh.primitive_cylinder_add(radius=0.018, depth=1.4, location=(x * 0.5, y * 0.5, 0.70))
         leg = bpy.context.active_object
-        leg.rotation_euler = (math.cos(angle) * 0.5, math.sin(angle) * 0.5, 0)
-        add_material(leg, DARK_WOOD, "Cookfire_Tripod_Mat")
-    # Hanging pot
+        leg.rotation_euler = (math.cos(ang) * 0.5, math.sin(ang) * 0.5, 0)
+        _add(leg, log_mat)
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.16, location=(0, 0, 0.55))
     pot = bpy.context.active_object
-    pot.scale.z = 0.7
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(pot, DARK_STEEL, "Cookfire_Pot_Mat")
-    join_and_rename("SM_ST_COOKFIRE")
+    pot.scale.z = 0.7; bpy.ops.object.transform_apply(scale=True)
+    _add(pot, pot_mat)
+    _finalize_station("SM_ST_COOKFIRE",
+                       work=(0, -0.9, 0), input_drop=(-0.8, 0, 0), output_drop=(0, 0, 0.7))
 
 
 def gen_chem_bench():
     """Steel bench with glassware: flask, beaker, condenser tube."""
     clear_scene()
-    _bench_top(width=2.0, depth=0.9, height=0.92, top_color=STEEL, leg_color=DARK_STEEL)
-    # Round flask
+    _bench_top(width=2.0, depth=0.9, height=0.92,
+                top_mat=palette_material("Steel"),
+                leg_mat=palette_material("DarkSteel"))
+    glass_mat = palette_material("Glass")
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.12, location=(-0.4, 0.05, 1.06))
-    flask = bpy.context.active_object
-    add_material(flask, GLASS_BLUE, "Chem_Flask_Mat")
-    # Flask neck
+    _add(bpy.context.active_object, glass_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.025, depth=0.10, location=(-0.4, 0.05, 1.20))
-    add_material(bpy.context.active_object, GLASS_BLUE, "Chem_FlaskNeck_Mat")
-    # Tall beaker
+    _add(bpy.context.active_object, glass_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.06, depth=0.20, location=(0.05, 0.05, 1.04))
-    add_material(bpy.context.active_object, GLASS_BLUE, "Chem_Beaker_Mat")
-    # Condenser tube (slanted)
+    _add(bpy.context.active_object, glass_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.018, depth=0.55, location=(0.45, 0.05, 1.14))
     cond = bpy.context.active_object
     cond.rotation_euler.y = math.pi / 4
-    add_material(cond, COPPER_PIPE, "Chem_Condenser_Mat")
-    # Stand for the condenser
+    _add(cond, palette_material("Copper"))
     bpy.ops.mesh.primitive_cylinder_add(radius=0.02, depth=0.45, location=(0.65, 0.05, 1.16))
-    add_material(bpy.context.active_object, DARK_STEEL, "Chem_Stand_Mat")
-    join_and_rename("SM_ST_CHEM_BENCH")
+    _add(bpy.context.active_object, palette_material("DarkSteel"))
+    _finalize_station("SM_ST_CHEM_BENCH",
+                       work=(0, -0.7, 0), input_drop=(-1.1, 0, 0), output_drop=(1.1, 0, 0))
 
 
 def gen_machine_bench():
-    """Heavy steel bench with a mounted vise and a small lathe spindle."""
+    """Heavy steel bench with vise + lathe spindle."""
     clear_scene()
-    _bench_top(width=2.2, depth=1.0, height=0.92, top_color=STEEL, leg_color=DARK_STEEL)
-    # Vise base
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.6, -0.25, 1.02))
-    vbase = bpy.context.active_object
-    vbase.scale = (0.20, 0.16, 0.10)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(vbase, DARK_STEEL, "Machine_ViseBase_Mat")
-    # Vise jaws
+    _bench_top(width=2.2, depth=1.0, height=0.92,
+                top_mat=palette_material("Steel"),
+                leg_mat=palette_material("DarkSteel"))
+    dark_steel = palette_material("DarkSteel")
+    steel_mat = palette_material("Steel")
+    _slab(-0.6, -0.25, 1.02, 0.20, 0.16, 0.10, dark_steel, "Vise_Base")
     for sx in [0.05, -0.05]:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.6 + sx, -0.25, 1.10))
-        jaw = bpy.context.active_object
-        jaw.scale = (0.04, 0.16, 0.10)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(jaw, STEEL, "Machine_Jaw_Mat")
-    # Vise screw
+        _slab(-0.6 + sx, -0.25, 1.10, 0.04, 0.16, 0.10, steel_mat, "Vise_Jaw")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.018, depth=0.30, location=(-0.6, -0.25, 1.10))
     screw = bpy.context.active_object
     screw.rotation_euler.y = math.pi / 2
-    add_material(screw, STEEL, "Machine_Screw_Mat")
-    # Lathe spindle on right
+    _add(screw, steel_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.10, depth=0.18, location=(0.6, 0, 1.10))
-    spind = bpy.context.active_object
-    spind.rotation_euler.y = math.pi / 2
-    add_material(spind, DARK_STEEL, "Machine_Spindle_Mat")
-    # Tail stock
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0.95, 0, 1.06))
-    tail = bpy.context.active_object
-    tail.scale = (0.18, 0.20, 0.14)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(tail, DARK_STEEL, "Machine_Tailstock_Mat")
-    # Bed rails
+    spindle = bpy.context.active_object
+    spindle.rotation_euler.y = math.pi / 2
+    _add(spindle, dark_steel)
+    _slab(0.95, 0, 1.06, 0.18, 0.20, 0.14, dark_steel, "Lathe_Tailstock")
     for sy in [0.10, -0.10]:
         bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.55, location=(0.78, sy, 1.04))
         bed = bpy.context.active_object
         bed.rotation_euler.y = math.pi / 2
-        add_material(bed, STEEL, "Machine_Bed_Mat")
-    join_and_rename("SM_ST_MACHINE_BENCH")
+        _add(bed, steel_mat)
+    add_rivet_grid(origin=(-0.45, 0.40, 1.00), spacing=(0.20, 0.0),
+                    rows=1, cols=5, rivet_radius=0.015, depth=0.008,
+                    normal_axis='Z', material_name="DarkSteel")
+    _finalize_station("SM_ST_MACHINE_BENCH",
+                       work=(0, -0.7, 0), input_drop=(-1.2, 0, 0), output_drop=(1.2, 0, 0))
 
 
 def gen_electronics_bench():
-    """Wood bench with a soldering iron stand and a stacked test scope box."""
+    """Wood bench with soldering iron stand + scope chassis."""
     clear_scene()
     _bench_top(width=2.0, depth=0.9, height=0.92)
-    # Scope chassis (rectangular box with screen)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.55, 0.10, 1.18))
-    chassis = bpy.context.active_object
-    chassis.scale = (0.40, 0.28, 0.30)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(chassis, DARK_STEEL, "Elec_Chassis_Mat")
-    # Screen
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.55, -0.05, 1.18))
-    scr = bpy.context.active_object
-    scr.scale = (0.26, 0.005, 0.20)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(scr, GLASS_BLUE, "Elec_Screen_Mat")
-    # Soldering iron stand (cone base + iron)
+    dark_steel = palette_material("DarkSteel")
+    glass_mat = palette_material("GlassDark")
+    _slab(-0.55, 0.10, 1.18, 0.40, 0.28, 0.30, dark_steel, "Elec_Chassis")
+    _slab(-0.55, -0.05, 1.18, 0.26, 0.005, 0.20, glass_mat, "Elec_Screen")
     bpy.ops.mesh.primitive_cone_add(radius1=0.07, radius2=0.04, depth=0.04, location=(0.20, 0.05, 0.96))
-    add_material(bpy.context.active_object, DARK_STEEL, "Elec_StandBase_Mat")
+    _add(bpy.context.active_object, dark_steel)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.25, location=(0.20, 0.05, 1.10))
     iron = bpy.context.active_object
     iron.rotation_euler = (0.7, 0, 0)
-    add_material(iron, COPPER_PIPE, "Elec_Iron_Mat")
-    # Coil of wire
+    _add(iron, palette_material("Copper"))
     bpy.ops.mesh.primitive_torus_add(major_radius=0.10, minor_radius=0.018, location=(0.55, 0, 0.95))
-    add_material(bpy.context.active_object, COPPER_PIPE, "Elec_Coil_Mat")
-    # Component tray (small slab)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0.55, 0.25, 0.95))
-    tray = bpy.context.active_object
-    tray.scale = (0.30, 0.20, 0.02)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(tray, STEEL, "Elec_Tray_Mat")
-    join_and_rename("SM_ST_ELECTRONICS_BENCH")
+    _add(bpy.context.active_object, palette_material("Copper"))
+    _slab(0.55, 0.25, 0.95, 0.30, 0.20, 0.02, palette_material("Steel"), "Elec_Tray")
+    _finalize_station("SM_ST_ELECTRONICS_BENCH",
+                       work=(0, -0.7, 0), input_drop=(-1.1, 0, 0), output_drop=(1.1, 0, 0))
 
 
 def gen_armory_bench():
-    """Wood-and-steel bench with a weapon cradle and an ammo box."""
+    """Wood-and-steel bench with weapon cradle + ammo box + pegboard."""
     clear_scene()
     _bench_top(width=2.4, depth=1.0, height=0.92)
-    # Weapon cradle (two padded V-blocks)
+    dark_steel = palette_material("DarkSteel")
+    steel_mat = palette_material("Steel")
     for sx in [-0.5, 0.3]:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(sx, 0, 1.04))
-        v = bpy.context.active_object
-        v.scale = (0.10, 0.30, 0.08)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(v, DARK_STEEL, "Armory_Cradle_Mat")
-    # Stand-in weapon body (rectangular bar lying in cradles)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.10, 0, 1.10))
-    wpn = bpy.context.active_object
-    wpn.scale = (1.10, 0.06, 0.05)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(wpn, STEEL, "Armory_Weapon_Mat")
-    # Ammo box
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0.85, 0.25, 1.02))
-    box = bpy.context.active_object
-    box.scale = (0.30, 0.22, 0.18)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(box, (0.35, 0.40, 0.25, 1.0), "Armory_AmmoBox_Mat")
-    # Pegboard backstop
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.40, 1.40))
-    peg = bpy.context.active_object
-    peg.scale = (2.0, 0.04, 0.50)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(peg, DARK_WOOD, "Armory_Pegboard_Mat")
-    join_and_rename("SM_ST_ARMORY_BENCH")
+        _slab(sx, 0, 1.04, 0.10, 0.30, 0.08, dark_steel, "Armory_Cradle")
+    _slab(-0.10, 0, 1.10, 1.10, 0.06, 0.05, steel_mat, "Armory_Weapon")
+    _slab(0.85, 0.25, 1.02, 0.30, 0.22, 0.18,
+           get_or_create_material("Station_AmmoBox", (0.35, 0.40, 0.25, 1.0), roughness=0.85),
+           "Armory_AmmoBox")
+    _slab(0, 0.40, 1.40, 2.0, 0.04, 0.50, palette_material("DarkWood"), "Armory_Pegboard")
+    add_rivet_grid(origin=(-0.85, 0.43, 1.20), spacing=(0.20, 0.20),
+                    rows=2, cols=10, rivet_radius=0.012, depth=0.008,
+                    normal_axis='Y', material_name="DarkSteel")
+    _finalize_station("SM_ST_ARMORY_BENCH",
+                       work=(0, -0.7, 0), input_drop=(-1.3, 0, 0), output_drop=(1.3, 0, 0))
 
 
 def gen_grinder():
     """Pedal-driven grinder wheel on a wood frame."""
     clear_scene()
-    # Frame base (two side posts)
+    dark_wood = palette_material("DarkWood")
+    stone_mat = palette_material("Stone")
+    steel_mat = palette_material("Steel")
     for sy in [0.18, -0.18]:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, sy, 0.45))
-        post = bpy.context.active_object
-        post.scale = (0.10, 0.10, 0.90)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(post, DARK_WOOD, "Grinder_Post_Mat")
-    # Cross beam top
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.90))
-    beam = bpy.context.active_object
-    beam.scale = (0.10, 0.50, 0.10)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(beam, DARK_WOOD, "Grinder_Beam_Mat")
-    # Stone wheel
+        _slab(0, sy, 0.45, 0.10, 0.10, 0.90, dark_wood, "Grinder_Post")
+    _slab(0, 0, 0.90, 0.10, 0.50, 0.10, dark_wood, "Grinder_Beam")
     bpy.ops.mesh.primitive_cylinder_add(radius=0.30, depth=0.08, location=(0, 0, 0.55))
     wheel = bpy.context.active_object
     wheel.rotation_euler.x = math.pi / 2
-    add_material(wheel, STONE, "Grinder_Wheel_Mat")
-    # Axle
+    _add(wheel, stone_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.020, depth=0.50, location=(0, 0, 0.55))
     axle = bpy.context.active_object
     axle.rotation_euler.x = math.pi / 2
-    add_material(axle, STEEL, "Grinder_Axle_Mat")
-    # Crank handle
+    _add(axle, steel_mat)
     bpy.ops.mesh.primitive_cylinder_add(radius=0.012, depth=0.18, location=(0, 0.34, 0.45))
-    crank = bpy.context.active_object
-    add_material(crank, DARK_WOOD, "Grinder_Crank_Mat")
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.30, 0.55))
-    arm = bpy.context.active_object
-    arm.scale = (0.018, 0.04, 0.20)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(arm, DARK_WOOD, "Grinder_Arm_Mat")
-    # Catch tray (sparks/swarf)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0.30, 0, 0.20))
-    tray = bpy.context.active_object
-    tray.scale = (0.30, 0.40, 0.06)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(tray, STEEL, "Grinder_Tray_Mat")
-    join_and_rename("SM_ST_GRINDER")
+    _add(bpy.context.active_object, dark_wood)
+    _slab(0, 0.30, 0.55, 0.018, 0.04, 0.20, dark_wood, "Grinder_Arm")
+    _slab(0.30, 0, 0.20, 0.30, 0.40, 0.06, steel_mat, "Grinder_Tray")
+    _finalize_station("SM_ST_GRINDER",
+                       work=(0, -0.5, 0), input_drop=(-0.6, 0, 0.5), output_drop=(0.30, 0, 0.20))
 
 
 def gen_depot():
-    """Storage depot — wood-banded crate stack with a category placard.
+    """Storage depot — wood-banded crate stack with placard.
        Used by AQRStationBase::FindNearbyDepots — every camp needs one."""
     clear_scene()
-    # Lower crate
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.45))
-    lo = bpy.context.active_object
-    lo.scale = (1.4, 1.0, 0.90)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(lo, WOOD, "Depot_LowerCrate_Mat")
-    # Upper crate (smaller, offset)
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 1.20))
-    up = bpy.context.active_object
-    up.scale = (1.0, 0.8, 0.60)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(up, WOOD, "Depot_UpperCrate_Mat")
-    # Steel banding rings
+    wood_mat = palette_material("Wood")
+    band_mat = palette_material("DarkSteel")
+    placard_mat = get_or_create_material("Station_Placard", (0.85, 0.80, 0.55, 1.0),
+                                          roughness=0.85)
+    _slab(0, 0, 0.45, 1.4, 1.0, 0.90, wood_mat, "Depot_LowerCrate")
+    _slab(0, 0, 1.20, 1.0, 0.8, 0.60, wood_mat, "Depot_UpperCrate")
     for z in (0.20, 0.70, 1.00, 1.40):
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, z))
-        band = bpy.context.active_object
-        band.scale = (1.45, 1.05, 0.025) if z < 1.0 else (1.05, 0.85, 0.025)
-        bpy.ops.object.transform_apply(scale=True)
-        add_material(band, DARK_STEEL, "Depot_Band_Mat")
-    # Placard sign on front
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, -0.55, 0.55))
-    placard = bpy.context.active_object
-    placard.scale = (0.40, 0.02, 0.25)
-    bpy.ops.object.transform_apply(scale=True)
-    add_material(placard, (0.85, 0.80, 0.55, 1.0), "Depot_Placard_Mat")
-    join_and_rename("SM_ST_DEPOT")
+        scale = (1.45, 1.05, 0.025) if z < 1.0 else (1.05, 0.85, 0.025)
+        _slab(0, 0, z, *scale, band_mat, f"Depot_Band_{int(z*100)}")
+    _slab(0, -0.55, 0.55, 0.40, 0.02, 0.25, placard_mat, "Depot_Placard")
+    add_socket("WorkPoint", location=(0, -1.0, 0))
+    add_socket("InputDrop", location=(0, -0.8, 0))
+    add_socket("OutputDrop", location=(0, 0.8, 0))
+    add_socket("DepotSlot", location=(0, 0, 1.50))
+    finalize_asset("SM_ST_DEPOT",
+                    bevel_width=0.0035, bevel_angle_deg=30,
+                    smooth_angle_deg=50, collision="convex",
+                    lods=[0.50], pivot="bottom_corner")
 
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
@@ -485,7 +388,7 @@ GENERATORS = {
 
 
 def main():
-    print("\n=== Quiet Rift: Enigma — Station Asset Generator ===")
+    print("\n=== Quiet Rift: Enigma — Station Asset Generator (Batch 6 detail upgrade) ===")
     for asset_id, gen in GENERATORS.items():
         print(f"\n[{asset_id}]")
         gen()
@@ -493,7 +396,9 @@ def main():
         export_fbx(asset_id, out_path)
     print("\n=== Generation complete ===")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
-    print("Import these FBX files into UE5 via Content Browser > Import.")
+    print("Each FBX exports SM_<id> + UCX_ collision + LOD0.50 +")
+    print("SOCKET_WorkPoint / SOCKET_InputDrop / SOCKET_OutputDrop empties.")
+    print("Depot also exposes SOCKET_DepotSlot.")
 
 
 if __name__ == "__main__":
