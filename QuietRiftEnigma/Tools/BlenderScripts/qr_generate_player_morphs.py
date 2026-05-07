@@ -1,11 +1,11 @@
 """
-Quiet Rift: Enigma — Player Morph Targets Generator (Batch E1 — body)
+Quiet Rift: Enigma — Player Morph Targets Generator (Batch E — body + face)
 
 Builds the Batch C mesh, applies the Batch D rig + auto-weighting +
-sockets, then adds one Blender shape key (UE5 morph target) per body
-slider declared in FQRBodyCustomization. Re-exports
-SK_Player_Base_Masculine.fbx and SK_Player_Base_Feminine.fbx with the
-body morph chain attached.
+sockets, then adds one Blender shape key (UE5 morph target) per
+customization slider declared in FQRBodyCustomization /
+FQRFaceCustomization. Re-exports SK_Player_Base_Masculine.fbx and
+SK_Player_Base_Feminine.fbx with the full morph chain attached.
 
 Morph naming matches the C++ field names exactly so UE5's morph target
 binding finds them automatically when the character creator writes
@@ -20,7 +20,10 @@ Body morphs (7) — match FQRBodyCustomization slider names:
     BustFullness     — bust spheres scale + push forward
     GluteFullness    — glute spheres scale + push back
 
-Face morphs (14) land in Batch E2 — same file, additive commit.
+Face morphs (14) — match FQRFaceCustomization slider names:
+    JawWidth, JawLength, ChinProminence, CheekboneHeight,
+    CheekboneWidth, BrowRidge, EyeSpacing, EyeSize, NoseLength,
+    NoseWidth, NoseTipShape, LipFullness, MouthWidth, ForeheadHeight
 
 Each morph value 0..1 maps to "no effect..max realistic effect."
 The 1.0 endpoint stays inside the realism envelope agreed in Batch B
@@ -29,8 +32,8 @@ The 1.0 endpoint stays inside the realism envelope agreed in Batch B
 Output:
     Content/Meshes/Characters/Player/SK_Player_Base_Masculine.fbx
     Content/Meshes/Characters/Player/SK_Player_Base_Feminine.fbx
-    (Overwrites Batch D's rig-only version. Now ships with the body
-    morph chain + skeleton + sockets. Face morphs added in E2.)
+    (Overwrites Batch D's rig-only + Batch E1's body-only versions.
+    Now ships with the full morph chain + skeleton + sockets.)
 
 Usage inside Blender:
     1. Open Blender > Scripting tab
@@ -283,9 +286,136 @@ def add_body_morphs(mesh, props, pelvis_bottom_z, shoulder_z, chest_center_z):
         sk.data[i].co = (nx, ny, nz)
 
 
-# ── Face morphs (Batch E2) ───────────────────────────────────────────────────
-# Face morph functions are added in the E2 commit — same file, additive.
-# Until then, gen_player_morphed only applies body morphs.
+# ── Face morphs ──────────────────────────────────────────────────────────────
+
+def add_face_morphs(mesh, props, pelvis_bottom_z, shoulder_z, chest_center_z):
+    R = _regions(props, pelvis_bottom_z, shoulder_z, chest_center_z)
+    head_h = props["head_h"]
+    head_half = head_h * 0.50
+
+    # JawWidth — X-stretch of lower-head vertices.
+    add_box_morph(mesh, "JawWidth",
+                  x_range=(-head_h * 0.55, head_h * 0.55),
+                  y_range=(-head_h * 0.70, head_h * 0.30),
+                  z_range=(R["chin_z"] - head_h * 0.05, R["chin_z"] + head_h * 0.20),
+                  scale_xyz=(1.18, 1.0, 1.0),
+                  pivot=(0, 0, R["chin_z"]))
+
+    # JawLength — push chin downward in Z.
+    add_box_morph(mesh, "JawLength",
+                  x_range=(-head_h * 0.40, head_h * 0.40),
+                  y_range=(-head_h * 0.70, head_h * 0.10),
+                  z_range=(R["chin_z"] - head_h * 0.10, R["chin_z"] + head_h * 0.10),
+                  scale_xyz=(1.0, 1.0, 1.20),
+                  push_xyz=(0, 0, -head_h * 0.05),
+                  pivot=(0, 0, R["chin_z"] + head_h * 0.10))
+
+    # ChinProminence — push chin forward (-Y).
+    add_radial_morph(mesh, "ChinProminence",
+                     center=(0, -head_h * 0.50, R["chin_z"]),
+                     max_radius=head_h * 0.20,
+                     push_xyz=(0, -head_h * 0.10, 0))
+
+    # CheekboneHeight — shift cheekbone region up.
+    add_box_morph(mesh, "CheekboneHeight",
+                  x_range=(-head_h * 0.50, head_h * 0.50),
+                  y_range=(-head_h * 0.60, -head_h * 0.10),
+                  z_range=(R["cheek_z"] - head_h * 0.08, R["cheek_z"] + head_h * 0.10),
+                  scale_xyz=(1.0, 1.0, 1.0),
+                  push_xyz=(0, 0, head_h * 0.04))
+
+    # CheekboneWidth — X-stretch of cheekbone region.
+    add_box_morph(mesh, "CheekboneWidth",
+                  x_range=(-head_h * 0.55, head_h * 0.55),
+                  y_range=(-head_h * 0.55, -head_h * 0.10),
+                  z_range=(R["cheek_z"] - head_h * 0.08, R["cheek_z"] + head_h * 0.10),
+                  scale_xyz=(1.15, 1.0, 1.0),
+                  pivot=(0, 0, R["cheek_z"]))
+
+    # BrowRidge — push brow forward (-Y).
+    add_box_morph(mesh, "BrowRidge",
+                  x_range=(-head_h * 0.45, head_h * 0.45),
+                  y_range=(-head_h * 0.55, -head_h * 0.30),
+                  z_range=(R["forehead_z"] - head_h * 0.10, R["forehead_z"] + head_h * 0.05),
+                  scale_xyz=(1.0, 1.0, 1.0),
+                  push_xyz=(0, -head_h * 0.05, 0))
+
+    # EyeSpacing — push eye sockets outward in X.
+    add_box_morph(mesh, "EyeSpacing",
+                  x_range=(-head_h * 0.45, head_h * 0.45),
+                  y_range=(-head_h * 0.50, -head_h * 0.30),
+                  z_range=(R["head_center"] + head_h * 0.0, R["head_center"] + head_h * 0.12),
+                  scale_xyz=(1.20, 1.0, 1.0),
+                  pivot=(0, 0, R["head_center"] + head_h * 0.05))
+
+    # EyeSize — radial scale of each eye region (custom dual-center).
+    _ensure_basis(mesh)
+    sk = mesh.shape_key_add(name="EyeSize", from_mix=False)
+    sk.value = 0.0
+    eye_back_y = -head_h * 0.42
+    eye_z      = R["head_center"] + head_h * 0.05
+    eye_x      = head_h * 0.18
+    for i in range(len(mesh.data.vertices)):
+        base = _basis_co(mesh, i)
+        best_f = 0.0; best_cx = 0.0
+        for sgn in (-1, 1):
+            cx = sgn * eye_x
+            dx, dy, dz = base.x - cx, base.y - eye_back_y, base.z - eye_z
+            d = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if d < head_h * 0.10:
+                f = 1.0 - d / (head_h * 0.10)
+                if f > best_f:
+                    best_f = f; best_cx = cx
+        if best_f <= 0.0:
+            sk.data[i].co = base; continue
+        f = best_f
+        nx = best_cx + (base.x - best_cx) * (1.0 + 0.30 * f)
+        ny = eye_back_y + (base.y - eye_back_y) * (1.0 + 0.20 * f)
+        nz = eye_z + (base.z - eye_z) * (1.0 + 0.30 * f)
+        sk.data[i].co = (nx, ny, nz)
+
+    # NoseLength — Z-stretch of nose region downward.
+    add_radial_morph(mesh, "NoseLength",
+                     center=(0, -head_h * 0.50, R["nose_z"]),
+                     max_radius=head_h * 0.15,
+                     scale_xyz=(1.0, 1.0, 1.25),
+                     push_xyz=(0, 0, -head_h * 0.02))
+
+    # NoseWidth — X-stretch of nose.
+    add_radial_morph(mesh, "NoseWidth",
+                     center=(0, -head_h * 0.50, R["nose_z"]),
+                     max_radius=head_h * 0.12,
+                     scale_xyz=(1.30, 1.0, 1.0))
+
+    # NoseTipShape — push nose tip forward + slight scale.
+    add_radial_morph(mesh, "NoseTipShape",
+                     center=(0, -head_h * 0.55, R["nose_z"] - head_h * 0.04),
+                     max_radius=head_h * 0.08,
+                     scale_xyz=(0.85, 1.0, 0.85),
+                     push_xyz=(0, -head_h * 0.03, 0))
+
+    # LipFullness — radial scale of lip region.
+    add_radial_morph(mesh, "LipFullness",
+                     center=(0, -head_h * 0.54, R["mouth_z"]),
+                     max_radius=head_h * 0.10,
+                     scale_xyz=(1.0, 1.20, 1.30))
+
+    # MouthWidth — X-stretch of mouth + lips.
+    add_box_morph(mesh, "MouthWidth",
+                  x_range=(-head_h * 0.20, head_h * 0.20),
+                  y_range=(-head_h * 0.60, -head_h * 0.40),
+                  z_range=(R["mouth_z"] - head_h * 0.06, R["mouth_z"] + head_h * 0.05),
+                  scale_xyz=(1.20, 1.0, 1.0),
+                  pivot=(0, -head_h * 0.50, R["mouth_z"]))
+
+    # ForeheadHeight — push top of head up.
+    add_box_morph(mesh, "ForeheadHeight",
+                  x_range=(-head_half, head_half),
+                  y_range=(-head_h * 0.50, head_h * 0.40),
+                  z_range=(R["forehead_z"] + head_h * 0.0, R["head_top"] + 0.02),
+                  scale_xyz=(1.0, 1.0, 1.10),
+                  push_xyz=(0, 0, head_h * 0.04),
+                  pivot=(0, 0, R["forehead_z"]))
 
 
 # ── Top-level orchestration ─────────────────────────────────────────────────
@@ -303,28 +433,28 @@ def gen_player_morphed(props, name):
 
     print("  + body morphs")
     add_body_morphs(mesh, props, pelvis_z, shoulder_z, chest_center_z)
-    # Face morphs land in Batch E2.
+    print("  + face morphs")
+    add_face_morphs(mesh, props, pelvis_z, shoulder_z, chest_center_z)
 
     out_path = os.path.join(OUTPUT_DIR, f"{name}.fbx")
     export_skeletal_fbx(out_path, armature)
 
 
 def main():
-    print("\n=== Quiet Rift: Enigma — Player Morph Targets Generator (Batch E1 — body) ===")
+    print("\n=== Quiet Rift: Enigma — Player Morph Targets Generator (Batch E — body + face) ===")
     for variant_name, props in [
         ("SK_Player_Base_Masculine", PROPS_MASCULINE),
         ("SK_Player_Base_Feminine",  PROPS_FEMININE),
     ]:
         gen_player_morphed(props, variant_name)
-    print("\n=== Generation complete (body only — face morphs land in E2) ===")
+    print("\n=== Generation complete ===")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
     print("Each FBX now exports:")
     print("  - PlayerSkeleton armature (~23 bones, UE5 Mannequin naming)")
     print("  - SK_Player_Base mesh, auto-weighted")
     print("  - 9 SOCKET_* empties parented to bones")
-    print("  - 7 body morph targets (Muscularity / BodyFat / ShoulderWidth /")
-    print("    WaistSize / HipWidth / BustFullness / GluteFullness)")
-    print("  - 14 face morphs land in the next commit (E2)")
+    print("  - 21 morph targets (7 body + 14 face) named to match")
+    print("    FQRBodyCustomization / FQRFaceCustomization slider field names")
     print("UE5 import: 'Skeletal Mesh', 'Import Sockets' on, 'Import Morph Targets' on.")
 
 
