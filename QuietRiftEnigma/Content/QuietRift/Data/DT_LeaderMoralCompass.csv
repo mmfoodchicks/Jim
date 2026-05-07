@@ -1,11 +1,3 @@
-Leader_Moral_Compass,,,,
-,,,,
-Axis,PositiveActions,NegativeActions,PullsToward,PushesAwayFrom
-Compassion,"Accept refugees, treat prisoners, share food",Abandon/cull/exploit vulnerable groups,Commonwealth Camp,Security Junta/Raider Splinter
-Security,"Strong walls, patrols, punishment, armory discipline","Open borders, no patrols, repeated mercy to raiders",Security Junta,Free Scavengers/Commonwealth if extreme
-Science,"Classify samples, transparent protocols, cautious Remnant study","Burn all unknowns, ban research, hide data",Science Directorate,Isolationist Holdfast if anti-research
-Autonomy,"Loose work rules, contractor freedom, fair salvage","Strict hierarchy, forced labor, authoritarian schedules",Free Scavengers,Security Junta
-Infrastructure,"Repair, power, routes, depots, maintenance discipline","Neglect decay, hoard parts, overbuild without upkeep",Engineer Compact,Raider Splinter
-Isolation,"Quarantine, strict borders, low-risk intake","Open refugee gates, shared camps, risky expeditions",Isolationist Holdfast,Commonwealth Camp
-Extraction,"Take resources aggressively, raid hostile caches, prioritize survival","Leave resources for others, spend labor on diplomacy",Raider Splinter / hard pragmatists,Commonwealth / Science
-Remnant Curiosity,"Study D, claim sites, integrate modules",Burn/sabotage all Remnant systems,Science Directorate / Remnant-Touched Cell,Isolationists / Security if too risky
+version https://git-lfs.github.com/spec/v1
+oid sha256:fee5e8b74cc2c4e052f8875d2288b024713838b63fb01bcf88e570c47a5a1ccc
+size 1433

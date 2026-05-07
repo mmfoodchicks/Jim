@@ -1,15 +1,3 @@
----,MicroResearchId,DisplayName,Family,AffectedStatName,FactorPerStack,MaxStacks,PointsPerStack,RequiredItems,Notes
-MR_HARVEST_YIELD_WOOD,MR_HARVEST_YIELD_WOOD,"Improved Wood Harvest",Materials,HarvestYield_Wood,0.05,5,50,MAT_SMOKEBARK_RESIN:1,"Each stack: +5% wood harvest yield (multiplicative)"
-MR_HARVEST_YIELD_STONE,MR_HARVEST_YIELD_STONE,"Improved Stone Harvest",Materials,HarvestYield_Stone,0.05,5,50,MAT_FLINT:2,"Each stack: +5% stone harvest yield"
-MR_FOOD_PRESERVATION,MR_FOOD_PRESERVATION,"Food Preservation",Food,FoodSpoilRateReduction,0.08,5,60,MAT_SMOKEBARK_BARK:2,"Each stack: -8% spoil rate (multiplicative)"
-MR_WATER_FILTER_EFFICIENCY,MR_WATER_FILTER_EFFICIENCY,"Water Filter Efficiency",Water,WaterFilterRate,0.1,3,70,MAT_REED_FIBER:3,"Each stack: +10% water filtration speed"
-MR_CRAFT_SPEED,MR_CRAFT_SPEED,"Crafting Efficiency",Materials,CraftTimeReduction,0.05,5,50,CMP_REPAIR_KIT_BASIC:1,"Each stack: -5% crafting time (multiplicative)"
-MR_MEDICINE_POTENCY,MR_MEDICINE_POTENCY,"Medicine Potency",Medicine,MedicineEffectivenessBonus,0.1,5,80,MAT_FUNGAL_SPORE:1+MAT_SMOKEBARK_RESIN:1,"Each stack: +10% medicine healing output"
-MR_RESEARCH_RATE,MR_RESEARCH_RATE,"Research Throughput",Materials,ResearchPointsPerSecond,0.05,5,100,MAT_MUSHROOM_MYCELIUM:2,"Each stack: +5% research points per second"
-MR_NPC_WORK_RATE,MR_NPC_WORK_RATE,"Labor Optimization",Materials,NPCWorkRateBonus,0.05,5,80,MAT_BRANCH:3,"Each stack: +5% NPC work efficiency"
-MR_CROP_YIELD,MR_CROP_YIELD,"Crop Mutation Study",Agriculture,CropYieldBonus,0.08,5,90,MAT_LANTERN_SEED:2,"Each stack: +8% agricultural yield"
-MR_PATROL_DETECTION,MR_PATROL_DETECTION,"Guard Pattern Optimization",Military,PatrolDetectionRadius,0.1,3,70,MAT_THORN_QUILL:3,"Each stack: +10% guard detection radius"
-MR_RAID_EARLY_WARNING,MR_RAID_EARLY_WARNING,"Raid Early Warning",Military,RaidDetectionLeadTime,0.15,3,100,MAT_WIRE:2+CMP_FUSE_PACK:1,"Each stack: +15% raid approach warning time"
-MR_LEATHER_YIELD,MR_LEATHER_YIELD,"Tanning Efficiency",Materials,HarvestYield_Leather,0.08,5,60,MAT_SMOKEBARK_RESIN:1+MAT_BOAR_HIDE:1,"Each stack: +8% leather processing yield"
-MR_FUEL_EFFICIENCY,MR_FUEL_EFFICIENCY,"Generator Fuel Efficiency",Electronics,FuelConsumptionReduction,0.08,5,80,MAT_SCRAP_METAL:2,"Each stack: -8% generator fuel consumption"
-MR_REMNANT_INTERFERENCE,MR_REMNANT_INTERFERENCE,"Remnant Signal Suppression",Remnant,RemnantWakeChanceReduction,0.1,3,150,REF_BASIC_TOOLING:0+MAT_WIRE:3,"Each stack: -10% Remnant wake escalation chance. Ref not consumed"
+version https://git-lfs.github.com/spec/v1
+oid sha256:244f9c66395e0d17e15a1dc3bc5f0cde225101584ea8b4602b1a4cf53ae9047e
+size 2540

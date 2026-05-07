@@ -1,16 +1,3 @@
----,TechNodeId,DisplayName,Tier,Family,Prerequisites,RequiredReferenceComponentId,ResearchPointsRequired,UnlockedRecipeIds,Notes
-TN_WATER_SAFETY,TN_WATER_SAFETY,"Water Safety Protocol",T0_Primitive,Water,,, 50,"Water purification awareness. Reduces infection risk from drinking"
-TN_FOOD_BASICS,TN_FOOD_BASICS,"Food Edibility Basics",T0_Primitive,Food,,,50,"Unlocks EdibilityState UI display. Research path for native plants"
-TN_BASIC_TOOLING,TN_BASIC_TOOLING,"Basic Tooling",T1_Basic,Materials,,REF_BASIC_TOOLING,100,"RCP_HUNTING_BOW+RCP_REPAIR_KIT+RCP_ANTISEPTIC_SALVE+RCP_GRAZER_LEATHER+RCP_BOAR_STEW+RCP_MILITIA_KIT+RCP_FIELD_SUTURE+RCP_PAINKILLER. Physical Ref Component delivery required"
-TN_METALWORK_T1,TN_METALWORK_T1,"Metalwork Tier 1",T1_Basic,Metalwork,TN_BASIC_TOOLING,REF_METALWORK_SCHEMA,150,"RCP_ANVIL_FORGE+RCP_FUSE_LINK_PACK+RCP_SMOKED_MEAT. Anvil Forge construction unlocked"
-TN_MEDICINE_T1,TN_MEDICINE_T1,"Medicine Tier 1",T1_Basic,Medicine,TN_BASIC_TOOLING,,100,"RCP_FIELD_SUTURE+RCP_PAINKILLER. Injury treatment research"
-TN_ECOLOGY_FAUNA,TN_ECOLOGY_FAUNA,"Fauna Ecology Research",T1_Basic,Ecology,TN_FOOD_BASICS,,80,"Unlocks codex entries for all observed wildlife. Edibility states unlocked for researched meats"
-TN_ECOLOGY_FLORA,TN_ECOLOGY_FLORA,"Flora Ecology Research",T1_Basic,Ecology,TN_FOOD_BASICS,,80,"Unlocks codex entries for observed plants. Ripeness/toxin risk known"
-TN_POWER_T2,TN_POWER_T2,"Power Engineering Tier 2",T2_Intermediate,Electronics,TN_METALWORK_T1,REF_POWER_REGULATOR,200,"RCP_GENERATOR_BASIC. Power grid telemetry enabled"
-TN_OPTICS_T2,TN_OPTICS_T2,"Optics Tier 2",T2_Intermediate,Materials,TN_METALWORK_T1,REF_OPTICS_BENCH,180,"RCP_OPTICS_LENS_ROUGH. Scope crafting path opens"
-TN_AMMO_RELOADING,TN_AMMO_RELOADING,"Ammunition Reloading",T2_Intermediate,Military,TN_METALWORK_T1,,150,"RCP_AMMO_SMG_BASIC+further ammo recipes"
-TN_COMMS_T3,TN_COMMS_T3,"Communications Tier 3",T3_Advanced,Electronics,TN_POWER_T2,,300,"RCP_BEACON_ARRAY. Rescue ending path"
-TN_REMNANT_STUDY_T1,TN_REMNANT_STUDY_T1,"Remnant Site Analysis",T1_Basic,Remnant,,,120,"Unlock Remnant site codex. Wake trigger awareness"
-TN_REMNANT_INTERFACE_T2,TN_REMNANT_INTERFACE_T2,"Remnant Interface Protocol",T2_Intermediate,Remnant,TN_REMNANT_STUDY_T1,,250,"Enables site diagnostic protocol. Reduces wake escalation speed"
-TN_AGRICULTURE_T1,TN_AGRICULTURE_T1,"Agriculture Tier 1",T1_Basic,Agriculture,TN_FOOD_BASICS,,100,"Enables farm plots, seed planting, crop mutation research"
-TN_CARTOGRAPHY_T1,TN_CARTOGRAPHY_T1,"Cartography",T1_Basic,Materials,TN_BASIC_TOOLING,,60,"Unlocks Cartography Board station and POI rumor tracking"
+version https://git-lfs.github.com/spec/v1
+oid sha256:b610fe267e64c5e378dee7b1d4979049678291e0a0a8d1decb0cf93ed7e54866
+size 2658
