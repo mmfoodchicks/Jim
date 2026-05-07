@@ -1,5 +1,11 @@
 #include "QRRemnantStructure.h"
+
 #include "Net/UnrealNetwork.h"
+#include "Engine/World.h"
+#include "Engine/OverlapResult.h"
+#include "Engine/DamageEvents.h"
+#include "CollisionQueryParams.h"
+#include "CollisionShape.h"
 
 AQRRemnantStructure::AQRRemnantStructure()
 {
