@@ -27,6 +27,272 @@ enum class EQRItemCategory : uint8
 	Seed            UMETA(DisplayName = "Seed"),
 	Flora           UMETA(DisplayName = "Flora"),
 	Wildlife        UMETA(DisplayName = "Wildlife Product"),
+	ChestRig        UMETA(DisplayName = "Chest Rig"),
+	Backpack        UMETA(DisplayName = "Backpack"),
+	Cosmetic        UMETA(DisplayName = "Cosmetic"),
+};
+
+// Wearable container slot. Equipping a container of this type extends the
+// owning inventory's grid + weight + volume capacity. None = not a container.
+UENUM(BlueprintType)
+enum class EQRContainerSlotType : uint8
+{
+	None            UMETA(DisplayName = "None"),
+	ChestRig        UMETA(DisplayName = "Chest Rig"),
+	Backpack        UMETA(DisplayName = "Backpack"),
+};
+
+// Which logical grid an item lives in. Body is the player's base inventory
+// (always present); ChestRig and Backpack are only valid when the matching
+// container is equipped via UQRInventoryComponent.
+UENUM(BlueprintType)
+enum class EQRContainerKind : uint8
+{
+	None            UMETA(DisplayName = "None / Unplaced"),
+	Body            UMETA(DisplayName = "Body"),
+	ChestRig        UMETA(DisplayName = "Chest Rig"),
+	Backpack        UMETA(DisplayName = "Backpack"),
+};
+
+// ─────────────────────────────────────────────
+//  PLAYER IDENTITY (Batch A — pronoun + dialogue substitution layer)
+// ─────────────────────────────────────────────
+
+// Player-selected pronoun set. Drives third-person dialogue substitution
+// performed by UQRPronounLibrary. Three options are intentionally all that
+// exist — the dropdown is a neutral selector, not a politicized feature.
+UENUM(BlueprintType)
+enum class EQRPronouns : uint8
+{
+	He      UMETA(DisplayName = "He / Him"),
+	She     UMETA(DisplayName = "She / Her"),
+	They    UMETA(DisplayName = "They / Them"),
+};
+
+// The player's persistent character identity — name, pronouns, voice line set.
+// Stored on the player save state and read by every dialogue line / NPC barks
+// system through UQRPronounLibrary::Substitute.
+USTRUCT(BlueprintType)
+struct QRCORE_API FQRPlayerIdentity
+{
+	GENERATED_BODY()
+
+	// Display name the player chose at character creation. Used for the
+	// {name} dialogue token. Empty string is a valid sentinel meaning
+	// "fall back to the default 'Survivor' label".
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Identity")
+	FString DisplayName;
+
+	// Player-selected pronoun set. Defaults to They so dialogue stays
+	// gender-neutral until the player makes a choice — the same reason
+	// "Customer" is the default form-letter salutation.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Identity")
+	EQRPronouns Pronouns = EQRPronouns::They;
+
+	// Voice profile asset the player's character speaks with. Soft-pointer
+	// so unselected slots don't pull audio packages. Authored later by the
+	// voice-acting pass; this field just reserves the hook.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Identity")
+	TSoftObjectPtr<class USoundBase> VoiceProfile;
+};
+
+// ─────────────────────────────────────────────
+//  CHARACTER APPEARANCE / BODY CUSTOMIZATION (Batch B)
+// ─────────────────────────────────────────────
+
+// Body mesh template the character creator starts from. INDEPENDENT of
+// EQRPronouns — a Feminine-bodied character can use He pronouns, a
+// Masculine-bodied character can use She or They pronouns, etc. The two
+// fields are decoupled on purpose so player choice stays orthogonal.
+UENUM(BlueprintType)
+enum class EQRBodyType : uint8
+{
+	Masculine UMETA(DisplayName = "Masculine"),
+	Feminine  UMETA(DisplayName = "Feminine"),
+};
+
+// Body proportions / silhouette parameters. All normalized sliders (0..1)
+// where the morph target authoring sets the 0/1 endpoints to realistic
+// extremes — no caricature. Height + weight are explicit physical units.
+//
+// Realism note: every slider is hard-clamped to 0..1 in code AND the
+// morph target endpoints in Blender are authored within plausible adult
+// human range. There is no exposed "cartoon mode" — keeping the player
+// inside a realistic envelope is enforced at both the data layer (these
+// clamps) and the art layer (the actual blend-shape extremes).
+USTRUCT(BlueprintType)
+struct QRCORE_API FQRBodyCustomization
+{
+	GENERATED_BODY()
+
+	// Mesh base template. Drives which skeletal mesh asset the character
+	// creator instantiates. Pronouns are a separate field (FQRPlayerIdentity).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
+	EQRBodyType BodyType = EQRBodyType::Masculine;
+
+	// Height in centimeters. 145–205cm covers ~99% of adult human range.
+	// Anything outside that is fantasy — clamped at the type level.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "145", ClampMax = "205", UIMin = "145", UIMax = "205"))
+	float HeightCm = 170.0f;
+
+	// Body weight in kilograms. 40–130kg covers the realistic adult range.
+	// Independent of muscularity / body fat sliders so a heavy frame can
+	// be either muscular or soft.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "40", ClampMax = "130", UIMin = "40", UIMax = "130"))
+	float WeightKg = 70.0f;
+
+	// Muscularity (0 = lean / unconditioned, 1 = highly conditioned but
+	// still anatomically realistic — think trained soldier, not bodybuilder).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float Muscularity = 0.4f;
+
+	// Body fat (0 = very lean, 1 = heavy build). Drives soft-tissue morphs
+	// across the body — distinct from WeightKg (which scales bone+muscle
+	// mass too).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float BodyFat = 0.4f;
+
+	// Shoulder width (0 = narrow, 1 = broad). Drives upper-torso silhouette.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float ShoulderWidth = 0.5f;
+
+	// Waist size (0 = slim, 1 = wide). Combines with HipWidth to drive
+	// hip-to-waist ratio.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float WaistSize = 0.5f;
+
+	// Hip width (0 = narrow, 1 = broad).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float HipWidth = 0.5f;
+
+	// Bust / chest fullness. 0 = flat (default for Masculine bodies and
+	// some Feminine bodies). 1 = realistic large — the morph target's 1.0
+	// endpoint is authored at a clearly-busty but still-anatomically-plausible
+	// extent. There is no "monstrous" mode and the data slider can't
+	// exceed 1.0.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float BustFullness = 0.0f;
+
+	// Glute fullness (0 = flat, 1 = full).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float GluteFullness = 0.5f;
+};
+
+// Face shape parameters. All normalized 0..1 with 0.5 as neutral baseline.
+// Each one drives a single morph target on the head mesh. Authoring rule:
+// the 0 and 1 endpoints are within real-human variance — no exaggerated
+// cartoon faces. Variation is achieved by combining many subtle morphs.
+USTRUCT(BlueprintType)
+struct QRCORE_API FQRFaceCustomization
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float JawWidth = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float JawLength = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float ChinProminence = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float CheekboneHeight = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float CheekboneWidth = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float BrowRidge = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float EyeSpacing = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float EyeSize = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float NoseLength = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float NoseWidth = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float NoseTipShape = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float LipFullness = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float MouthWidth = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Face",
+		meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	float ForeheadHeight = 0.5f;
+};
+
+// Top-level appearance bundle — body + face + skin/hair colors + style
+// indices into authored hair/facial-hair catalogs. Saved alongside
+// FQRPlayerIdentity in FQRGameSaveData.
+USTRUCT(BlueprintType)
+struct QRCORE_API FQRCharacterAppearance
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance")
+	FQRBodyCustomization Body;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance")
+	FQRFaceCustomization Face;
+
+	// Skin tone. The character creator UI offers a curated palette of
+	// realistic human skin tones; this is the resolved color. Anything
+	// outside the ClampAppearanceToRealism check (e.g. green skin from
+	// modding) snaps back into the realistic range on load.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance")
+	FLinearColor SkinTone = FLinearColor(0.78f, 0.62f, 0.50f, 1.0f);
+
+	// Hair color (RGB — eumelanin / pheomelanin axis covers black through
+	// blonde / red; bleached / dyed colors are out-of-range and clamped).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance")
+	FLinearColor HairColor = FLinearColor(0.20f, 0.10f, 0.05f, 1.0f);
+
+	// Eye color.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance")
+	FLinearColor EyeColor = FLinearColor(0.30f, 0.40f, 0.50f, 1.0f);
+
+	// Index into the authored hair-style catalog. 0 = "buzz / short" base.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance",
+		meta = (ClampMin = "0"))
+	int32 HairStyleIndex = 0;
+
+	// Index into the authored facial-hair catalog. 0 = clean shaven.
+	// Authoring lives on the character creator data asset, not here.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance",
+		meta = (ClampMin = "0"))
+	int32 FacialHairIndex = 0;
 };
 
 UENUM(BlueprintType)

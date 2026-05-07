@@ -73,6 +73,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical", meta = (ClampMin = "1"))
 	int32 MaxStackSize = 1;
 
+	// Tarkov-style spatial footprint when laid out in an inventory grid.
+	// The item occupies GridFootprintW × GridFootprintH cells. A placed item
+	// can be rotated 90°, swapping these dimensions. Most items are 1×1;
+	// long items (rifles, scopes) are 1×N or 2×N, and worn containers like
+	// rigs and packs use larger footprints when stowed in another grid.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical", meta = (ClampMin = "1"))
+	int32 GridFootprintW = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical", meta = (ClampMin = "1"))
+	int32 GridFootprintH = 1;
+
 	// v1.17: bulk items (e.g. Bulk Meat Sack, Fuel Barrel) occupy the hands slot and
 	// cannot be placed in the grid inventory — requires HandsSlotState == Occupied.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical")
@@ -123,6 +134,32 @@ public:
 	// True if this item can be used as crafting input without being consumed
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Crafting")
 	bool bIsReusableCraftingInput = false;
+
+	// ── Container (Chest Rig / Backpack) ──────
+	// If non-None, equipping this item into the matching equipment slot
+	// extends the owning inventory's grid + carry weight + carry volume
+	// by ContainerGridW*ContainerGridH slots, ContainerCarryBonusKg kg,
+	// and ContainerVolumeBonusLiters L. Items in those grid cells are
+	// stored in the owning inventory's flat Items array; UI partitions
+	// by metadata. Unequipping fails if remaining items wouldn't fit.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container")
+	EQRContainerSlotType ContainerSlot = EQRContainerSlotType::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "1"))
+	int32 ContainerGridW = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "1"))
+	int32 ContainerGridH = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "0"))
+	float ContainerCarryBonusKg = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Container",
+		meta = (EditCondition = "ContainerSlot != EQRContainerSlotType::None", ClampMin = "0"))
+	float ContainerVolumeBonusLiters = 0.0f;
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

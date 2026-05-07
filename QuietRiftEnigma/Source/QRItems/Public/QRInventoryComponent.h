@@ -21,6 +21,9 @@ enum class EQRInventoryResult : uint8
 	InvalidItem,
 	NotEnough,
 	TooHeavy,
+	WrongSlot,        // tried to equip a non-container or wrong-slot item
+	SlotOccupied,     // a container is already equipped in that slot
+	WouldNotFit,      // unequipping would leave items with nowhere to go
 };
 
 // Spatial inventory that tracks weight, volume, and item location
@@ -74,6 +77,29 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Inventory")
 	int32 ShoulderStackMax = 1;
 
+	// ── Equipped Containers ──────────────────
+	// Currently equipped chest rig (extends grid, carry weight, volume).
+	// Null when nothing is worn on the chest. Set via TryEquipContainer.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedContainers, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedChestRig = nullptr;
+
+	// Currently equipped backpack (extends grid, carry weight, volume).
+	// Null when nothing is worn on the back. Set via TryEquipContainer.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedContainers, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedBackpack = nullptr;
+
+	// Player's base STR-derived carry capacity, separate from the container bonus.
+	// MaxCarryWeightKg is recomputed as BaseCarryWeightKg + sum of container bonuses
+	// every time a container is equipped/unequipped or STR changes.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Inventory")
+	float BaseCarryWeightKg = 38.0f;
+
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Inventory")
+	float BaseVolumeLiters = 60.0f;
+
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Inventory")
+	int32 BaseSlots = 30;
+
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
 	FOnItemAdded OnItemAdded;
@@ -99,6 +125,75 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	void ClearHandSlot();
+
+	// Equip a chest rig or backpack. Item must have ContainerSlot != None.
+	// On success the slot is filled and capacity is recomputed; the item is
+	// removed from the flat Items array if it was sitting there. Returns:
+	//   Success      — equipped, capacity expanded
+	//   InvalidItem  — null or no Definition
+	//   WrongSlot    — Definition.ContainerSlot is None or doesn't match a slot
+	//   SlotOccupied — a container is already equipped in that slot
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
+	EQRInventoryResult TryEquipContainer(UQRItemInstance* Item);
+
+	// Unequip the container in the given slot. Fails with WouldNotFit if the
+	// remaining capacity (grid slots, weight, or volume) would no longer hold
+	// the items currently carried — the player must drop or stash items first.
+	// On success the container becomes a regular item the caller can place
+	// somewhere (returned in OutRemovedContainer).
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
+	EQRInventoryResult TryUnequipContainer(EQRContainerSlotType Slot, UQRItemInstance*& OutRemovedContainer);
+
+	// Read-only query — current container in a slot (null if empty).
+	UFUNCTION(BlueprintPure, Category = "Inventory|Equipment")
+	UQRItemInstance* GetEquippedContainer(EQRContainerSlotType Slot) const;
+
+	// ── Spatial Placement (Tarkov-style) ─────
+	// Returns true and fills OutW/OutH with the grid dimensions of the kind.
+	// Body uses InventoryGridW × InventoryGridH; ChestRig and Backpack
+	// require the matching slot to be equipped.
+	UFUNCTION(BlueprintPure, Category = "Inventory|Placement")
+	bool GetGridSize(EQRContainerKind Kind, int32& OutW, int32& OutH) const;
+
+	// Effective footprint of an item, accounting for its bRotated flag.
+	UFUNCTION(BlueprintPure, Category = "Inventory|Placement")
+	void GetItemFootprint(const UQRItemInstance* Item, int32& OutW, int32& OutH) const;
+
+	// Returns the item occupying cell (X, Y) in the given grid, or null.
+	// Cell test uses each item's footprint, not just its top-left cell.
+	UFUNCTION(BlueprintPure, Category = "Inventory|Placement")
+	UQRItemInstance* GetItemAt(EQRContainerKind Kind, int32 X, int32 Y) const;
+
+	// True if every cell of rect (X, Y, W, H) is in-bounds for Kind and not
+	// occupied by any item except optional Ignore (used during move/rotate).
+	UFUNCTION(BlueprintPure, Category = "Inventory|Placement")
+	bool IsRectFree(EQRContainerKind Kind, int32 X, int32 Y, int32 W, int32 H,
+	                const UQRItemInstance* Ignore = nullptr) const;
+
+	// Place an item at an exact (X, Y) in a grid, optionally rotated. Item
+	// must already be tracked by this inventory (in Items). On success,
+	// records ContainerKind/GridX/GridY/bRotated on the instance.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Placement")
+	EQRInventoryResult TryPlaceItemAt(UQRItemInstance* Item, EQRContainerKind Kind,
+	                                  int32 X, int32 Y, bool bRotated);
+
+	// Find any free cell where the item fits and place it there. Search
+	// preference: ChestRig (chest-fast access) → Body → Backpack (deep stow).
+	// Returns Success on placement, Full when no kind has room.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Placement")
+	EQRInventoryResult TryAutoPlaceItem(UQRItemInstance* Item);
+
+	// Rotate an already-placed item 90° in place. Fails (returns false)
+	// when the rotated footprint would not fit at the current top-left.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Placement")
+	bool TryRotateItem(UQRItemInstance* Item);
+
+	// Move an already-placed item to a new (X, Y) in any grid kind. Restores
+	// original placement if the new placement doesn't fit (so partial moves
+	// can never leave the inventory in a half-broken state).
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Placement")
+	bool TryMoveItem(UQRItemInstance* Item, EQRContainerKind NewKind,
+	                 int32 NewX, int32 NewY, bool bNewRotated);
 
 	// Force-clears LockedByAction state (call on death, save-load, or action interruption)
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
@@ -150,4 +245,13 @@ private:
 
 	UFUNCTION()
 	void OnRep_HandSlot();
+
+	UFUNCTION()
+	void OnRep_EquippedContainers();
+
+	// Recompute MaxCarryWeightKg / MaxVolumeLiters / MaxSlots from
+	// BaseCarryWeightKg + BaseVolumeLiters + BaseSlots plus the bonuses
+	// contributed by EquippedChestRig and EquippedBackpack. Called whenever
+	// a container is equipped, unequipped, or STR changes.
+	void RecomputeCapacityFromContainers();
 };

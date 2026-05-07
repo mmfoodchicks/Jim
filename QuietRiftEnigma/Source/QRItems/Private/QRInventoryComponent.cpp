@@ -21,6 +21,11 @@ void UQRInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME(UQRInventoryComponent, MaxCarryWeightKg);
 	DOREPLIFETIME(UQRInventoryComponent, MaxVolumeLiters);
 	DOREPLIFETIME(UQRInventoryComponent, MaxSlots);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedChestRig);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedBackpack);
+	DOREPLIFETIME(UQRInventoryComponent, BaseCarryWeightKg);
+	DOREPLIFETIME(UQRInventoryComponent, BaseVolumeLiters);
+	DOREPLIFETIME(UQRInventoryComponent, BaseSlots);
 }
 
 EQRInventoryResult UQRInventoryComponent::TryAddItem(UQRItemInstance* Item, int32& OutRemainder)
@@ -83,6 +88,10 @@ EQRInventoryResult UQRInventoryComponent::TryAddItem(UQRItemInstance* Item, int3
 
 		int32 SlotIdx = Items.Add(NewInst);
 		Remaining -= NewInst->Quantity;
+		// Auto-place the new instance in the first free cell across grids.
+		// If no grid has room (rare — slot count would have rejected first),
+		// the item stays in Items with ContainerKind=None until a UI move.
+		(void)TryAutoPlaceItem(NewInst);
 		OnItemAdded.Broadcast(NewInst, SlotIdx);
 	}
 
@@ -236,7 +245,104 @@ void UQRInventoryComponent::SetShoulderStackFromSTR(int32 STR)
 
 void UQRInventoryComponent::SetCarryCapacityFromSTR(int32 STR)
 {
-	MaxCarryWeightKg = UQRMath::CarryCapacityKg(STR);
+	BaseCarryWeightKg = UQRMath::CarryCapacityKg(STR);
+	RecomputeCapacityFromContainers();
+}
+
+void UQRInventoryComponent::RecomputeCapacityFromContainers()
+{
+	float WeightBonus = 0.0f;
+	float VolumeBonus = 0.0f;
+	int32 SlotBonus   = 0;
+
+	auto AddBonusFor = [&](UQRItemInstance* Container)
+	{
+		if (!Container || !Container->Definition) return;
+		const UQRItemDefinition* Def = Container->Definition;
+		if (Def->ContainerSlot == EQRContainerSlotType::None) return;
+		WeightBonus += FMath::Max(Def->ContainerCarryBonusKg, 0.0f);
+		VolumeBonus += FMath::Max(Def->ContainerVolumeBonusLiters, 0.0f);
+		SlotBonus   += FMath::Max(Def->ContainerGridW * Def->ContainerGridH, 0);
+	};
+
+	AddBonusFor(EquippedChestRig);
+	AddBonusFor(EquippedBackpack);
+
+	MaxCarryWeightKg = BaseCarryWeightKg + WeightBonus;
+	MaxVolumeLiters  = BaseVolumeLiters  + VolumeBonus;
+	MaxSlots         = BaseSlots         + SlotBonus;
+
+	OnInventoryChanged.Broadcast();
+}
+
+UQRItemInstance* UQRInventoryComponent::GetEquippedContainer(EQRContainerSlotType Slot) const
+{
+	switch (Slot)
+	{
+		case EQRContainerSlotType::ChestRig: return EquippedChestRig;
+		case EQRContainerSlotType::Backpack: return EquippedBackpack;
+		default:                              return nullptr;
+	}
+}
+
+EQRInventoryResult UQRInventoryComponent::TryEquipContainer(UQRItemInstance* Item)
+{
+	if (!Item || !Item->Definition) return EQRInventoryResult::InvalidItem;
+
+	const EQRContainerSlotType Slot = Item->Definition->ContainerSlot;
+	if (Slot != EQRContainerSlotType::ChestRig && Slot != EQRContainerSlotType::Backpack)
+		return EQRInventoryResult::WrongSlot;
+
+	if (GetEquippedContainer(Slot) != nullptr) return EQRInventoryResult::SlotOccupied;
+
+	// Detach from flat inventory if it's living there. Don't touch the array
+	// otherwise — the caller may pass a freshly-spawned instance from a
+	// dropped pickup, world container, or trade flow.
+	Items.Remove(Item);
+
+	if (Slot == EQRContainerSlotType::ChestRig) EquippedChestRig = Item;
+	else                                          EquippedBackpack = Item;
+
+	RecomputeCapacityFromContainers();
+	OnItemAdded.Broadcast(Item, /*SlotIndex*/ -1);
+	return EQRInventoryResult::Success;
+}
+
+EQRInventoryResult UQRInventoryComponent::TryUnequipContainer(EQRContainerSlotType Slot, UQRItemInstance*& OutRemovedContainer)
+{
+	OutRemovedContainer = nullptr;
+	UQRItemInstance* Container = GetEquippedContainer(Slot);
+	if (!Container || !Container->Definition) return EQRInventoryResult::InvalidItem;
+
+	// Refuse if any items are still placed in the grid we're about to remove —
+	// the player must move them out first (UI prompt) or stash them in body.
+	const EQRContainerKind GridKind = (Slot == EQRContainerSlotType::ChestRig)
+		? EQRContainerKind::ChestRig : EQRContainerKind::Backpack;
+	for (UQRItemInstance* Inst : Items)
+	{
+		if (Inst && Inst->ContainerKind == GridKind) return EQRInventoryResult::WouldNotFit;
+	}
+
+	// Capacity *after* removing the container's bonus.
+	const float WouldLoseKg     = FMath::Max(Container->Definition->ContainerCarryBonusKg, 0.0f);
+	const float WouldLoseLiters = FMath::Max(Container->Definition->ContainerVolumeBonusLiters, 0.0f);
+	const int32 WouldLoseSlots  = FMath::Max(Container->Definition->ContainerGridW * Container->Definition->ContainerGridH, 0);
+
+	const float CurrentWeight = GetCurrentWeightKg();
+	const float CurrentVolume = GetCurrentVolumeLiters();
+	const int32 CurrentSlotsUsed = Items.Num();
+
+	if (CurrentWeight     > MaxCarryWeightKg - WouldLoseKg)     return EQRInventoryResult::WouldNotFit;
+	if (CurrentVolume     > MaxVolumeLiters  - WouldLoseLiters) return EQRInventoryResult::WouldNotFit;
+	if (CurrentSlotsUsed  > MaxSlots         - WouldLoseSlots)  return EQRInventoryResult::WouldNotFit;
+
+	if (Slot == EQRContainerSlotType::ChestRig) EquippedChestRig = nullptr;
+	else                                          EquippedBackpack = nullptr;
+
+	RecomputeCapacityFromContainers();
+	OutRemovedContainer = Container;
+	OnItemRemoved.Broadcast(Container, 1);
+	return EQRInventoryResult::Success;
 }
 
 TArray<UQRItemInstance*> UQRInventoryComponent::GetItemsByCategory(EQRItemCategory Category) const
@@ -277,5 +383,212 @@ UQRItemInstance* UQRInventoryComponent::FindExistingStack(FName ItemId, int32 Ma
 	return nullptr;
 }
 
+// ── Spatial Placement (Tarkov-style) ────────────────────────────────────────
+
+bool UQRInventoryComponent::GetGridSize(EQRContainerKind Kind, int32& OutW, int32& OutH) const
+{
+	OutW = 0; OutH = 0;
+	if (Kind == EQRContainerKind::Body)
+	{
+		OutW = InventoryGridW;
+		OutH = InventoryGridH;
+		return OutW > 0 && OutH > 0;
+	}
+	const UQRItemInstance* Container = nullptr;
+	if (Kind == EQRContainerKind::ChestRig) Container = EquippedChestRig;
+	else if (Kind == EQRContainerKind::Backpack) Container = EquippedBackpack;
+	if (!Container || !Container->Definition) return false;
+	OutW = Container->Definition->ContainerGridW;
+	OutH = Container->Definition->ContainerGridH;
+	return OutW > 0 && OutH > 0;
+}
+
+void UQRInventoryComponent::GetItemFootprint(const UQRItemInstance* Item, int32& OutW, int32& OutH) const
+{
+	OutW = 1; OutH = 1;
+	if (!Item || !Item->Definition) return;
+	const int32 W = FMath::Max(Item->Definition->GridFootprintW, 1);
+	const int32 H = FMath::Max(Item->Definition->GridFootprintH, 1);
+	if (Item->bRotated) { OutW = H; OutH = W; }
+	else                { OutW = W; OutH = H; }
+}
+
+bool UQRInventoryComponent::IsRectFree(EQRContainerKind Kind, int32 X, int32 Y, int32 W, int32 H,
+                                        const UQRItemInstance* Ignore) const
+{
+	int32 GridW = 0, GridH = 0;
+	if (!GetGridSize(Kind, GridW, GridH)) return false;
+	if (X < 0 || Y < 0 || W <= 0 || H <= 0) return false;
+	if (X + W > GridW || Y + H > GridH) return false;
+
+	for (UQRItemInstance* Inst : Items)
+	{
+		if (!Inst || Inst == Ignore) continue;
+		if (Inst->ContainerKind != Kind) continue;
+		if (Inst->GridX < 0 || Inst->GridY < 0) continue;
+		int32 IW = 0, IH = 0;
+		GetItemFootprint(Inst, IW, IH);
+		// Standard AABB overlap test in grid space.
+		const bool bDisjoint = (X + W <= Inst->GridX) || (Inst->GridX + IW <= X)
+		                     || (Y + H <= Inst->GridY) || (Inst->GridY + IH <= Y);
+		if (!bDisjoint) return false;
+	}
+	return true;
+}
+
+UQRItemInstance* UQRInventoryComponent::GetItemAt(EQRContainerKind Kind, int32 X, int32 Y) const
+{
+	int32 GridW = 0, GridH = 0;
+	if (!GetGridSize(Kind, GridW, GridH)) return nullptr;
+	if (X < 0 || Y < 0 || X >= GridW || Y >= GridH) return nullptr;
+
+	for (UQRItemInstance* Inst : Items)
+	{
+		if (!Inst || Inst->ContainerKind != Kind) continue;
+		if (Inst->GridX < 0 || Inst->GridY < 0) continue;
+		int32 IW = 0, IH = 0;
+		GetItemFootprint(Inst, IW, IH);
+		if (X >= Inst->GridX && X < Inst->GridX + IW &&
+		    Y >= Inst->GridY && Y < Inst->GridY + IH)
+		{
+			return Inst;
+		}
+	}
+	return nullptr;
+}
+
+EQRInventoryResult UQRInventoryComponent::TryPlaceItemAt(UQRItemInstance* Item, EQRContainerKind Kind,
+                                                          int32 X, int32 Y, bool bRotated)
+{
+	if (!Item || !Item->Definition) return EQRInventoryResult::InvalidItem;
+	if (!Items.Contains(Item))      return EQRInventoryResult::InvalidItem;
+	if (Kind == EQRContainerKind::None) return EQRInventoryResult::WrongSlot;
+
+	int32 GridW = 0, GridH = 0;
+	if (!GetGridSize(Kind, GridW, GridH)) return EQRInventoryResult::WrongSlot;
+
+	// Compute prospective footprint with the proposed rotation.
+	const int32 BaseW = FMath::Max(Item->Definition->GridFootprintW, 1);
+	const int32 BaseH = FMath::Max(Item->Definition->GridFootprintH, 1);
+	const int32 W = bRotated ? BaseH : BaseW;
+	const int32 H = bRotated ? BaseW : BaseH;
+
+	if (!IsRectFree(Kind, X, Y, W, H, /*Ignore*/ Item)) return EQRInventoryResult::Full;
+
+	Item->ContainerKind = Kind;
+	Item->GridX         = X;
+	Item->GridY         = Y;
+	Item->bRotated      = bRotated;
+	OnInventoryChanged.Broadcast();
+	return EQRInventoryResult::Success;
+}
+
+EQRInventoryResult UQRInventoryComponent::TryAutoPlaceItem(UQRItemInstance* Item)
+{
+	if (!Item || !Item->Definition) return EQRInventoryResult::InvalidItem;
+	if (!Items.Contains(Item))      return EQRInventoryResult::InvalidItem;
+
+	const int32 BaseW = FMath::Max(Item->Definition->GridFootprintW, 1);
+	const int32 BaseH = FMath::Max(Item->Definition->GridFootprintH, 1);
+
+	// Try each grid in chest-fast → body → backpack-deep order. For each
+	// grid try the natural footprint first, then rotated 90°.
+	const EQRContainerKind Order[3] = {
+		EQRContainerKind::ChestRig, EQRContainerKind::Body, EQRContainerKind::Backpack
+	};
+	for (EQRContainerKind Kind : Order)
+	{
+		int32 GridW = 0, GridH = 0;
+		if (!GetGridSize(Kind, GridW, GridH)) continue;
+
+		for (int32 Rot = 0; Rot < 2; ++Rot)
+		{
+			const bool bRotate = (Rot == 1);
+			// 1×1 items don't gain anything from rotation — skip the second pass.
+			if (bRotate && BaseW == BaseH) break;
+			const int32 W = bRotate ? BaseH : BaseW;
+			const int32 H = bRotate ? BaseW : BaseH;
+			if (W > GridW || H > GridH) continue;
+
+			for (int32 Y = 0; Y <= GridH - H; ++Y)
+			for (int32 X = 0; X <= GridW - W; ++X)
+			{
+				if (IsRectFree(Kind, X, Y, W, H, /*Ignore*/ Item))
+				{
+					Item->ContainerKind = Kind;
+					Item->GridX         = X;
+					Item->GridY         = Y;
+					Item->bRotated      = bRotate;
+					OnInventoryChanged.Broadcast();
+					return EQRInventoryResult::Success;
+				}
+			}
+		}
+	}
+	return EQRInventoryResult::Full;
+}
+
+bool UQRInventoryComponent::TryRotateItem(UQRItemInstance* Item)
+{
+	if (!Item || !Item->Definition) return false;
+	if (Item->ContainerKind == EQRContainerKind::None) return false;
+
+	const int32 BaseW = FMath::Max(Item->Definition->GridFootprintW, 1);
+	const int32 BaseH = FMath::Max(Item->Definition->GridFootprintH, 1);
+	if (BaseW == BaseH) return true; // nothing to rotate
+
+	const bool bNewRotated = !Item->bRotated;
+	const int32 NewW = bNewRotated ? BaseH : BaseW;
+	const int32 NewH = bNewRotated ? BaseW : BaseH;
+
+	if (!IsRectFree(Item->ContainerKind, Item->GridX, Item->GridY, NewW, NewH, /*Ignore*/ Item))
+		return false;
+
+	Item->bRotated = bNewRotated;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+bool UQRInventoryComponent::TryMoveItem(UQRItemInstance* Item, EQRContainerKind NewKind,
+                                          int32 NewX, int32 NewY, bool bNewRotated)
+{
+	if (!Item || !Item->Definition) return false;
+	if (NewKind == EQRContainerKind::None) return false;
+
+	// Snapshot original placement so we can roll back atomically on failure.
+	const EQRContainerKind OldKind   = Item->ContainerKind;
+	const int32           OldX       = Item->GridX;
+	const int32           OldY       = Item->GridY;
+	const bool             bOldRot   = Item->bRotated;
+
+	// Temporarily detach so the rect-free check ignores its own footprint.
+	Item->ContainerKind = EQRContainerKind::None;
+	Item->GridX = -1; Item->GridY = -1;
+
+	const int32 BaseW = FMath::Max(Item->Definition->GridFootprintW, 1);
+	const int32 BaseH = FMath::Max(Item->Definition->GridFootprintH, 1);
+	const int32 W = bNewRotated ? BaseH : BaseW;
+	const int32 H = bNewRotated ? BaseW : BaseH;
+
+	if (!IsRectFree(NewKind, NewX, NewY, W, H))
+	{
+		// Roll back exactly.
+		Item->ContainerKind = OldKind;
+		Item->GridX = OldX; Item->GridY = OldY; Item->bRotated = bOldRot;
+		return false;
+	}
+
+	Item->ContainerKind = NewKind;
+	Item->GridX = NewX; Item->GridY = NewY; Item->bRotated = bNewRotated;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
 void UQRInventoryComponent::OnRep_Items()    { OnInventoryChanged.Broadcast(); }
 void UQRInventoryComponent::OnRep_HandSlot() { OnInventoryChanged.Broadcast(); }
+void UQRInventoryComponent::OnRep_EquippedContainers()
+{
+	// Server is authoritative on Max* values, but recompute on clients too so
+	// local prediction sees the same totals during the rep window.
+	RecomputeCapacityFromContainers();
+}

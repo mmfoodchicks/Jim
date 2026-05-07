@@ -12,6 +12,10 @@ void UQRItemInstance::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(UQRItemInstance, SpoilProgress);
 	DOREPLIFETIME(UQRItemInstance, EdibilityState);
 	DOREPLIFETIME(UQRItemInstance, InstanceGuid);
+	DOREPLIFETIME(UQRItemInstance, ContainerKind);
+	DOREPLIFETIME(UQRItemInstance, GridX);
+	DOREPLIFETIME(UQRItemInstance, GridY);
+	DOREPLIFETIME(UQRItemInstance, bRotated);
 }
 
 void UQRItemInstance::Initialize(const UQRItemDefinition* InDefinition, int32 InQuantity)
@@ -63,3 +67,4 @@ void UQRItemInstance::OnRep_Spoil()
 {
 	RefreshSpoilState();
 }
+void UQRItemInstance::OnRep_Placement() {}

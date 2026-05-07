@@ -21,7 +21,14 @@ namespace QRGameplayTags
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Resource)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Medicine)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Clothing)
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_ChestRig)
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Backpack)
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Cosmetic)
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Item_Category_Seed)
+
+	// ── Equipment Slot Tags ──
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Equipment_Slot_ChestRig)
+	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Equipment_Slot_Backpack)
 
 	// ── Food State Tags ──
 	QR_DECLARE_GAMEPLAY_TAG_EXTERN(Food_Edibility_Unknown)
