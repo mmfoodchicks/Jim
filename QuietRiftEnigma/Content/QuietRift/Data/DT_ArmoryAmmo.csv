@@ -1,3 +1,8 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:650c81b6e7a957dda78c7019098aedb93768b84434f83060a6294e072c991dea
-size 1801
+AmmoId,DisplayName,Tier,Rarity,WeightKgPerRound,StackLimit,AmmoDamageMult,AmmoArmorPierceAdd,NoiseMult,KickMult,Batch,CraftedAt,RecipeId,UnlockReq,GuidebookDescription
+AMO_PISTOL,Pistol Rounds,1,Common,0.012,200,1,0,1,1,30,ST_ARMORY_BENCH,RC_AMO_PISTOL,TECH_AMMO_T1,"Standard pistol ammunition. Affordable, common, and adequate against unarmored threats."
+AMO_SMG,SMG Rounds,1,Common,0.012,200,1,0,1,1,30,ST_ARMORY_BENCH,REC_017,TECH_AMMO_T1,"Standard SMG rounds optimized for high-rate fire. Balanced damage, low armor penetration, and heavy consumption pressure."
+AMO_SUBSONIC_PISTOL,Subsonic Pistol Rounds,1,Uncommon,0.012,200,0.92,0,0.78,0.98,18,ST_ANVIL_FORGE,RC_AMO_SUBSONIC_PISTOL,TECH_AMMO_PISTOL,"Lower-report pistol ammunition for suppressed work. Damage falls slightly, but noise control can prevent a bad fight from becoming a raid magnet."
+AMO_RIFLE,Rifle Rounds,1,Uncommon,0.018,180,1,0.04,1,1.05,20,ST_ARMORY_BENCH,RC_AMO_RIFLE,TECH_AMMO_T1,Intermediate rifle ammunition used for patrol carbines. Strong general performance and widely supported.
+AMO_DMR,DMR Rounds,2,Rare,0.02,160,1.05,0.06,1.05,1.1,20 / 12,ST_ANVIL_FORGE / ST_ARMORY_BENCH,RC_AMO_DMR / REC_018,TECH_AMMO_RIFLE / TECH_AMMO_T2,High-velocity rifle ammunition tuned for precision. Better range stability and armor pressure with a sharper recoil impulse.
+AMO_SHOTGUN,Shotgun Shells,1,Uncommon,0.04,80,1,0.02,1.1,1.15,12,ST_ARMORY_BENCH,RC_AMO_SHOTGUN,TECH_AMMO_T1,"Shotgun shells loaded for close-range stopping power. Effective in tight spaces, but loud and poor at distance."
+AMO_SNIPER,Sniper Rounds,3,Epic,0.028,120,1.1,0.1,1.1,1.12,8,ST_ARMORY_BENCH,RC_AMO_SNIPER,TECH_AMMO_T3,"Full-power precision ammunition intended for long shots and hard targets. Loud report and heavy recoil, but excellent penetration."

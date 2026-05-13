@@ -1,3 +1,167 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:9f9971986c6ae4c6bc521dd0a8ddf0e5cb662535f784fc9602fc2dcd540dcf57
-size 28977
+RecipeId,Output,Inputs,Time,Building / Station Required,Unlocked By,Source Section
+RC_ATT_VERTICAL_GRIP,Vertical Grip ×1,Bracket Set ×1; Screw Set ×1; Lube Packet ×1,60s,Camp Workbench,Grip,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_BUCKLE_SET,Buckle Set ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_CLOTH_BOLT,Cloth Bolt ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_CONNECTOR_HOUSING,Connector Housing ×1,Polymer Sheet ×1; Cable Tie Bundle ×1; Seal Tape Roll ×1,60s,Camp Workbench,Electronics,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_GASKET_CUTOUT_SET,Gasket Cutout Set ×1,Gasket Sheet ×1; Razor Shard ×1; Polish Paste ×1,54s,Camp Workbench,Seals,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_GASKET_RING,Gasket Ring ×1,Gasket Sheet ×1; Razor Shard ×1; Seal Tape Roll ×1,54s,Camp Workbench,Seals,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_GLASS_SEAL,Glass Seal Ring ×1,Glass Tube ×1; O-Ring Kit ×1; Sealant Tube ×1,60s,Camp Workbench,Seals,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_INSULATION_BAT,Insulation Bat ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_LEATHER_ROLL,Leather Roll ×1,Leather Sheet ×2; Tanning Salts ×1,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_NEEDLE_PACK,Needle Pack ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_THERMAL_LINER,Thermal Liner ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_THREAD_SPOOL,Thread Spool ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_WAXED_THREAD_SPOOL,Waxed Thread Spool ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CMP_ZIPPER_KIT,Zipper Kit ×1,Fiber Bundle ×2; Cloth Patch ×2,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_CLOTH_WIPES_BUNDLE,Cloth Wipes Bundle ×1,Cloth Patch ×4; Solvent Bottle ×1; Seal Tape Roll ×1,48s,Camp Workbench,Field Kit,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_CONTACT_CLEANER_CAN,Contact Cleaner Can ×1,Sour Brine Jar ×1; Pitch Jar ×1; Glass Bottle ×1,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_DEGREASER_SPRAY,Degreaser Spray ×1,Sour Brine Jar ×1; Pitch Jar ×1; Glass Bottle ×1,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_FIBER_TAPE_ROLL,Fiber Tape Roll ×1,Cloth Patch ×2; Adhesive Cartridge ×1,36s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_FILTER_INSERT,Filter Insert ×1,Filter Pellets Pouch ×1; Filter Membrane ×1; Binding Rope ×1,48s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_FILTER_MEMBRANE,Filter Membrane ×1,Filter Pellets Pouch ×1; Filter Membrane ×1; Binding Rope ×1,48s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_FILTER_PELLETS_POUCH,Filter Pellets Pouch ×1,Filter Pellets Pouch ×1; Filter Membrane ×1; Binding Rope ×1,48s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_LUBE_PACKET,Lube Packet ×1,Wax Clump ×1; Tar Glob ×1; Glass Bottle ×1,42s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_LUBE_TUBE,Lubricant Tube ×1,Wax Clump ×1; Tar Glob ×1; Glass Bottle ×1,42s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_PATCH_STRIP,Patch Strip ×1,Cloth Patch ×2; Adhesive Cartridge ×1,36s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_SEAL_TAPE_ROLL,Seal Tape Roll ×1,Cloth Patch ×2; Adhesive Cartridge ×1,36s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_SOLVENT_BOTTLE,Solvent Bottle ×1,Sour Brine Jar ×1; Pitch Jar ×1; Glass Bottle ×1,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_CON_THREADLOCK_VIAL,Threadlock Vial ×1,Resin Nodule ×1; Tar Glob ×1; Glass Bottle ×1,54s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_EQP_FIELD_JACKET,Field Jacket ×1,Cloth Bolt ×2; Zipper Kit ×1; Thread Spool ×1,84s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_EQP_LIGHT_ARMOR_VEST,Light Armor Vest ×1,Cloth Bolt ×1; Leather Sheet ×1; Buckle Set ×1,108s,Camp Workbench,Armor,Field Manual Table 12 - Camp Workbench Recipes
+RC_EQP_MULTI_TOOL,Multi-Tool ×1,Screw Set ×1; Bracket Set ×1; Wire Coil ×1; Lube Packet ×1,66s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_EQP_RESPIRATOR,Filter Respirator ×1,Filter Insert ×2; Binding Rope ×1; Rubber Strip ×1,60s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_EQP_SEWING_KIT,Sewing Kit ×1,Needle Pack ×1; Thread Spool ×1; Cloth Patch ×3,48s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_EQP_THERMAL_UNDERLAYER,Thermal Underlayer ×1,Thermal Liner ×1; Cloth Bolt ×1; Waxed Thread Spool ×1,72s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_EQP_WATER_FILTER,Portable Water Filter ×1,Filter Pellets Pouch ×1; Filter Membrane ×2; Pipe Section ×1; Gasket Ring ×1,72s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_MAT_BINDING_ROPE,Binding Rope ×2,Fiber Bundle ×2,24s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_MAT_MORTAR_PASTE,Mortar Paste ×2,Binding Clay ×2; Lime Powder ×1; Grit Sand ×1; Solvent Bottle ×1,42s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_MAT_ROPE_REEL,Rope Reel ×1,Binding Rope ×3; Buckle Set ×1,36s,Camp Workbench,—,Field Manual Table 12 - Camp Workbench Recipes
+RC_MAT_ASTERBARK_PLANK,Asterbark Plank ×4,Asterbark Log ×1,36s,Sawbench,—,Field Manual Table 13 - Sawbench Recipes
+RC_MAT_GLASSBARK_PLANK,Glassbark Plank ×4,Glassbark Log ×1,36s,Sawbench,—,Field Manual Table 13 - Sawbench Recipes
+RC_MAT_SLAGROOT_PLANK,Slagroot Plank ×4,Slagroot Log ×1,36s,Sawbench,—,Field Manual Table 13 - Sawbench Recipes
+RC_MAT_VELVETSPINE_PLANK,Velvetspine Plank ×4,Velvetspine Log ×1,36s,Sawbench,—,Field Manual Table 13 - Sawbench Recipes
+RC_FOD_COOKED_MEAT,Cooked Meat ×1,Raw Meat ×1,30s,Cookfire,Cooking,Field Manual Table 14 - Cookfire Recipes
+RC_FOD_HOT_PORRIDGE,Hot Porridge ×1,Grain Sack ×1; Sour Brine Jar ×1,54s,Cookfire,Cooking,Field Manual Table 14 - Cookfire Recipes
+RC_FOD_JERKY_STRIP,Jerky Strip ×1,Raw Meat ×1; Wood Ash Bag ×1,60s,Cookfire,Cooking,Field Manual Table 14 - Cookfire Recipes
+RC_FOD_TUBER_STEW,Tuber Stew ×1,Tuber Crate ×1; Aroma Pod ×1; Sour Brine Jar ×1,66s,Cookfire,Cooking,Field Manual Table 14 - Cookfire Recipes
+RC_AMO_DMR,DMR Rounds ×20,Scrap Metal ×2; Strike Chip ×1; Flux Pebble ×1,111s,Anvil Forge,Ammo Rifle,Field Manual Table 15 - Anvil Forge Recipes
+RC_AMO_SUBSONIC_PISTOL,Subsonic Pistol Rounds ×18,Scrap Metal ×1; Polymer Flakes ×1; Strike Chip ×1,94s,Anvil Forge,Ammo Pistol,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_FASTENER_SET,Fastener Set ×1,Scrap Metal ×1; Flux Pebble ×1,51s,Anvil Forge,—,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_HOSE_CLAMP,Hose Clamp ×1,Scrap Metal ×1; Rubber Strip ×1; Seal Tape Roll ×1,77s,Anvil Forge,—,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_HOSE_SECTION,Hose Section ×1,Scrap Metal ×1; Rubber Strip ×1; Seal Tape Roll ×1,77s,Anvil Forge,—,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_PIPE_SECTION,Pipe Section ×1,Scrap Metal ×1; Rubber Strip ×1; Seal Tape Roll ×1,77s,Anvil Forge,—,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_PLATE_PANEL,Plate Panel ×1,Scrap Metal ×2; Flux Pebble ×1; Abrasive Grit Bag ×1; Lube Packet ×1,154s,Anvil Forge,Metalwork,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_RIVET_SET,Rivet Set ×1,Scrap Metal ×1; Flux Pebble ×1,51s,Anvil Forge,—,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_SCREW_SET,Screw Set ×1,Scrap Metal ×1; Flux Pebble ×1,51s,Anvil Forge,—,Field Manual Table 15 - Anvil Forge Recipes
+RC_CMP_SOLDER_WIRE,Solder Wire Spool ×1,Sunwire Ingot ×1; Flux Pebble ×1; Abrasive Pad ×1,103s,Anvil Forge,Electronics,Field Manual Table 15 - Anvil Forge Recipes
+REC_002,Fuse Link Pack ×1,Magnet Grain ×1; Scrap Metal ×1; Glass Dust ×1,111s,Anvil Forge,Electronics,Field Manual Table 15 - Anvil Forge Recipes
+REC_004,Barrel Blank ×1,Scrap Metal ×2; Flux Pebble ×1; Abrasive Grit Bag ×1,137s,Anvil Forge,Firearms,Field Manual Table 15 - Anvil Forge Recipes
+REC_010,Pistol Casing Set ×1,Scrap Metal ×1; Flux Pebble ×1; Abrasive Pad ×1; Lube Packet ×1,103s,Anvil Forge,Ammo,Field Manual Table 15 - Anvil Forge Recipes
+REC_011,Rifle Casing Set ×1,Scrap Metal ×2; Flux Pebble ×1; Abrasive Pad ×1; Lubricant Tube ×1,154s,Anvil Forge,Ammo,Field Manual Table 15 - Anvil Forge Recipes
+REC_012,Sniper Casing Set ×1,Scrap Metal ×2; Magnet Grain ×1; Flux Pebble ×1; Abrasive Pad ×1; Lubricant Tube ×1,180s,Anvil Forge,Ammo,Field Manual Table 15 - Anvil Forge Recipes
+RC_MAT_BRICK_FIRED,Fired Brick ×6,Binding Clay ×3; Wood Ash Bag ×1,77s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_CERAMIC_CRUCIBLE,Ceramic Crucible ×1,Binding Clay ×2; Fired Brick ×1,69s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_CERAMIC_PIPE,Ceramic Pipe ×1,Binding Clay ×2; Lime Powder ×1,60s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_CERAMIC_TILE,Ceramic Tile ×4,Binding Clay ×2; Lime Powder ×1,69s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_CHARCOAL_CHUNK,Charcoal Chunk ×2,Glassbark Log ×1,51s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_GLASS_SHEET,Clear Glass Sheet ×2,Glass Dust ×3; Flux Pebble ×1,77s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_GLASS_TEMPERED,Tempered Glass Sheet ×1,Clear Glass Sheet ×1; Pitch Jar ×1,86s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_GLASS_TUBE,Glass Tube ×2,Glass Dust ×2; Flux Pebble ×1,69s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_STONE_BRICK,Stone Brick ×4,Cut Stone Block ×1; Mortar Paste ×1,69s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_MAT_WOOD_ASH_BAG,Wood Ash Bag ×1,Charcoal Chunk ×1; Cloth Patch ×1,34s,Kiln Furnace,—,Field Manual Table 16 - Kiln Furnace Recipes
+RC_CMP_CERAMIC_FILTER_CORE,Ceramic Filter Core ×1,Binding Clay ×2; Lime Powder ×1; Clear Grit ×1,84s,Kiln Oven,Ceramics,Field Manual Table 17 - Kiln Oven Recipes
+RC_CMP_CERAMIC_INSULATOR,Ceramic Insulator ×1,Binding Clay ×1; Silica Sand ×1; Clear Grit ×1,72s,Kiln Oven,Ceramics,Field Manual Table 17 - Kiln Oven Recipes
+RC_CMP_GLASS_FIBER_SPOOL,Glass Fiber Spool ×1,Glass Shard ×3; Polish Paste ×1; Abrasive Pad ×1,94s,Grinder,—,Field Manual Table 18 - Grinder Recipes
+RC_CMP_GLASS_VIAL,Glass Vial ×1,Glass Shard ×3; Polish Paste ×1; Abrasive Pad ×1,94s,Grinder,—,Field Manual Table 18 - Grinder Recipes
+RC_CMP_LENS_BLANK,Lens Blank ×1,Glass Shard ×3; Polish Paste ×1; Abrasive Pad ×1,94s,Grinder,—,Field Manual Table 18 - Grinder Recipes
+RC_CON_ABRASIVE_GRIT_BAG,Abrasive Grit Bag ×1,Clear Grit ×2; Wax Clump ×1,60s,Grinder,—,Field Manual Table 18 - Grinder Recipes
+RC_CON_ABRASIVE_PAD,Abrasive Pad ×1,Clear Grit ×2; Wax Clump ×1,60s,Grinder,—,Field Manual Table 18 - Grinder Recipes
+RC_CON_POLISH_PASTE,Polish Paste ×1,Clear Grit ×2; Wax Clump ×1,60s,Grinder,—,Field Manual Table 18 - Grinder Recipes
+RC_CMP_ARMOR_PLATE_INSERT,Armor Plate Insert ×1,Plate Panel ×1; Rivet Set ×1; Rubber Strip ×1,107s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_BEARING_SET,Bearing Set ×1,Scrap Metal ×2; Screw Set ×1; Lubricant Tube ×1,80s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_BRACKET_SET,Bracket Set ×1,Scrap Metal ×2; Screw Set ×1; Lubricant Tube ×1,80s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_CONTACT_PIN_SET,Contact Pin Set ×1,Magnet Grain ×1; Sunwire Ingot ×1; Abrasive Grit Bag ×1; Degreaser Spray ×1,107s,Machine Bench,Electronics,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_GEAR_SET,Gear Set ×1,Scrap Metal ×2; Screw Set ×1; Lubricant Tube ×1,80s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_HEATSINK_BLOCK,Heatsink Block ×1,Magnet Ingot ×1; Scrap Metal ×1; Abrasive Pad ×1; Degreaser Spray ×1,133s,Machine Bench,Thermal,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_HINGE_PAIR,Hinge Pair ×1,Scrap Metal ×2; Screw Set ×1; Lubricant Tube ×1,80s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_LATCH_ASSEMBLY,Latch Assembly ×1,Scrap Metal ×2; Screw Set ×1; Lubricant Tube ×1,80s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_SPRING_COIL,Spring Coil ×1,Scrap Metal ×2; Screw Set ×1; Lubricant Tube ×1,80s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_TERMINAL_BLOCK,Terminal Block ×1,Polymer Sheet ×1; Contact Pin Set ×1; Heat-Shrink Sleeve ×1,93s,Machine Bench,Electronics,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_VALVE_CORE,Valve Core ×1,Scrap Metal ×2; Screw Set ×1; Lubricant Tube ×1,80s,Machine Bench,—,Field Manual Table 19 - Machine Bench Recipes
+RC_CMP_WIRE_COIL,Wire Coil ×1,Sunwire Ingot ×1; Wire Sleeve ×1; Heat-Shrink Sleeve ×1; Lube Packet ×1,120s,Machine Bench,Electronics,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_COMPOSITE_VEST,Composite Vest ×1,Armor Plate Insert ×2; Insulation Bat ×1; Binding Rope ×2; Buckle Set ×2,160s,Machine Bench,Armor,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_HATCHET_T1,Hatchet (T1) ×1,Scrap Metal ×1; Velvetspine Plank ×1; Binding Rope ×1; Lube Packet ×1; Screw Set ×1,133s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_HATCHET_T2,Hatchet (Reinforced) ×1,Magnet Ingot ×1; Velvetspine Plank ×1; Sinew Strand ×2; Threadlock Vial ×1; Bracket Set ×1,200s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_HATCHET_T2,Hatchet (Reinforced) ×1,Magnet Ingot ×1; Velvetspine Plank ×1; Sinew Strand ×2; Threadlock Vial ×1; Bracket Set ×1,200s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_HATCHET_T3,Hatchet (Precision) ×1,Blackglass Plate ×1; Magnet Ingot ×1; Velvetspine Plank ×1; Bearing Set ×1; Polish Paste ×1; Screw Set ×1,267s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_HATCHET_T3,Hatchet (Precision) ×1,Blackglass Plate ×1; Magnet Ingot ×1; Velvetspine Plank ×1; Bearing Set ×1; Polish Paste ×1; Screw Set ×1,267s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_PICKAXE_T1,Pickaxe (T1) ×1,Scrap Metal ×2; Velvetspine Plank ×1; Binding Rope ×1; Lube Packet ×1; Screw Set ×1,147s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_PICKAXE_T2,Pickaxe (Reinforced) ×1,Magnet Ingot ×1; Scrap Metal ×1; Velvetspine Plank ×1; Sinew Strand ×2; Threadlock Vial ×1,213s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_PICKAXE_T2,Pickaxe (Reinforced) ×1,Magnet Ingot ×1; Scrap Metal ×1; Velvetspine Plank ×1; Sinew Strand ×2; Threadlock Vial ×1,213s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_PICKAXE_T3,Pickaxe (Precision) ×1,Blackglass Plate ×1; Magnet Ingot ×1; Scrap Metal ×1; Bearing Set ×1; Polish Paste ×1; Screw Set ×1,280s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_EQP_PICKAXE_T3,Pickaxe (Precision) ×1,Blackglass Plate ×1; Magnet Ingot ×1; Scrap Metal ×1; Bearing Set ×1; Polish Paste ×1; Screw Set ×1,280s,Machine Bench,Tools,Field Manual Table 19 - Machine Bench Recipes
+RC_WPN_CARBINE,Rifle Carbine ×1,Pipe Section ×2; Spring Coil ×2; Screw Set ×1; Lubricant Tube ×1,253s,Machine Bench,Wpn Carbine,Field Manual Table 19 - Machine Bench Recipes
+RC_WPN_DMR,Marksman Rifle ×1,Pipe Section ×2; Spring Coil ×2; Screw Set ×1; Lubricant Tube ×1; Optic Lens ×1,280s,Machine Bench,Wpn Dmr,Field Manual Table 19 - Machine Bench Recipes
+RC_WPN_SMG_COMPACT,Compact SMG ×1,Pipe Section ×2; Spring Coil ×2; Screw Set ×1; Lubricant Tube ×1; Wire Coil ×1; Gear Set ×1,240s,Machine Bench,Wpn Smg,Field Manual Table 19 - Machine Bench Recipes
+REC_003,Receiver Frame ×1,Plate Panel ×1; Bracket Set ×1; Rivet Set ×1; Degreaser Spray ×1; Threadlock Vial ×1,133s,Machine Bench,Firearms,Field Manual Table 19 - Machine Bench Recipes
+REC_005,Barrel Assembly ×1,Barrel Blank ×1; Pipe Section ×1; Abrasive Pad ×1; Lubricant Tube ×1; Gasket Ring ×1,160s,Machine Bench,Firearms,Field Manual Table 19 - Machine Bench Recipes
+REC_006,Bolt Group ×1,Gear Set ×1; Spring Coil ×1; Bearing Set ×1; Lube Packet ×2; Threadlock Vial ×1,147s,Machine Bench,Firearms,Field Manual Table 19 - Machine Bench Recipes
+REC_007,Trigger Group ×1,Contact Pin Set ×1; Spring Coil ×1; Safety Wire Spool ×1; Threadlock Vial ×1; Degreaser Spray ×1,120s,Machine Bench,Firearms,Field Manual Table 19 - Machine Bench Recipes
+REC_008,Magazine Body ×1,Plate Panel ×1; Rivet Set ×1; Spring Coil ×1; Seal Tape Roll ×1,107s,Machine Bench,Firearms,Field Manual Table 19 - Machine Bench Recipes
+REC_009,Baffle Core ×1,Ceramic Pipe ×1; Blackglass Plate ×1; Abrasive Pad ×1; Lube Packet ×1,133s,Machine Bench,Muzzle,Field Manual Table 19 - Machine Bench Recipes
+RC_ATT_4X_SCOPE,4X Scope ×1,Optic Lens ×2; Bracket Set ×1; Screw Set ×1; Polish Paste ×1,165s,Electronics Bench,Optics,Field Manual Table 20 - Electronics Bench Recipes
+RC_ATT_RED_DOT,Red Dot ×1,Optic Lens ×1; Terminal Block ×1; Screw Set ×1,120s,Electronics Bench,Optics,Field Manual Table 20 - Electronics Bench Recipes
+RC_CMP_CAPACITOR_BANK,Capacitor Bank ×1,Magnet Ingot ×1; Sunwire Ingot ×1; Solder Wire Spool ×1,112s,Electronics Bench,—,Field Manual Table 20 - Electronics Bench Recipes
+RC_CMP_CIRCUIT_BOARD,Circuit Board ×1,Blackglass Plate ×1; Contact Pin Set ×1; Conductive Paste ×1; Solder Wire Spool ×1,165s,Electronics Bench,Electronics,Field Manual Table 20 - Electronics Bench Recipes
+RC_CMP_FUSE_PACK,Fuse Pack ×1,Sunwire Ingot ×1; Magnet Grain ×1; Solder Wire Spool ×1,98s,Electronics Bench,—,Field Manual Table 20 - Electronics Bench Recipes
+RC_CMP_OPTIC_LENS,Optic Lens ×1,Lens Blank ×1; Polish Paste ×1; Bracket Set ×1,120s,Electronics Bench,—,Field Manual Table 20 - Electronics Bench Recipes
+RC_CMP_SAFETY_WIRE_SPOOL,Safety Wire Spool ×1,Sunwire Ingot ×1; Magnet Grain ×1; Solder Wire Spool ×1,98s,Electronics Bench,—,Field Manual Table 20 - Electronics Bench Recipes
+RC_CON_BATTERY_CELL,Battery Cell ×1,Capacitor Bank ×1; Magnet Ingot ×1; Wire Coil ×1,120s,Electronics Bench,—,Field Manual Table 20 - Electronics Bench Recipes
+RC_CON_FUSE_LINK,Fuse Link ×1,Fuse Pack ×1; Contact Pin Set ×1,60s,Electronics Bench,—,Field Manual Table 20 - Electronics Bench Recipes
+RC_CMP_ADHESIVE_CARTRIDGE,Adhesive Cartridge ×1,Tar Glob ×1; Resin Nodule ×1; Polymer Flakes ×1; Glass Tube ×1,96s,Chem Bench,Chemistry,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_CABLE_TIE_BUNDLE,Cable Tie Bundle ×1,Polymer Flakes ×2; Wax Clump ×1; Solvent Bottle ×1,60s,Chem Bench,Polymers,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_CONDUCTIVE_PASTE,Conductive Paste ×1,Sparkstone Shard ×1; Pitch Jar ×1; Clear Grit ×1; Glass Vial ×1,90s,Chem Bench,Electronics,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_GASKET_SHEET,Gasket Sheet ×1,Rubber Strip ×2; Polymer Flakes ×1; Solvent Bottle ×1,72s,Chem Bench,Seals,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_HEATSHRINK_SLEEVE,Heat-Shrink Sleeve ×1,Polymer Sheet ×1; Wax Clump ×1; Solvent Bottle ×1,66s,Chem Bench,Polymers,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_O_RING_KIT,O-Ring Kit ×1,Rubber Strip ×2; Wax Clump ×1; Solvent Bottle ×1; Seal Tape Roll ×1,78s,Chem Bench,Seals,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_SEALANT_TUBE,Sealant Tube ×1,Polymer Flakes ×2; Wax Clump ×1; Pitch Jar ×1; Glass Tube ×1,102s,Chem Bench,Chemistry,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_TANNING_SALTS,Tanning Salts ×1,Bitter Crystal ×1; Wood Ash Bag ×1; Sour Brine Jar ×1; Glass Vial ×1,78s,Chem Bench,Tanning,Field Manual Table 21 - Chem Bench Recipes
+RC_CMP_WIRE_SLEEVE,Wire Sleeve ×1,Polymer Sheet ×1; Wax Clump ×1; Solvent Bottle ×1,66s,Chem Bench,Electronics,Field Manual Table 21 - Chem Bench Recipes
+REC_001,Polymer Sheet ×1,Polymer Flakes ×3; Wax Clump ×1; Solvent Bottle ×1,84s,Chem Bench,Polymers,Field Manual Table 21 - Chem Bench Recipes
+REC_013,Shot Hull Set ×1,Polymer Sheet ×1; Polymer Flakes ×1; Wax Clump ×1; Rubber Strip ×1; Solvent Bottle ×1,96s,Chem Bench,Ammo,Field Manual Table 21 - Chem Bench Recipes
+RC_AMO_PISTOL,Pistol Rounds ×30,Pistol Casing Set ×1; Razor Shard ×1; Strike Chip ×1; Pitch Jar ×1; Clear Grit ×1,108s,Armory Bench,Ammo,Field Manual Table 22 - Armory Bench Recipes
+RC_AMO_RIFLE,Rifle Rounds ×20,Rifle Casing Set ×1; Magnet Grain ×1; Strike Chip ×1; Charcoal Chunk ×1; Flux Pebble ×1,120s,Armory Bench,Ammo,Field Manual Table 22 - Armory Bench Recipes
+RC_AMO_SHOTGUN,Shotgun Shells ×12,Shot Hull Set ×1; Glass Shard ×2; Pitch Jar ×1; Wax Clump ×1; Strike Chip ×1,120s,Armory Bench,Ammo,Field Manual Table 22 - Armory Bench Recipes
+RC_AMO_SNIPER,Sniper Rounds ×8,Sniper Casing Set ×1; Magnet Ingot ×1; Voidfilament Strand ×1; Strike Chip ×2; Flux Pebble ×1,168s,Armory Bench,Ammo,Field Manual Table 22 - Armory Bench Recipes
+RC_ATT_COMPENSATOR,Compensator ×1,Ceramic Pipe ×1; Bracket Set ×1; Gasket Ring ×1; Flux Pebble ×1; Abrasive Pad ×1,156s,Armory Bench,Muzzle,Field Manual Table 22 - Armory Bench Recipes
+RC_ATT_EXT_MAG,Ext Mag ×1,Magazine Body ×1; Spring Coil ×1; Rivet Set ×1; Lube Packet ×1; Seal Tape Roll ×1,144s,Armory Bench,Magazines,Field Manual Table 22 - Armory Bench Recipes
+RC_ATT_STOCK_PAD,Stock Pad ×1,Rubber Strip ×2; Insulation Bat ×1; Adhesive Cartridge ×1; Seal Tape Roll ×1,120s,Armory Bench,Accessories,Field Manual Table 22 - Armory Bench Recipes
+RC_ATT_SUPPRESSOR,Suppressor ×1,Baffle Core ×1; Pipe Section ×1; Gasket Ring ×1; Seal Tape Roll ×1; Threadlock Vial ×1,180s,Armory Bench,Muzzle,Field Manual Table 22 - Armory Bench Recipes
+RC_WPN_BOLT_SNIPER,Bolt Sniper ×1,Receiver Frame ×1; Barrel Assembly ×1; Bolt Group ×1; Trigger Group ×1; Blackglass Plate ×1; Frostspark Crystal ×1; Optic Lens ×1; Threadlock Vial ×1,330s,Armory Bench,Optics,Field Manual Table 22 - Armory Bench Recipes
+RC_WPN_PUMP_SHOTGUN,Pump Shotgun ×1,Receiver Frame ×1; Barrel Assembly ×1; Trigger Group ×1; Bolt Group ×1; Hinge Pair ×1; Latch Assembly ×1; Ceramic Pipe ×1; Rubber Strip ×1,300s,Armory Bench,Firearms,Field Manual Table 22 - Armory Bench Recipes
+RC_WPN_SERVICE_PISTOL,Service Pistol ×1,Receiver Frame ×1; Barrel Assembly ×1; Bolt Group ×1; Trigger Group ×1; Magazine Body ×1; Rubber Strip ×1; Threadlock Vial ×1,240s,Armory Bench,Firearms,Field Manual Table 22 - Armory Bench Recipes
+REC_014,Compact SMG ×1,Receiver Frame ×1; Barrel Assembly ×1; Bolt Group ×1; Trigger Group ×1; Magazine Body ×1; Wire Coil ×1; Polymer Sheet ×1; Lubricant Tube ×1,252s,Armory Bench,Firearms,Field Manual Table 22 - Armory Bench Recipes
+REC_015,Field Carbine ×1,Receiver Frame ×1; Barrel Assembly ×1; Bolt Group ×1; Trigger Group ×1; Magazine Body ×1; Velvetspine Plank ×2; Buckle Set ×1; Seal Tape Roll ×1,276s,Armory Bench,Firearms,Field Manual Table 22 - Armory Bench Recipes
+REC_016,Marksman Rifle ×1,Receiver Frame ×1; Barrel Assembly ×1; Bolt Group ×1; Trigger Group ×1; Magazine Body ×1; Blackglass Plate ×1; Optic Lens ×1; Polish Paste ×1,300s,Armory Bench,Optics,Field Manual Table 22 - Armory Bench Recipes
+REC_017,SMG Rounds ×30,Pistol Casing Set ×1; Razor Shard ×1; Strike Chip ×1; Charcoal Chunk ×1; Wax Clump ×1,114s,Armory Bench,Ammo,Field Manual Table 22 - Armory Bench Recipes
+REC_018,Marksman Rounds ×12,Rifle Casing Set ×1; Magnet Ingot ×1; Strike Chip ×2; Frostspark Crystal ×1; Clear Grit ×1,144s,Armory Bench,Ammo,Field Manual Table 22 - Armory Bench Recipes
+REC_019,Red Dot ×1,Optic Lens ×1; Circuit Board ×1; Capacitor Bank ×1; Wire Coil ×1; Heat-Shrink Sleeve ×1; Blackglass Plate ×1,192s,Armory Bench,Optics,Field Manual Table 22 - Armory Bench Recipes
+REC_020,4X Scope ×1,Lens Blank ×2; Polish Paste ×1; Glass Tube ×1; O-Ring Kit ×1; Bracket Set ×1; Sealant Tube ×1,216s,Armory Bench,Optics,Field Manual Table 22 - Armory Bench Recipes
+REC_021,Vertical Grip ×1,Velvetspine Plank ×1; Rubber Strip ×1; Screw Set ×1; Bracket Set ×1; Threadlock Vial ×1,120s,Armory Bench,Accessories,Field Manual Table 22 - Armory Bench Recipes
+REC_024,WPN_LONGRANGE_SNIPER ×1,CMP_RECEIVER_FRAME x1; CMP_BARREL_ASSEMBLY x1; CMP_BOLT_GROUP x1; CMP_TRIGGER_GROUP x1; MAT_BLACKGLASS_PLATE x2; MAT_FROSTSPARK_CRYSTAL x2; CMP_LENS_BLANK x2; MAT_GLASS_TUBE x1; CMP_BRACKET_SET x1; CON_THREADLOCK_VIAL x1; CMP_SEALANT_TUBE x1,450s,Armory Bench,"TECH_OPTICS_T2, TECH_FIREARMS_T1",v1.2 Armory Integration
+RC_ATT_8X_SCOPE,ATT_8X_SCOPE ×1,CMP_OPTIC_LENS x3; CMP_CIRCUIT_BOARD x1; CMP_BRACKET_SET x1; CMP_SCREW_SET x2; CON_POLISH_PASTE x2; MAT_GLASS_TUBE x1,240s,Electronics Bench,TECH_OPTICS_T2,v1.2 Armory Integration
+REC_022,ATT_8X_SCOPE ×1,CMP_LENS_BLANK x3; CON_POLISH_PASTE x2; MAT_GLASS_TUBE x2; CMP_O_RING_KIT x1; CMP_BRACKET_SET x1; CMP_SEALANT_TUBE x1; CMP_CIRCUIT_BOARD x1,276s,Armory Bench,TECH_OPTICS_T2,v1.2 Armory Integration
+RC_ATT_16X_SCOPE,ATT_16X_SCOPE ×1,CMP_OPTIC_LENS x4; CMP_CIRCUIT_BOARD x1; CMP_CAPACITOR_BANK x1; CMP_BRACKET_SET x1; CMP_SCREW_SET x2; CON_POLISH_PASTE x2; MAT_GLASS_TUBE x2,270s,Electronics Bench,"TECH_OPTICS_T2, TECH_POWERGRID_T1",v1.2 Armory Integration
+REC_023,ATT_16X_SCOPE ×1,CMP_LENS_BLANK x4; CON_POLISH_PASTE x2; MAT_GLASS_TUBE x2; CMP_O_RING_KIT x1; CMP_BRACKET_SET x1; CMP_SEALANT_TUBE x1; CMP_CIRCUIT_BOARD x1; CMP_CAPACITOR_BANK x1,312s,Armory Bench,"TECH_OPTICS_T2, TECH_POWERGRID_T1",v1.2 Armory Integration
+RC_RIG_FIBERWEAVE,RIG_FIBERWEAVE ×1,MAT_FIBER_BUNDLE x4; CMP_BUCKLE_SET x2; CON_FIBER_TAPE_ROLL x1,180s,Camp Workbench,Tailoring T0,Equipment / Tarkov-style rigs
+RC_RIG_LEATHER_BANDOLIER,RIG_LEATHER_BANDOLIER ×1,MAT_RAW_HIDE x3; MAT_SINEW_STRAND x4; CMP_BUCKLE_SET x3,210s,Camp Workbench,Tailoring T1,Equipment / Tarkov-style rigs
+RC_RIG_SCAVENGER,RIG_SCAVENGER ×1,MAT_RAW_HIDE x2; MAT_FIBER_BUNDLE x3; CMP_BUCKLE_SET x4; CON_PATCH_STRIP x3,210s,Camp Workbench,Tailoring T1,Equipment / Tarkov-style rigs
+RC_RIG_PATROL,RIG_PATROL ×1,MAT_RAW_HIDE x4; MAT_POLYMER_SHEET x2; CMP_BUCKLE_SET x6; CMP_BRACKET_SET x2; CON_THREADLOCK_VIAL x1,300s,Camp Workbench,Tailoring T2,Equipment / Tarkov-style rigs
+RC_RIG_RECON_PLATE,RIG_RECON_PLATE ×1,CMP_ARMOR_PLATE_INSERT x2; MAT_POLYMER_SHEET x3; MAT_RAW_HIDE x2; CMP_BUCKLE_SET x6; CMP_BRACKET_SET x4,420s,Machine Bench,Metalwork T2,Equipment / Tarkov-style rigs
+RC_PACK_FIELD_SATCHEL,PACK_FIELD_SATCHEL ×1,MAT_FIBER_BUNDLE x6; MAT_SINEW_STRAND x4; CMP_BUCKLE_SET x2,200s,Camp Workbench,Tailoring T0,Equipment / Tarkov-style backpacks
+RC_PACK_LEATHER_KNAPSACK,PACK_LEATHER_KNAPSACK ×1,MAT_RAW_HIDE x5; MAT_SINEW_STRAND x6; CMP_BUCKLE_SET x3,240s,Camp Workbench,Tailoring T1,Equipment / Tarkov-style backpacks
+RC_PACK_SCRAP_BACKPACK,PACK_SCRAP_BACKPACK ×1,MAT_RAW_HIDE x3; MAT_FIBER_BUNDLE x5; MAT_POLYMER_SHEET x1; CMP_BUCKLE_SET x4; CON_PATCH_STRIP x4,240s,Camp Workbench,Tailoring T1,Equipment / Tarkov-style backpacks
+RC_PACK_PATROL_RUCKSACK,PACK_PATROL_RUCKSACK ×1,MAT_RAW_HIDE x6; MAT_POLYMER_SHEET x3; CMP_BUCKLE_SET x6; CMP_BRACKET_SET x4; MAT_SINEW_STRAND x6,360s,Camp Workbench,Tailoring T2,Equipment / Tarkov-style backpacks
+RC_PACK_OUTPOST_HAULER,PACK_OUTPOST_HAULER ×1,MAT_RAW_HIDE x8; MAT_POLYMER_SHEET x3; CMP_BUCKLE_SET x8; CMP_BRACKET_SET x6; MAT_SINEW_STRAND x6,420s,Camp Workbench,Tailoring T2,Equipment / Tarkov-style backpacks
+RC_PACK_VANGUARD_ASSAULT,PACK_VANGUARD_ASSAULT ×1,MAT_POLYMER_SHEET x5; CMP_ARMOR_PLATE_INSERT x1; MAT_RAW_HIDE x4; CMP_BUCKLE_SET x8; CMP_BRACKET_SET x6,480s,Machine Bench,Metalwork T2,Equipment / Tarkov-style backpacks
+RC_PACK_EXPEDITION_LONGHAUL,PACK_EXPEDITION_LONGHAUL ×1,MAT_POLYMER_SHEET x6; MAT_RAW_HIDE x6; CMP_BRACKET_SET x10; CMP_BUCKLE_SET x10; CMP_BEARING_SET x2,540s,Machine Bench,Metalwork T2,Equipment / Tarkov-style backpacks

@@ -1,3 +1,10 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:2a63fc2192744f8c6ec78f56b934d880f7369dad516e671b8cc8ca6398db9a59
-size 2608
+AttachmentId,DisplayName,Slot,Tier,Rarity,WeightKg,DurabilityMax,TradeValue,NoiseMult,KickVMult,KickHMult,SpreadMult,MagSizeMult,ReloadSMult,AimTimeAdd,Zoom,CraftedAt,RecipeId,UnlockReq,GuidebookDescription
+ATT_SUPPRESSOR,Suppressor,Muzzle,2,Rare,0.5,200,220,0.62,1.05,1,1,1,1,0,1x,ST_ARMORY_BENCH,RC_ATT_SUPPRESSOR,TECH_MUZZLE_T1,"Large noise reduction; slight vertical kick increase from backpressure. Critical for stealth hunts, but still not silent."
+ATT_COMPENSATOR,Compensator,Muzzle,2,Uncommon,0.3,260,160,1.06,0.82,1.05,1,1,1,0,1x,ST_ARMORY_BENCH,RC_ATT_COMPENSATOR,TECH_MUZZLE_T1,"Cuts vertical kick and improves follow-up control, but makes the weapon slightly louder."
+ATT_VERTICAL_GRIP,Vertical Grip,Underbarrel,1,Uncommon,0.2,320,120,1,0.9,0.8,0.92,1,1,0,1x,ST_CAMP_WORKBENCH / ST_ARMORY_BENCH,RC_ATT_VERTICAL_GRIP / REC_021,TECH_GRIP_T1 / TECH_ACCESSORIES_T0,Best early handling attachment. Reduces horizontal drift and moving spread; cheap enough to give to militia rifles.
+ATT_STOCK_PAD,Stock Pad,Stock,1,Uncommon,0.25,320,110,1,0.88,0.92,1,1,1,0,1x,ST_ARMORY_BENCH,RC_ATT_STOCK_PAD,TECH_ACCESSORIES_T0,Better shoulder weld; reduces kick and makes high-recoil weapons less punishing for average soldiers.
+ATT_EXT_MAG,Extended Magazine,Magazine,2,Rare,0.35,240,140,1,1,1,1,1.35,1.08,0,1x,ST_ARMORY_BENCH,RC_ATT_EXT_MAG,TECH_MAGAZINES_T1,Increases magazine capacity by 35% but reloads slightly slower. Best on SMGs and carbines assigned to chokepoints.
+ATT_RED_DOT,Red Dot Sight,Optic,1,Uncommon,0.18,220,150,1,1,1,0.85,1,1,0.02,1x,ST_ELECTRONICS_BENCH / ST_ARMORY_BENCH,RC_ATT_RED_DOT / REC_019,TECH_OPTICS_T0,Fast aiming optic. Applies spread reduction while aiming without adding meaningful magnification delay.
+ATT_4X_SCOPE,4X Scope,Optic,2,Rare,0.35,240,280,1,1,1,0.75,1,1,0.08,4x,ST_ELECTRONICS_BENCH / ST_ARMORY_BENCH,RC_ATT_4X_SCOPE / REC_020,TECH_OPTICS_T1,"Mid-range optic for carbines and DMRs. Improves aimed spread, but slows target acquisition."
+ATT_8X_SCOPE,8X Scope,Optic,3,Epic,0.48,230,430,1,1,1,0.68,1,1,0.14,8x,ST_ELECTRONICS_BENCH / ST_ARMORY_BENCH,RC_ATT_8X_SCOPE / REC_022,TECH_OPTICS_T2,High-magnification optic inserted by v1.2 because the v8 patch named it but the handoff tables omitted implementation stats. Balanced between 4X and 16X.
+ATT_16X_SCOPE,16X Scope,Optic,4,Prototype,0.65,220,620,1,1,1,0.62,1,1,0.22,16x,ST_ELECTRONICS_BENCH / ST_ARMORY_BENCH,RC_ATT_16X_SCOPE / REC_023,"TECH_OPTICS_T2, TECH_POWERGRID_T1",Extreme magnification optic. Best on long-range sniper rifles; strong aimed spread reduction but slow aim time and increased sway tuning.
