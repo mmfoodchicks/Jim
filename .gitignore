@@ -1,0 +1,8 @@
+# Unreal Engine temporary folders
+QuietRiftEnigma/Intermediate/
+QuietRiftEnigma/Saved/
+QuietRiftEnigma/DerivedDataCache/
+QuietRiftEnigma/Binaries/
+QuietRiftEnigma/Build/
+.vs/
+*.sln
