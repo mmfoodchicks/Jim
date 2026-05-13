@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "Engine/OverlapResult.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/UnrealType.h"
 
 UQRSurvivalComponent::UQRSurvivalComponent()
 {
@@ -22,6 +23,7 @@ void UQRSurvivalComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME(UQRSurvivalComponent, Thirst);
 	DOREPLIFETIME(UQRSurvivalComponent, Fatigue);
 	DOREPLIFETIME(UQRSurvivalComponent, CoreTemperature);
+	DOREPLIFETIME(UQRSurvivalComponent, Oxygen);
 	DOREPLIFETIME(UQRSurvivalComponent, ActiveInjuries);
 	DOREPLIFETIME(UQRSurvivalComponent, ActiveStatusTags);
 	DOREPLIFETIME(UQRSurvivalComponent, bIsDead);
@@ -42,7 +44,19 @@ void UQRSurvivalComponent::DrainNeeds(float DeltaTime)
 {
 	Hunger  = FMath::Max(0.0f, Hunger  - HungerDrainPerSecond  * DeltaTime);
 	Thirst  = FMath::Max(0.0f, Thirst  - ThirstDrainPerSecond  * DeltaTime);
-	Fatigue = FMath::Max(0.0f, Fatigue - FatigueDrainPerSecond * DeltaTime);
+
+	// Sprint burns fatigue faster — multiplier read from config so designers
+	// can retune without code changes. Owner state is reflected (we don't
+	// hard-link to AQRCharacter so any sprinting subclass works).
+	const float FatigueMult = QueryOwnerIsSprinting() ? SprintFatigueDrainMultiplier : 1.0f;
+	Fatigue = FMath::Max(0.0f, Fatigue - FatigueDrainPerSecond * FatigueMult * DeltaTime);
+
+	// Oxygen drains in environments that have OxygenDrainPerSecond > 0.
+	// Triggers / volumes / suit gear should set this on entry/exit.
+	if (OxygenDrainPerSecond > 0.0f)
+	{
+		Oxygen = FMath::Max(0.0f, Oxygen - OxygenDrainPerSecond * DeltaTime);
+	}
 }
 
 void UQRSurvivalComponent::ApplyNeedDamage(float DeltaTime)
@@ -52,9 +66,17 @@ void UQRSurvivalComponent::ApplyNeedDamage(float DeltaTime)
 	if (IsDehydrated())  Dmg += 0.4f * DeltaTime;
 	if (IsExhausted())   Dmg += 0.05f * DeltaTime;
 
-	// Hypothermia
+	// Hypothermia (cold)
 	if (CoreTemperature < 35.0f)
 		Dmg += (35.0f - CoreTemperature) * 0.1f * DeltaTime;
+
+	// Hyperthermia (hot) — symmetric. Scales with how far over the threshold.
+	if (CoreTemperature > HyperthermiaThreshold)
+		Dmg += (CoreTemperature - HyperthermiaThreshold) * 0.1f * DeltaTime;
+
+	// Suffocation — sharp damage curve, kills fast when oxygen is critical.
+	if (IsSuffocating())
+		Dmg += 2.0f * DeltaTime;
 
 	if (Dmg > 0.0f) ApplyDamage(Dmg);
 }
@@ -97,6 +119,10 @@ void UQRSurvivalComponent::RefreshStatusTags()
 
 	if (IsExhausted())  NewTags.AddTag(QRGameplayTags::Status_Exhausted);
 	if (CoreTemperature < 35.0f) NewTags.AddTag(QRGameplayTags::Status_Hypothermia);
+	if (IsOverheating()) NewTags.AddTag(QRGameplayTags::Status_Hyperthermia);
+
+	if (IsSuffocating()) NewTags.AddTag(QRGameplayTags::Status_Suffocating);
+	else if (IsLowOxygen()) NewTags.AddTag(QRGameplayTags::Status_LowOxygen);
 
 	for (const FQRInjury& Inj : ActiveInjuries)
 	{
@@ -289,3 +315,51 @@ void UQRSurvivalComponent::OnRep_Health()  { OnHealthChanged.Broadcast(Health); 
 void UQRSurvivalComponent::OnRep_Hunger()  {}
 void UQRSurvivalComponent::OnRep_Thirst()  {}
 void UQRSurvivalComponent::OnRep_Fatigue() {}
+void UQRSurvivalComponent::OnRep_Oxygen()  {}
+
+void UQRSurvivalComponent::RefillOxygen(float Amount)
+{
+	if (bIsDead || Amount <= 0.0f) return;
+	Oxygen = FMath::Min(MaxOxygen, Oxygen + Amount);
+}
+
+float UQRSurvivalComponent::GetMovementSpeedMultiplier() const
+{
+	float Mult = 1.0f;
+	// Fracture is the big mover — broken leg means slowed for sure.
+	for (const FQRInjury& Inj : ActiveInjuries)
+	{
+		if (Inj.Type == EQRInjuryType::Fracture)
+		{
+			Mult *= (Inj.Severity >= EQRInjurySeverity::Severe) ? 0.55f : 0.75f;
+		}
+		else if (Inj.Type == EQRInjuryType::Bleeding && Inj.Severity >= EQRInjurySeverity::Severe)
+		{
+			Mult *= 0.85f;
+		}
+	}
+	if (IsExhausted())  Mult *= 0.75f;
+	if (IsSuffocating()) Mult *= 0.7f;
+	return FMath::Max(0.5f, Mult); // floor so player always has some agency
+}
+
+bool UQRSurvivalComponent::IsSprintBlockedByCondition() const
+{
+	if (IsExhausted())   return true;
+	if (IsSuffocating()) return true;
+	for (const FQRInjury& Inj : ActiveInjuries)
+	{
+		if (Inj.Type == EQRInjuryType::Fracture &&
+		    Inj.Severity >= EQRInjurySeverity::Severe) return true;
+	}
+	return false;
+}
+
+bool UQRSurvivalComponent::QueryOwnerIsSprinting() const
+{
+	const AActor* Owner = GetOwner();
+	if (!Owner) return false;
+	const FBoolProperty* Prop = FindFProperty<FBoolProperty>(Owner->GetClass(), TEXT("bIsSprinting"));
+	if (!Prop) return false;
+	return Prop->GetPropertyValue_InContainer(Owner);
+}

@@ -155,8 +155,10 @@ void AQRCharacter::SetSprinting(bool bSprint)
 
 bool AQRCharacter::CanSprint() const
 {
-	if (!Survival) return true;
-	return !Survival->IsExhausted() && !bIsOverEncumbered;
+	if (!Survival) return !bIsOverEncumbered;
+	// Survival owns the full block check (exhausted / suffocating / severe
+	// fracture) so the character only has to also enforce encumbrance.
+	return !Survival->IsSprintBlockedByCondition() && !bIsOverEncumbered;
 }
 
 void AQRCharacter::ScanForInteractable()
