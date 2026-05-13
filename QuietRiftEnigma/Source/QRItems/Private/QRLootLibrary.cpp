@@ -1,6 +1,28 @@
 #include "QRLootLibrary.h"
 #include "QRInventoryComponent.h"
 #include "QRItemDefinition.h"
+#include "UObject/UnrealType.h"
+
+// Reflection-based item-definition lookup. The project's item-definition
+// data table row struct is expected to have a UPROPERTY ObjectPtr column
+// called "Definition" pointing at a UQRItemDefinition — but we avoid
+// hard-coding that row struct here so any project-defined schema works.
+static UQRItemDefinition* ResolveDefinition(const UDataTable* DefTable, FName ItemId)
+{
+	if (!DefTable || ItemId.IsNone()) return nullptr;
+	uint8* RowPtr = DefTable->FindRowUnchecked(ItemId);
+	if (!RowPtr) return nullptr;
+	const UScriptStruct* RowStruct = DefTable->GetRowStruct();
+	if (!RowStruct) return nullptr;
+	FProperty* DefProp = RowStruct->FindPropertyByName(TEXT("Definition"));
+	if (!DefProp) return nullptr;
+	if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(DefProp))
+	{
+		UObject* Obj = ObjProp->GetObjectPropertyValue(ObjProp->ContainerPtrToValuePtr<void>(RowPtr));
+		return Cast<UQRItemDefinition>(Obj);
+	}
+	return nullptr;
+}
 
 const FQRLootTableRow* UQRLootLibrary::FindRow(const UDataTable* Table, FName RowName)
 {
@@ -109,25 +131,13 @@ int32 UQRLootLibrary::RollAndDeposit(const UDataTable* Table, FName RowName, int
 	for (const FQRRolledLoot& R : Rolled)
 	{
 		if (R.ItemId.IsNone() || R.Quantity <= 0) continue;
-		// Look up the item definition. If no item-definition table was
-		// provided we can't spawn — caller has to supply one.
 		if (!ItemDefinitionTable) continue;
 
-		// Item definition rows are expected to be FName-keyed entries that
-		// resolve to a UQRItemDefinition pointer in a UPROPERTY column called
-		// "Definition" (project convention). Fall back to nullptr if the
-		// project hasn't set up that table — the caller can do the lookup
-		// themselves and call TryAddByDefinition directly.
-		struct FQRItemDefinitionTableRow : public FTableRowBase
-		{
-			TObjectPtr<UQRItemDefinition> Definition = nullptr;
-		};
-		const FQRItemDefinitionTableRow* DefRow =
-			ItemDefinitionTable->FindRow<FQRItemDefinitionTableRow>(R.ItemId, TEXT("QRLootDeposit"), false);
-		if (!DefRow || !DefRow->Definition) continue;
+		UQRItemDefinition* Def = ResolveDefinition(ItemDefinitionTable, R.ItemId);
+		if (!Def) continue;
 
 		int32 Remainder = 0;
-		Target->TryAddByDefinition(DefRow->Definition, R.Quantity, Remainder);
+		Target->TryAddByDefinition(Def, R.Quantity, Remainder);
 		Added += (R.Quantity - Remainder);
 	}
 
