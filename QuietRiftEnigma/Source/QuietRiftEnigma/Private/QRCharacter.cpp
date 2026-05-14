@@ -10,10 +10,14 @@
 #include "QRVaultComponent.h"
 #include "QRHotbarComponent.h"
 #include "QRWorldItem.h"
+#include "QRInputDefaults.h"
 #include "QRGameplayTags.h"
 #include "QRFPViewComponent.h"
+#include "QRHotbarHUDWidget.h"
+#include "QRCreativeBrowserWidget.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Blueprint/UserWidget.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -53,6 +57,15 @@ AQRCharacter::AQRCharacter()
 	HeldItemMesh->SetCastShadow(false);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetVisibility(false);
+	// No socket on the default arms skeleton — nudge the held item forward
+	// and slightly right + down so it sits roughly where a held weapon
+	// would. Override with a proper SOCKET_GripPoint on the authored arms.
+	HeldItemMesh->SetRelativeLocation(FVector(20.0f, 8.0f, -4.0f));
+	HeldItemMesh->SetRelativeRotation(FRotator(0.0f, -10.0f, 0.0f));
+
+	// UI defaults — local C++ widgets unless overridden in BP.
+	HotbarHUDClass        = UQRHotbarHUDWidget::StaticClass();
+	CreativeBrowserClass  = UQRCreativeBrowserWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -89,7 +102,13 @@ void AQRCharacter::BeginPlay()
 	if (Survival)
 		Survival->OnDeath.AddDynamic(this, &AQRCharacter::OnDied);
 
-	// Add input mapping context
+	// Fill any unset input action slots + build a runtime mapping context
+	// with sensible defaults (WASD / mouse / F / G / Tab / 1-9 / etc).
+	// If DefaultMappingContext is authored in BP it keeps higher priority.
+	UQRInputDefaults::Apply(this);
+
+	// Add the authored mapping context if there is one — Apply() already
+	// pushed its runtime context at lower priority.
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
@@ -114,6 +133,32 @@ void AQRCharacter::BeginPlay()
 		Inventory->OnInventoryChanged.AddDynamic(this, &AQRCharacter::RefreshHeldItemMesh);
 	}
 	RefreshHeldItemMesh();
+
+	// Spawn the runtime UI on the local player. Skip on dedicated server
+	// pawns and remote clients (each client makes its own).
+	APlayerController* LocalPC = Cast<APlayerController>(GetController());
+	if (LocalPC && LocalPC->IsLocalController())
+	{
+		if (HotbarHUDClass)
+		{
+			HotbarHUD = CreateWidget<UQRHotbarHUDWidget>(LocalPC, HotbarHUDClass);
+			if (HotbarHUD)
+			{
+				HotbarHUD->AddToViewport(/*ZOrder*/ 10);
+				HotbarHUD->Bind(Hotbar);
+			}
+		}
+		if (CreativeBrowserClass)
+		{
+			CreativeBrowser = CreateWidget<UQRCreativeBrowserWidget>(LocalPC, CreativeBrowserClass);
+			if (CreativeBrowser)
+			{
+				CreativeBrowser->AddToViewport(/*ZOrder*/ 50);
+				CreativeBrowser->SetVisibility(ESlateVisibility::Collapsed);
+				CreativeBrowser->Bind(Hotbar);
+			}
+		}
+	}
 }
 
 void AQRCharacter::Tick(float DeltaTime)
@@ -392,6 +437,7 @@ void AQRCharacter::Server_DropHeld_Implementation()
 void AQRCharacter::OnCreativeBrowserPressed()
 {
 	OnCreativeBrowserToggled.Broadcast();
+	if (CreativeBrowser) CreativeBrowser->Toggle();
 }
 
 void AQRCharacter::OnHotbarSlotInput(int32 SlotIndex)

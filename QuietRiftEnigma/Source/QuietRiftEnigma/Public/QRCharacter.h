@@ -208,6 +208,21 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_DropHeld();
 
+	// Widget classes spawned for the local player on BeginPlay. Default to
+	// the C++ HUD / browser; override in BP to swap in a designer-authored
+	// WBP_ version.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRHotbarHUDWidget> HotbarHUDClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRCreativeBrowserWidget> CreativeBrowserClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRHotbarHUDWidget> HotbarHUD = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<class UQRCreativeBrowserWidget> CreativeBrowser = nullptr;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
