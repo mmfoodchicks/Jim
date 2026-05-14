@@ -17,6 +17,8 @@
 #include "QRFPViewComponent.h"
 #include "QRHotbarHUDWidget.h"
 #include "QRCreativeBrowserWidget.h"
+#include "QRVitalsHUDWidget.h"
+#include "QRGameMode.h"
 #include "QRUISound.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -70,6 +72,7 @@ AQRCharacter::AQRCharacter()
 	// UI defaults — local C++ widgets unless overridden in BP.
 	HotbarHUDClass        = UQRHotbarHUDWidget::StaticClass();
 	CreativeBrowserClass  = UQRCreativeBrowserWidget::StaticClass();
+	VitalsHUDClass        = UQRVitalsHUDWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -164,6 +167,27 @@ void AQRCharacter::BeginPlay()
 				CreativeBrowser->SetVisibility(ESlateVisibility::Collapsed);
 				CreativeBrowser->Bind(Hotbar);
 			}
+		}
+		if (VitalsHUDClass && Survival)
+		{
+			VitalsHUD = CreateWidget<UQRVitalsHUDWidget>(LocalPC, VitalsHUDClass);
+			if (VitalsHUD)
+			{
+				VitalsHUD->AddToViewport(/*ZOrder*/ 10);
+				VitalsHUD->Bind(Survival);
+			}
+		}
+	}
+
+	// Pull any pending save snapshot from the game mode (server only —
+	// it owns the save state; clients get vitals via replication and
+	// inventory via the standard inventory replication once the
+	// authoritative pawn is populated).
+	if (HasAuthority())
+	{
+		if (AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr)
+		{
+			GM->ApplyLoadedDataToPlayer(this);
 		}
 	}
 }
@@ -663,4 +687,15 @@ void AQRCharacter::OnDied_Implementation()
 
 	GetMesh()->SetSimulatePhysics(true);
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// Hand off to the game mode to mount the death screen + schedule a
+	// respawn. Server authority only — clients receive the new pawn via
+	// the standard PlayerController possession path.
+	if (HasAuthority())
+	{
+		if (AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr)
+		{
+			GM->HandlePlayerDied(this);
+		}
+	}
 }

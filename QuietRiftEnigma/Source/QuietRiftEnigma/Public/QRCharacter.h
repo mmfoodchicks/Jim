@@ -245,11 +245,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<class UQRCreativeBrowserWidget> CreativeBrowserClass;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRVitalsHUDWidget> VitalsHUDClass;
+
 	UPROPERTY()
 	TObjectPtr<class UQRHotbarHUDWidget> HotbarHUD = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<class UQRCreativeBrowserWidget> CreativeBrowser = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<class UQRVitalsHUDWidget> VitalsHUD = nullptr;
 
 	// ── Footsteps ────────────────────────────
 	// Speed threshold (cm/s) above which a step is allowed to play.
