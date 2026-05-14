@@ -102,6 +102,13 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Character")
 	FName SurvivorId;
 
+	// Player identity — name, pronouns, voice profile. Drives dialogue
+	// substitution via UQRPronounLibrary so NPCs greet the player by the
+	// correct name + pronouns. Set at character creation; replicated so
+	// clients see the same identity the server uses for dialogue subs.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Character|Identity")
+	FQRPlayerIdentity PlayerIdentity;
+
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Character|Events")
 	FOnInteract OnInteract;

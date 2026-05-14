@@ -3,6 +3,7 @@
 #include "QRSurvivalComponent.h"
 #include "QRWeaponComponent.h"
 #include "QRFactionComponent.h"
+#include "QRDialogueComponent.h"
 #include "QRGameplayTags.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -54,6 +55,7 @@ void AQRCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AQRCharacter, bIsSprinting);
 	DOREPLIFETIME_CONDITION(AQRCharacter, bIsOverEncumbered, COND_OwnerOnly);
+	DOREPLIFETIME(AQRCharacter, PlayerIdentity);
 }
 
 void AQRCharacter::BeginPlay()
@@ -201,6 +203,20 @@ void AQRCharacter::Server_Interact_Implementation(AActor* Target)
 {
 	if (!Target) return;
 	OnInteract.Broadcast(Target);
+
+	// Auto-start a conversation if the target has a UQRDialogueComponent.
+	// Reflective lookup avoids a hard module dep on the dialogue header
+	// here — anything subscribed to OnInteract can still handle the event
+	// however it likes; this is just the default convenience for the
+	// most common case (NPC with dialogue).
+	if (UActorComponent* DlgComp = Target->FindComponentByClass(
+		UQRDialogueComponent::StaticClass()))
+	{
+		if (UQRDialogueComponent* Dialogue = Cast<UQRDialogueComponent>(DlgComp))
+		{
+			Dialogue->StartConversation(this);
+		}
+	}
 }
 
 void AQRCharacter::OnDied_Implementation()
