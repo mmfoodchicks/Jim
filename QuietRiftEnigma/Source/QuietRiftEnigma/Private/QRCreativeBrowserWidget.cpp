@@ -2,6 +2,7 @@
 #include "QRHotbarComponent.h"
 #include "QRItemBrowserHelper.h"
 #include "QRItemDefinition.h"
+#include "QRUISound.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
@@ -24,6 +25,7 @@ UQRResultButton::UQRResultButton()
 
 void UQRResultButton::HandleClicked()
 {
+	QRUISound::PlayClick(this);
 	OnResultRowClicked.Broadcast(CarriedDefinition);
 }
 
@@ -34,6 +36,7 @@ UQRSlotAssignButton::UQRSlotAssignButton()
 
 void UQRSlotAssignButton::HandleClicked()
 {
+	QRUISound::PlayConfirm(this);
 	OnSlotButtonClicked.Broadcast(SlotIndex);
 }
 

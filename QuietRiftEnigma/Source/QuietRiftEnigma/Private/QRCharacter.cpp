@@ -17,6 +17,7 @@
 #include "QRFPViewComponent.h"
 #include "QRHotbarHUDWidget.h"
 #include "QRCreativeBrowserWidget.h"
+#include "QRUISound.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Blueprint/UserWidget.h"
@@ -184,6 +185,41 @@ void AQRCharacter::Tick(float DeltaTime)
 	// Interaction scan (local only)
 	if (IsLocallyControlled())
 		ScanForInteractable();
+
+	// Footsteps — local-only, grounded, moving above threshold. Cadence
+	// interpolates between walk and sprint interval based on current
+	// horizontal speed vs. max speed.
+	if (IsLocallyControlled())
+	{
+		UCharacterMovementComponent* CMC = GetCharacterMovement();
+		const bool bGrounded = CMC && !CMC->IsFalling();
+		FVector Vel = GetVelocity();
+		Vel.Z = 0.0f;
+		const float Speed = Vel.Size();
+
+		if (bGrounded && Speed > FootstepSpeedThreshold)
+		{
+			FootstepTimer -= DeltaTime;
+			if (FootstepTimer <= 0.0f)
+			{
+				const float MaxSpeed = CMC ? CMC->MaxWalkSpeed : WalkSpeed;
+				const float SpeedAlpha = MaxSpeed > 0.0f ? FMath::Clamp(Speed / MaxSpeed, 0.0f, 1.0f) : 0.0f;
+				const float Interval = FMath::Lerp(FootstepWalkInterval, FootstepSprintInterval, SpeedAlpha);
+				const float Vol      = FootstepVolumeMult * FMath::Lerp(0.6f, 1.0f, SpeedAlpha);
+
+				FVector FootLoc = GetActorLocation();
+				FootLoc.Z -= GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
+				QRUISound::PlayFootstep(this, FootLoc, Vol);
+
+				FootstepTimer = Interval;
+			}
+		}
+		else
+		{
+			// Reset so the first step after standing still doesn't fire instantly.
+			FootstepTimer = 0.0f;
+		}
+	}
 }
 
 void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -556,17 +592,23 @@ void AQRCharacter::OnCreativeBrowserPressed()
 
 void AQRCharacter::OnHotbarSlotInput(int32 SlotIndex)
 {
-	if (Hotbar) Hotbar->SelectSlot(SlotIndex);
+	if (!Hotbar) return;
+	Hotbar->SelectSlot(SlotIndex);
+	if (IsLocallyControlled()) QRUISound::PlayClick(this);
 }
 
 void AQRCharacter::OnHotbarNext()
 {
-	if (Hotbar) Hotbar->SelectNext();
+	if (!Hotbar) return;
+	Hotbar->SelectNext();
+	if (IsLocallyControlled()) QRUISound::PlayClick(this);
 }
 
 void AQRCharacter::OnHotbarPrev()
 {
-	if (Hotbar) Hotbar->SelectPrev();
+	if (!Hotbar) return;
+	Hotbar->SelectPrev();
+	if (IsLocallyControlled()) QRUISound::PlayClick(this);
 }
 
 void AQRCharacter::RefreshHeldItemMesh()

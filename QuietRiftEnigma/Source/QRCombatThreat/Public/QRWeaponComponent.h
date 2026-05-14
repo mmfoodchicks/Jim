@@ -6,6 +6,7 @@
 #include "QRWeaponComponent.generated.h"
 
 class UQRItemInstance;
+class UNiagaraSystem;
 
 UENUM(BlueprintType)
 enum class EQRWeaponType : uint8
@@ -150,6 +151,29 @@ public:
 		meta = (ClampMin = "0", ClampMax = "15"))
 	float RecoilYawRandomRange = 0.5f;
 
+	// ── FX ───────────────────────────────────
+	// Spawned at the muzzle on each successful fire. Defaults to the
+	// NiagaraExamples MuzzleFlash if the Fab pack is present; designer
+	// can override per-weapon.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	TObjectPtr<UNiagaraSystem> MuzzleFlashFX;
+
+	// Spawned at the trace's impact point on a hit, oriented to the hit
+	// normal. NS_Impact_Metal by default — surface-specific impacts
+	// (concrete / wood / glass) can be wired by inspecting the hit
+	// physical material later.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	TObjectPtr<UNiagaraSystem> ImpactFX;
+
+	// Optional tracer ribbon spawned from muzzle toward the hit point.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	TObjectPtr<UNiagaraSystem> TracerFX;
+
+	// Socket name on the held weapon mesh used as the muzzle origin.
+	// If empty, the trace's start point is used as a fallback.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	FName MuzzleSocketName;
+
 	// ── Runtime State ─────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")
 	EQRWeaponState WeaponState = EQRWeaponState::Holstered;
@@ -229,6 +253,12 @@ public:
 	// v1.17: True when jammed or state is Empty/Reloading
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	bool IsReadyToFire() const { return !bIsJammed && WeaponState == EQRWeaponState::Ready && CurrentAmmo > 0; }
+
+	// Plays the muzzle / impact / tracer FX on every client. Called from
+	// TryFireFromTrace on the authority. Unreliable — losing one cosmetic
+	// burst is fine.
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayFireFX(FVector MuzzleLoc, FVector HitLoc, FVector HitNormal, bool bHit);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

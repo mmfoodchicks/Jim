@@ -251,6 +251,23 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UQRCreativeBrowserWidget> CreativeBrowser = nullptr;
 
+	// ── Footsteps ────────────────────────────
+	// Speed threshold (cm/s) above which a step is allowed to play.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Audio|Footsteps")
+	float FootstepSpeedThreshold = 50.0f;
+
+	// Seconds between footsteps at normal walk speed. Sprinting scales
+	// this down proportionally so steps cadence with leg movement.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Audio|Footsteps")
+	float FootstepWalkInterval = 0.45f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Audio|Footsteps")
+	float FootstepSprintInterval = 0.30f;
+
+	// Played at 100% volume sprinting / scaled down when walking.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Audio|Footsteps")
+	float FootstepVolumeMult = 0.7f;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -280,6 +297,10 @@ private:
 	void DoUseHeld(bool bPressed);
 	// Tracks whether the current RMB hold started an ADS so release can clear it.
 	bool bUseStartedADS = false;
+
+	// Time until next footstep (counts down each Tick on locally-controlled,
+	// grounded, moving characters).
+	float FootstepTimer = 0.0f;
 	void OnHotbarSlotInput(int32 SlotIndex);
 	void OnHotbarNext();
 	void OnHotbarPrev();

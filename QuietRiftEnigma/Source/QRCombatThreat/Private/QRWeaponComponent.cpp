@@ -8,11 +8,32 @@
 #include "Engine/HitResult.h"
 #include "CollisionQueryParams.h"
 #include "GameFramework/Actor.h"
+#include "NiagaraSystem.h"
+#include "NiagaraFunctionLibrary.h"
+#include "UObject/ConstructorHelpers.h"
 
 UQRWeaponComponent::UQRWeaponComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+
+	// Try to load default FX from the bundled Fab pack. Missing assets
+	// degrade gracefully — TObjectPtr stays null and FX simply skip.
+	struct FFabFXFinder
+	{
+		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Muzzle;
+		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Impact;
+		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Tracer;
+		FFabFXFinder()
+			: Muzzle(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/MuzzleFlashes/NS_MuzzleFlash.NS_MuzzleFlash"))
+			, Impact(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/Impacts/NS_Impact_Metal.NS_Impact_Metal"))
+			, Tracer(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/Trails/NS_BulletTracer.NS_BulletTracer"))
+		{}
+	};
+	static FFabFXFinder Finder;
+	if (Finder.Muzzle.Succeeded()) MuzzleFlashFX = Finder.Muzzle.Object;
+	if (Finder.Impact.Succeeded()) ImpactFX     = Finder.Impact.Object;
+	if (Finder.Tracer.Succeeded()) TracerFX     = Finder.Tracer.Object;
 }
 
 void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -200,5 +221,58 @@ FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector T
 	Result.RecoilPitch = RecoilPitch * AimMult;
 	Result.RecoilYaw   = FMath::FRandRange(-RecoilYawRandomRange, RecoilYawRandomRange) * AimMult;
 
+	// Replicated cosmetic FX. Muzzle origin defaults to TraceStart — a
+	// real socket lookup belongs once the held weapon mesh carries a
+	// "Muzzle" socket; until then this anchors the flash to the camera.
+	Multicast_PlayFireFX(TraceStart, Result.HitLocation, Result.HitNormal, bHit);
+
 	return Result;
+}
+
+void UQRWeaponComponent::Multicast_PlayFireFX_Implementation(
+	FVector MuzzleLoc, FVector HitLoc, FVector HitNormal, bool bHit)
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	// Muzzle flash. Prefer attaching to the owner's mesh at MuzzleSocketName
+	// when both are present so the flash follows weapon motion; otherwise
+	// just spawn at the supplied muzzle location.
+	if (MuzzleFlashFX)
+	{
+		USceneComponent* AttachMesh = nullptr;
+		if (AActor* OwnerActor = GetOwner())
+		{
+			AttachMesh = OwnerActor->FindComponentByClass<USkeletalMeshComponent>();
+			if (!AttachMesh) AttachMesh = OwnerActor->FindComponentByClass<UStaticMeshComponent>();
+		}
+
+		if (AttachMesh && MuzzleSocketName != NAME_None && AttachMesh->DoesSocketExist(MuzzleSocketName))
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAttached(
+				MuzzleFlashFX, AttachMesh, MuzzleSocketName,
+				FVector::ZeroVector, FRotator::ZeroRotator,
+				EAttachLocation::SnapToTarget, /*bAutoDestroy*/ true);
+		}
+		else
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+				W, MuzzleFlashFX, MuzzleLoc, FRotator::ZeroRotator);
+		}
+	}
+
+	// Impact FX at the hit point, oriented to the hit normal.
+	if (bHit && ImpactFX)
+	{
+		const FRotator ImpactRot = HitNormal.Rotation();
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(W, ImpactFX, HitLoc, ImpactRot);
+	}
+
+	// Tracer ribbon from muzzle to hit point (or trace end if miss).
+	if (TracerFX)
+	{
+		const FVector Delta = HitLoc - MuzzleLoc;
+		const FRotator TracerRot = Delta.Rotation();
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(W, TracerFX, MuzzleLoc, TracerRot);
+	}
 }

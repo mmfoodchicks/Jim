@@ -14,6 +14,7 @@ public class QRCombatThreat : ModuleRules
 			"GameplayTags",
 			"AIModule",
 			"NavigationSystem",
+			"Niagara",
 			"QRCore",
 			"QRItems",
 			"QRSurvival",
