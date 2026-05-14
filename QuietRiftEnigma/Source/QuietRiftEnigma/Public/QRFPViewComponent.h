@@ -98,6 +98,34 @@ public:
 		meta = (ClampMin = "0.5", ClampMax = "30"))
 	float ADSInterpSpeed = 12.0f;
 
+	// ── Lean ─────────────────────────────────
+	// Camera roll when fully leaned. Positive value = camera rolls toward
+	// the lean side (right lean rolls camera clockwise from player POV).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|Lean",
+		meta = (ClampMin = "0", ClampMax = "45"))
+	float MaxLeanRollDeg = 16.0f;
+
+	// Lateral camera offset (cm) when fully leaned — lets the player
+	// physically peek past cover instead of just rotating the camera.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|Lean",
+		meta = (ClampMin = "0", ClampMax = "60"))
+	float MaxLeanOffsetY = 22.0f;
+
+	// Forward dip — small forward shift to mimic the player tilting their
+	// head out from cover. Mostly cosmetic.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|Lean",
+		meta = (ClampMin = "0", ClampMax = "10"))
+	float MaxLeanOffsetX = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|Lean",
+		meta = (ClampMin = "0.5", ClampMax = "30"))
+	float LeanInterpSpeed = 10.0f;
+
+	// If true, a sideways trace from the camera detects walls and caps the
+	// effective lean so the camera doesn't clip through geometry.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|Lean")
+	bool bClampLeanAgainstWalls = true;
+
 	// ── Runtime API ──────────────────────────
 
 	// Tell the component which camera to drive. Usually called from BeginPlay
@@ -111,6 +139,14 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "FP View")
 	bool IsADS() const { return bIsADS; }
+
+	// Set the desired lean direction: -1 = left, 0 = center, +1 = right.
+	// Held-key handlers should call this with +/-1 on press and 0 on release.
+	UFUNCTION(BlueprintCallable, Category = "FP View|Lean")
+	void SetLeanInput(float Direction);
+
+	UFUNCTION(BlueprintPure, Category = "FP View|Lean")
+	float GetCurrentLean() const { return CurrentLean; }
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
 	                            FActorComponentTickFunction* ThisTickFunction) override;
@@ -134,6 +170,14 @@ private:
 	// Internal state for time-driven head bob phase.
 	float BobPhase = 0.0f;
 
+	// Target lean (-1..+1) set by input; CurrentLean is interpolated toward it.
+	float LeanInput = 0.0f;
+	float CurrentLean = 0.0f;
+
 	// Read bIsSprinting reflectively so we don't have a hard dep on AQRCharacter.
 	bool QueryIsSprinting() const;
+
+	// Cast a short trace from the camera in the lean direction and return
+	// the clamped lean magnitude (1.0 = full lean allowed, 0.0 = blocked).
+	float ComputeLeanWallClamp(float DesiredLean) const;
 };

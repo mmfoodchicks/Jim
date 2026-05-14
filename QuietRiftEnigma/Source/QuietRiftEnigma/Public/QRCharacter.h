@@ -9,6 +9,8 @@ class UQRInventoryComponent;
 class UQRSurvivalComponent;
 class UQRWeaponComponent;
 class UQRFactionComponent;
+class UQRFPViewComponent;
+class UQRVaultComponent;
 class UCameraComponent;
 class USpringArmComponent;
 class UInputMappingContext;
@@ -38,6 +40,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UQRFactionComponent> Faction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UQRVaultComponent> Vault;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
@@ -76,6 +81,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> SprintAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> LeanLeftAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> LeanRightAction;
 
 	// ── Config ───────────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
@@ -158,7 +169,23 @@ private:
 	void Look(const struct FInputActionValue& Value);
 	void StartSprint();
 	void StopSprint();
+	void HandleJumpPressed();
+	void HandleJumpReleased();
+	void LeanLeftPressed();
+	void LeanLeftReleased();
+	void LeanRightPressed();
+	void LeanRightReleased();
 
 	void ScanForInteractable();
 	TWeakObjectPtr<AActor> CurrentInteractable;
+
+	// Cached view component for lean routing; resolved on BeginPlay.
+	UPROPERTY()
+	TObjectPtr<UQRFPViewComponent> CachedView = nullptr;
+
+	// Track which lean keys are held so releasing one doesn't cancel the
+	// other if both were pressed (e.g. Q held, E tapped and released).
+	bool bLeanLeftHeld = false;
+	bool bLeanRightHeld = false;
+	void UpdateLeanInput();
 };

@@ -2,6 +2,9 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Controller.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
 #include "UObject/UnrealType.h"
 
 UQRFPViewComponent::UQRFPViewComponent()
@@ -42,6 +45,38 @@ void UQRFPViewComponent::SetCameraTarget(UCameraComponent* InCamera)
 void UQRFPViewComponent::SetADS(bool bAiming)
 {
 	bIsADS = bAiming;
+}
+
+void UQRFPViewComponent::SetLeanInput(float Direction)
+{
+	LeanInput = FMath::Clamp(Direction, -1.0f, 1.0f);
+}
+
+float UQRFPViewComponent::ComputeLeanWallClamp(float DesiredLean) const
+{
+	if (!bClampLeanAgainstWalls || !CameraTarget || FMath::IsNearlyZero(DesiredLean))
+	{
+		return FMath::Abs(DesiredLean);
+	}
+
+	// Trace from the camera straight sideways for the full lean reach. If
+	// blocked, scale lean by hit distance so the camera stops just short
+	// of the surface instead of clipping through it.
+	const FVector Origin = CameraTarget->GetComponentLocation();
+	const FVector Right  = CameraTarget->GetRightVector();
+	const float   Reach  = MaxLeanOffsetY + 6.0f; // small skin margin
+	const FVector End    = Origin + Right * (DesiredLean > 0.0f ? Reach : -Reach);
+
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(QRLeanClamp), false);
+	if (OwnerCharacter) Params.AddIgnoredActor(OwnerCharacter);
+
+	if (GetWorld() && GetWorld()->LineTraceSingleByChannel(Hit, Origin, End, ECC_Visibility, Params))
+	{
+		const float Allowed = FMath::Max(0.0f, Hit.Distance - 4.0f) / FMath::Max(Reach, 1.0f);
+		return FMath::Min(FMath::Abs(DesiredLean), Allowed);
+	}
+	return FMath::Abs(DesiredLean);
 }
 
 bool UQRFPViewComponent::QueryIsSprinting() const
@@ -123,6 +158,33 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	{
 		// Reset phase when not bobbing so resuming starts at zero.
 		BobPhase = 0.0f;
+	}
+
+	// ── 5. Lean ────────────────────────────────
+	// Interp toward target, clamp against walls so the camera can't poke
+	// through cover, then apply lateral + forward offset (relative location)
+	// plus camera roll via the controller's control rotation. Roll goes
+	// through the controller because FirstPersonCamera uses pawn control
+	// rotation — anything we write to the camera's relative rotation gets
+	// overwritten by GetCameraView each frame. Roll on the controller is
+	// safe: ACharacter's bUseControllerRotationYaw only reads Yaw, so the
+	// body's facing isn't affected.
+	CurrentLean = FMath::FInterpTo(CurrentLean, LeanInput, DeltaTime, LeanInterpSpeed);
+
+	float EffectiveLean = 0.0f;
+	if (FMath::Abs(CurrentLean) > KINDA_SMALL_NUMBER)
+	{
+		const float Sign = FMath::Sign(CurrentLean);
+		EffectiveLean = Sign * ComputeLeanWallClamp(CurrentLean);
+		RelLoc.Y += EffectiveLean * MaxLeanOffsetY;
+		RelLoc.X += -FMath::Abs(EffectiveLean) * MaxLeanOffsetX;
+	}
+
+	if (AController* C = OwnerCharacter->GetController())
+	{
+		FRotator CR = C->GetControlRotation();
+		CR.Roll = EffectiveLean * MaxLeanRollDeg;
+		C->SetControlRotation(CR);
 	}
 
 	CameraTarget->SetRelativeLocation(RelLoc);

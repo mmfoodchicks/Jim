@@ -5,6 +5,7 @@
 #include "QRFactionComponent.h"
 #include "QRDialogueComponent.h"
 #include "QRLootContainerComponent.h"
+#include "QRVaultComponent.h"
 #include "QRGameplayTags.h"
 #include "QRFPViewComponent.h"
 #include "Camera/CameraComponent.h"
@@ -48,6 +49,7 @@ AQRCharacter::AQRCharacter()
 	Survival  = CreateDefaultSubobject<UQRSurvivalComponent>(TEXT("Survival"));
 	Weapon    = CreateDefaultSubobject<UQRWeaponComponent>(TEXT("Weapon"));
 	Faction   = CreateDefaultSubobject<UQRFactionComponent>(TEXT("Faction"));
+	Vault     = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
 
 	SurvivorId = FName("PLR_0001");
 }
@@ -82,6 +84,9 @@ void AQRCharacter::BeginPlay()
 	// Initialize faction as player faction
 	if (Faction)
 		Faction->FactionTag = QRGameplayTags::Faction_Player;
+
+	// Cache the view component for lean routing.
+	CachedView = FindComponentByClass<UQRFPViewComponent>();
 }
 
 void AQRCharacter::Tick(float DeltaTime)
@@ -110,15 +115,19 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 	if (UEnhancedInputComponent* EI = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		if (MoveAction)     EI->BindAction(MoveAction,     ETriggerEvent::Triggered, this, &AQRCharacter::Move);
-		if (LookAction)     EI->BindAction(LookAction,     ETriggerEvent::Triggered, this, &AQRCharacter::Look);
-		if (JumpAction)     EI->BindAction(JumpAction,     ETriggerEvent::Started,   this, &ACharacter::Jump);
-		if (JumpAction)     EI->BindAction(JumpAction,     ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-		if (InteractAction) EI->BindAction(InteractAction, ETriggerEvent::Started,   this, &AQRCharacter::TryInteract);
-		if (SprintAction)   EI->BindAction(SprintAction,   ETriggerEvent::Started,   this, &AQRCharacter::StartSprint);
-		if (SprintAction)   EI->BindAction(SprintAction,   ETriggerEvent::Completed, this, &AQRCharacter::StopSprint);
-		if (FireAction)     EI->BindAction(FireAction,     ETriggerEvent::Started,   this, &AQRCharacter::TryFireWeapon);
-		if (ReloadAction)   EI->BindAction(ReloadAction,   ETriggerEvent::Started,   this, &AQRCharacter::TryReload);
+		if (MoveAction)      EI->BindAction(MoveAction,      ETriggerEvent::Triggered, this, &AQRCharacter::Move);
+		if (LookAction)      EI->BindAction(LookAction,      ETriggerEvent::Triggered, this, &AQRCharacter::Look);
+		if (JumpAction)      EI->BindAction(JumpAction,      ETriggerEvent::Started,   this, &AQRCharacter::HandleJumpPressed);
+		if (JumpAction)      EI->BindAction(JumpAction,      ETriggerEvent::Completed, this, &AQRCharacter::HandleJumpReleased);
+		if (InteractAction)  EI->BindAction(InteractAction,  ETriggerEvent::Started,   this, &AQRCharacter::TryInteract);
+		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Started,   this, &AQRCharacter::StartSprint);
+		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Completed, this, &AQRCharacter::StopSprint);
+		if (FireAction)      EI->BindAction(FireAction,      ETriggerEvent::Started,   this, &AQRCharacter::TryFireWeapon);
+		if (ReloadAction)    EI->BindAction(ReloadAction,    ETriggerEvent::Started,   this, &AQRCharacter::TryReload);
+		if (LeanLeftAction)  EI->BindAction(LeanLeftAction,  ETriggerEvent::Started,   this, &AQRCharacter::LeanLeftPressed);
+		if (LeanLeftAction)  EI->BindAction(LeanLeftAction,  ETriggerEvent::Completed, this, &AQRCharacter::LeanLeftReleased);
+		if (LeanRightAction) EI->BindAction(LeanRightAction, ETriggerEvent::Started,   this, &AQRCharacter::LeanRightPressed);
+		if (LeanRightAction) EI->BindAction(LeanRightAction, ETriggerEvent::Completed, this, &AQRCharacter::LeanRightReleased);
 	}
 }
 
@@ -288,6 +297,30 @@ void AQRCharacter::Server_Interact_Implementation(AActor* Target)
 			Container->TryLoot(this);
 		}
 	}
+}
+
+void AQRCharacter::HandleJumpPressed()
+{
+	// Try a vault first; fall through to Jump only if no obstacle ahead.
+	if (Vault && Vault->TryVault()) return;
+	Jump();
+}
+
+void AQRCharacter::HandleJumpReleased()
+{
+	StopJumping();
+}
+
+void AQRCharacter::LeanLeftPressed()  { bLeanLeftHeld  = true;  UpdateLeanInput(); }
+void AQRCharacter::LeanLeftReleased() { bLeanLeftHeld  = false; UpdateLeanInput(); }
+void AQRCharacter::LeanRightPressed() { bLeanRightHeld = true;  UpdateLeanInput(); }
+void AQRCharacter::LeanRightReleased(){ bLeanRightHeld = false; UpdateLeanInput(); }
+
+void AQRCharacter::UpdateLeanInput()
+{
+	// Both held → cancel out, neither held → 0, one held → +/-1.
+	const float Target = (bLeanRightHeld ? 1.0f : 0.0f) - (bLeanLeftHeld ? 1.0f : 0.0f);
+	if (CachedView) CachedView->SetLeanInput(Target);
 }
 
 void AQRCharacter::OnDied_Implementation()
