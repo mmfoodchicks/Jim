@@ -24,6 +24,13 @@ Or copy the file to <Project>/Content/Python/ and:
 Idempotent — re-running skips meshes and item defs that already exist.
 Pass run(overwrite=True) to recreate item defs (meshes are preserved).
 Pass run(rebuild_meshes=True) to delete + re-import every static mesh.
+Pass run(with_icons=False) to skip the SceneCapture2D icon pass.
+
+By default the script also renders a 256×256 Texture2D icon per item
+by capturing the WorldMesh with a temporary SceneCapture2D rig
+(StaticMeshActor + DirectionalLight + SkyLight) at a far-origin world
+position. The temp actors are destroyed after the run; you may get a
+"save level?" prompt on editor exit which is safe to discard.
 """
 
 import os
@@ -51,6 +58,7 @@ PROJECT_ROOT     = _project_root()
 FBX_DISK_ROOT    = os.path.join(PROJECT_ROOT, 'Content', 'Meshes')
 MESH_PKG_ROOT    = '/Game/Meshes'           # where imported StaticMesh assets live
 ITEMS_PKG_ROOT   = '/Game/QuietRift/Data/Items'  # where UQRItemDefinition assets live
+ICONS_PKG_ROOT   = '/Game/QuietRift/Data/Items/Icons'  # rendered Texture2D icons
 
 
 # ── Naming / categorization rules ──────────────────────────────
@@ -249,14 +257,238 @@ def _create_item_def(item_id, mesh_asset_path, prefix_rule, bucket, def_class, o
     return True
 
 
+# ── Icon rendering (SceneCapture2D → Texture2D) ────────────────
+# Spawns a temporary capture rig far from the editor's used space,
+# swaps the target StaticMesh per item, captures, then converts the
+# render target into a saved Texture2D asset under ICONS_PKG_ROOT.
+# Temp actors are destroyed at the end of the run; the editor world is
+# left in its original state (you may still get a "save level?" prompt
+# on exit since spawning actors flagged the world dirty briefly — it's
+# safe to discard, our changes are already saved as separate assets).
+
+_ICON_FAR_ORIGIN = unreal.Vector(100000.0, 100000.0, 100000.0)
+
+
+def _spawn_icon_rig():
+    """Spawn temp mesh actor + scene capture + lighting at a far origin."""
+    far = _ICON_FAR_ORIGIN
+    rig = {}
+
+    mesh_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        unreal.StaticMeshActor, far, unreal.Rotator(0, 0, 0))
+    if mesh_actor:
+        mesh_actor.set_actor_label('QRIcon_TempMesh')
+    rig['mesh'] = mesh_actor
+
+    cap_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        unreal.SceneCapture2D, far + unreal.Vector(150, -150, 100),
+        unreal.Rotator(0, 0, 0))
+    if cap_actor:
+        cap_actor.set_actor_label('QRIcon_TempCap')
+    rig['cap'] = cap_actor
+
+    light_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        unreal.DirectionalLight, far + unreal.Vector(0, 0, 400),
+        unreal.Rotator(-50, -35, 0))
+    if light_actor:
+        light_actor.set_actor_label('QRIcon_TempLight')
+        try:
+            light_actor.directional_light_component.set_intensity(5.0)
+        except Exception:
+            pass
+    rig['light'] = light_actor
+
+    sky_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        unreal.SkyLight, far + unreal.Vector(0, 0, 400), unreal.Rotator(0, 0, 0))
+    if sky_actor:
+        sky_actor.set_actor_label('QRIcon_TempSky')
+        try:
+            sky_actor.light_component.set_intensity(1.5)
+        except Exception:
+            pass
+    rig['sky'] = sky_actor
+
+    return rig
+
+
+def _destroy_icon_rig(rig):
+    for actor in rig.values():
+        if actor:
+            try:
+                unreal.EditorLevelLibrary.destroy_actor(actor)
+            except Exception:
+                pass
+
+
+def _make_icon_render_target(size):
+    world = unreal.EditorLevelLibrary.get_editor_world()
+    return unreal.RenderingLibrary.create_render_target_2d(
+        world, size, size,
+        unreal.TextureRenderTargetFormat.RTF_RGBA8,
+        unreal.LinearColor(0.0, 0.0, 0.0, 0.0),
+        False  # auto_generate_mip_maps
+    )
+
+
+def _capture_mesh_to_rt(mesh, rig, rt):
+    mesh_actor = rig['mesh']
+    cap_actor  = rig['cap']
+    if not mesh_actor or not cap_actor:
+        return False
+
+    sm_comp = mesh_actor.static_mesh_component
+    sm_comp.set_static_mesh(mesh)
+
+    # Compute bounds for camera framing. Use the actor's component bounds
+    # (post-mesh-assignment) so transformed origins are accounted for.
+    try:
+        bounds = sm_comp.bounds  # FBoxSphereBounds in world space
+        radius = float(bounds.sphere_radius)
+        center = bounds.origin
+    except Exception:
+        radius = 50.0
+        center = mesh_actor.get_actor_location()
+    if radius < 1.0:
+        radius = 50.0
+
+    # 3/4-product-shot camera: forward+right+up offset from the mesh center.
+    cam_offset = unreal.Vector(radius * 2.2, -radius * 2.2, radius * 1.6)
+    cam_loc    = unreal.Vector(center.x + cam_offset.x,
+                                center.y + cam_offset.y,
+                                center.z + cam_offset.z)
+    cam_rot    = unreal.MathLibrary.find_look_at_rotation(cam_loc, center)
+
+    cap_actor.set_actor_location_and_rotation(cam_loc, cam_rot, False, False)
+
+    cap_comp = cap_actor.scene_capture_component2d
+    cap_comp.texture_target  = rt
+    try:
+        cap_comp.capture_source = unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR
+    except Exception:
+        pass
+    cap_comp.fov_angle = 35.0
+    try:
+        cap_comp.set_editor_property('show_only_components', [sm_comp])
+    except Exception:
+        pass
+    cap_comp.capture_scene()
+    return True
+
+
+def _render_target_to_texture(rt, full_asset_path):
+    # Delete any existing texture at the target path so the new render
+    # replaces rather than appends a numeric suffix.
+    if unreal.EditorAssetLibrary.does_asset_exist(full_asset_path):
+        unreal.EditorAssetLibrary.delete_asset(full_asset_path)
+    try:
+        return unreal.RenderingLibrary.render_target_create_static_texture2d_editor_only(
+            rt, full_asset_path,
+            unreal.TextureCompressionSettings.TC_EDITOR_ICON,
+            unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
+        )
+    except Exception as e:
+        unreal.log_warning(f"  RT→Texture2D failed for {full_asset_path}: {e}")
+        return None
+
+
+def generate_icons(force=False, size=256, max_items=None):
+    """Render Texture2D icons for every UQRItemDefinition with a WorldMesh.
+
+    force      — re-render icons even when one is already assigned.
+    size       — icon resolution (square).
+    max_items  — cap how many to render (debug).
+    """
+    if not unreal.EditorAssetLibrary.does_directory_exist(ICONS_PKG_ROOT):
+        unreal.EditorAssetLibrary.make_directory(ICONS_PKG_ROOT)
+
+    asset_paths = unreal.EditorAssetLibrary.list_assets(
+        ITEMS_PKG_ROOT, recursive=True, include_folder=False)
+
+    rig = _spawn_icon_rig()
+    rt  = _make_icon_render_target(size)
+
+    rendered = skipped = failed = 0
+    total = len(asset_paths)
+    try:
+        for idx, asset_path in enumerate(asset_paths):
+            if max_items is not None and rendered >= max_items:
+                break
+
+            # Filter to UQRItemDefinitions. Texture2D icons already live
+            # under ICONS_PKG_ROOT — skip them so we don't recurse on output.
+            if '/Icons/' in asset_path:
+                continue
+
+            item_def = unreal.EditorAssetLibrary.load_asset(asset_path)
+            if not item_def:
+                continue
+            class_name = item_def.get_class().get_name()
+            if class_name != 'QRItemDefinition':
+                continue
+
+            try:
+                current = item_def.get_editor_property('inventory_icon')
+            except Exception:
+                current = None
+            if current and not force:
+                try:
+                    if hasattr(current, 'load_synchronous'):
+                        if current.load_synchronous() is not None:
+                            skipped += 1
+                            continue
+                    elif current is not None:
+                        skipped += 1
+                        continue
+                except Exception:
+                    pass
+
+            world_mesh_ref = item_def.get_editor_property('world_mesh')
+            mesh = None
+            try:
+                mesh = world_mesh_ref.load_synchronous() if hasattr(world_mesh_ref, 'load_synchronous') else world_mesh_ref
+            except Exception:
+                mesh = None
+            if not mesh:
+                continue
+
+            item_id = str(item_def.get_editor_property('item_id'))
+            try:
+                if not _capture_mesh_to_rt(mesh, rig, rt):
+                    failed += 1
+                    continue
+                tex = _render_target_to_texture(rt, f'{ICONS_PKG_ROOT}/T_{item_id}')
+                if not tex:
+                    failed += 1
+                    continue
+                item_def.set_editor_property('inventory_icon', tex)
+                unreal.EditorAssetLibrary.save_asset(asset_path)
+                rendered += 1
+            except Exception as e:
+                unreal.log_warning(f"  icon render failed for {item_id}: {e}")
+                failed += 1
+
+            if (idx + 1) % 25 == 0:
+                unreal.log(f"  icons progress: {idx + 1}/{total}")
+    finally:
+        _destroy_icon_rig(rig)
+
+    unreal.log(
+        f"qr_seed_items.icons: rendered={rendered} skipped={skipped} failed={failed}"
+    )
+
+
 # ── Main walker ────────────────────────────────────────────────
 
-def run(overwrite=False, rebuild_meshes=False, max_items=None):
+def run(overwrite=False, rebuild_meshes=False, with_icons=True,
+        icon_size=256, max_items=None):
     """Bulk-import FBXs and create UQRItemDefinitions.
 
     overwrite       — recreate item def assets even if they exist.
     rebuild_meshes  — delete + re-import every StaticMesh.
-    max_items       — cap how many items to process (for dry-run testing).
+    with_icons      — after creating items, render and assign InventoryIcons
+                      by capturing each WorldMesh with a SceneCapture2D rig.
+    icon_size       — square resolution for rendered icons.
+    max_items       — cap how many to process (for dry-run testing).
     """
     if not os.path.isdir(FBX_DISK_ROOT):
         unreal.log_error(f"FBX root not found: {FBX_DISK_ROOT}")
@@ -345,6 +577,10 @@ def run(overwrite=False, rebuild_meshes=False, max_items=None):
         f"meshes imported={imported_meshes} skipped={skipped_meshes}; "
         f"items created={created_items} skipped={skipped_items} failed={failed}"
     )
+
+    if with_icons:
+        unreal.log("qr_seed_items: rendering icons via SceneCapture2D…")
+        generate_icons(force=overwrite, size=icon_size, max_items=max_items)
 
 
 if __name__ == '__main__':
