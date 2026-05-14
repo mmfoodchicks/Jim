@@ -61,6 +61,14 @@ namespace QRUISound
 	QUIETRIFTENIGMA_API void PlayWeaponFire(
 		UObject* WorldContextObject, FVector Location, float VolumeMult = 1.0f);
 
+	// Impact / hit reaction. 3D at the receiver's location.
+	QUIETRIFTENIGMA_API void PlayHitImpact(
+		UObject* WorldContextObject, FVector Location, float VolumeMult = 1.0f);
+
+	// Death groan / monster cry on a character dying. 3D.
+	QUIETRIFTENIGMA_API void PlayDeathCry(
+		UObject* WorldContextObject, FVector Location, float VolumeMult = 1.0f);
+
 	// 3D footstep at world location, surface + gait aware.
 	QUIETRIFTENIGMA_API void PlayFootstep(
 		UObject* WorldContextObject,

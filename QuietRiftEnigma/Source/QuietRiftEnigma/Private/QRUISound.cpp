@@ -142,6 +142,30 @@ namespace QRUISound
 		}
 	}
 
+	void PlayHitImpact(UObject* WC, FVector Location, float VolumeMult)
+	{
+		static USoundBase* Cached = nullptr;
+		USoundBase* S = LazyLoadSound(
+			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Hit_Generic_2-1_Cue.Hit_Generic_2-1_Cue"), Cached);
+		if (S && WC)
+		{
+			UGameplayStatics::PlaySoundAtLocation(WC, S, Location, VolumeMult);
+		}
+	}
+
+	void PlayDeathCry(UObject* WC, FVector Location, float VolumeMult)
+	{
+		static USoundBase* Cached = nullptr;
+		// Creature_1-21 has a deep groan that reads as "downed humanoid"
+		// well enough as placeholder; replace per-faction later.
+		USoundBase* S = LazyLoadSound(
+			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Creature_1-21_Cue.Creature_1-21_Cue"), Cached);
+		if (S && WC)
+		{
+			UGameplayStatics::PlaySoundAtLocation(WC, S, Location, VolumeMult);
+		}
+	}
+
 	void PlayFootstep(UObject* WC, FVector Location, EQRFootSurface Surface,
 		EQRFootGait Gait, float VolumeMult)
 	{
