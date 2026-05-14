@@ -34,6 +34,7 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	if (!Character->CreativeBrowserAction) Character->CreativeBrowserAction = MakeAction(Character, "IA_Browser_RT", EInputActionValueType::Boolean);
 	if (!Character->HotbarNextAction) Character->HotbarNextAction = MakeAction(Character, "IA_HotbarNext_RT", EInputActionValueType::Boolean);
 	if (!Character->HotbarPrevAction) Character->HotbarPrevAction = MakeAction(Character, "IA_HotbarPrev_RT", EInputActionValueType::Boolean);
+	if (!Character->UseHeldAction)    Character->UseHeldAction    = MakeAction(Character, "IA_UseHeld_RT",    EInputActionValueType::Boolean);
 
 	if (Character->HotbarSlotActions.Num() < 9) Character->HotbarSlotActions.SetNum(9);
 	for (int32 i = 0; i < 9; ++i)
@@ -82,6 +83,7 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	IMC->MapKey(Character->CreativeBrowserAction,  EKeys::Tab);
 	IMC->MapKey(Character->HotbarNextAction,       EKeys::MouseScrollDown);
 	IMC->MapKey(Character->HotbarPrevAction,       EKeys::MouseScrollUp);
+	IMC->MapKey(Character->UseHeldAction,          EKeys::RightMouseButton);
 
 	const FKey SlotKeys[9] = {
 		EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,

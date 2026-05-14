@@ -10,6 +10,8 @@
 #include "QRVaultComponent.h"
 #include "QRHotbarComponent.h"
 #include "QRWorldItem.h"
+#include "QRWildlifeActor.h"
+#include "QRBuildModeComponent.h"
 #include "QRInputDefaults.h"
 #include "QRGameplayTags.h"
 #include "QRFPViewComponent.h"
@@ -82,6 +84,9 @@ AQRCharacter::AQRCharacter()
 	Faction   = CreateDefaultSubobject<UQRFactionComponent>(TEXT("Faction"));
 	Vault     = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
 	Hotbar    = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
+	Build     = CreateDefaultSubobject<UQRBuildModeComponent>(TEXT("Build"));
+
+	WildlifeActorClass = AQRWildlifeActor::StaticClass();
 
 	SurvivorId = FName("PLR_0001");
 }
@@ -205,6 +210,12 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (CreativeBrowserAction)  EI->BindAction(CreativeBrowserAction,  ETriggerEvent::Started, this, &AQRCharacter::OnCreativeBrowserPressed);
 		if (HotbarNextAction)       EI->BindAction(HotbarNextAction,       ETriggerEvent::Started, this, &AQRCharacter::OnHotbarNext);
 		if (HotbarPrevAction)       EI->BindAction(HotbarPrevAction,       ETriggerEvent::Started, this, &AQRCharacter::OnHotbarPrev);
+
+		if (UseHeldAction)
+		{
+			EI->BindAction(UseHeldAction, ETriggerEvent::Started,   this, &AQRCharacter::OnUseHeldPressed);
+			EI->BindAction(UseHeldAction, ETriggerEvent::Completed, this, &AQRCharacter::OnUseHeldReleased);
+		}
 
 		// Per-slot bindings carry the slot index as a payload, so the same
 		// handler routes all 9 keys without 9 trampoline functions.
@@ -426,12 +437,115 @@ void AQRCharacter::TryDropHeld()
 {
 	if (!Hotbar) return;
 	if (!HasAuthority()) { Server_DropHeld(); return; }
-	Hotbar->DropActiveItem(/*QuantityToDrop*/ -1);
+	DoDropHeld();
 }
 
 void AQRCharacter::Server_DropHeld_Implementation()
 {
-	if (Hotbar) Hotbar->DropActiveItem(/*QuantityToDrop*/ -1);
+	DoDropHeld();
+}
+
+void AQRCharacter::DoDropHeld()
+{
+	if (!Hotbar || !Inventory) return;
+
+	UQRItemInstance* Held = Hotbar->GetActiveItem();
+	const UQRItemDefinition* Def = (Held && Held->IsValid()) ? Held->Definition : nullptr;
+
+	// Wildlife — spawn a wandering actor in front of the player and
+	// decrement one unit from the held stack.
+	if (Def && Def->Category == EQRItemCategory::Wildlife && WildlifeActorClass)
+	{
+		const FVector SpawnLoc = GetActorLocation()
+			+ GetActorForwardVector() * 150.0f
+			+ FVector(0, 0, -30.0f);
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		Params.Owner = this;
+		if (AQRWildlifeActor* Animal = GetWorld()->SpawnActor<AQRWildlifeActor>(
+				WildlifeActorClass, SpawnLoc, GetActorRotation(), Params))
+		{
+			Animal->InitializeFrom(Def, 1);
+			Inventory->TryRemoveItem(Def->ItemId, 1);
+		}
+		return;
+	}
+
+	// Building piece — enter build mode with this piece selected, only
+	// if Build component actually has a catalog to look it up in.
+	if (Def && Build && Build->PieceCatalog &&
+		Def->ItemId.ToString().StartsWith(TEXT("BLD_")))
+	{
+		Build->EnterBuildMode();
+		Build->SelectPiece(Def->ItemId);
+		return;
+	}
+
+	// Default: drop as a world item.
+	Hotbar->DropActiveItem(-1);
+}
+
+void AQRCharacter::OnUseHeldPressed()  { TryUseHeld(true);  }
+void AQRCharacter::OnUseHeldReleased() { TryUseHeld(false); }
+
+void AQRCharacter::TryUseHeld(bool bPressed)
+{
+	if (!HasAuthority()) { Server_UseHeld(bPressed); return; }
+	DoUseHeld(bPressed);
+}
+
+void AQRCharacter::Server_UseHeld_Implementation(bool bPressed)
+{
+	DoUseHeld(bPressed);
+}
+
+void AQRCharacter::DoUseHeld(bool bPressed)
+{
+	// On release, only clear ADS if we started it on the matching press.
+	if (!bPressed)
+	{
+		if (bUseStartedADS)
+		{
+			if (UQRFPViewComponent* View = FindComponentByClass<UQRFPViewComponent>())
+				View->SetADS(false);
+		}
+		bUseStartedADS = false;
+		return;
+	}
+
+	if (!Hotbar) return;
+	UQRItemInstance* Held = Hotbar->GetActiveItem();
+	const UQRItemDefinition* Def = (Held && Held->IsValid()) ? Held->Definition : nullptr;
+	if (!Def) return;
+
+	switch (Def->Category)
+	{
+	case EQRItemCategory::Weapon:
+	case EQRItemCategory::Attachment:
+		if (UQRFPViewComponent* View = FindComponentByClass<UQRFPViewComponent>())
+		{
+			View->SetADS(true);
+			bUseStartedADS = true;
+		}
+		break;
+
+	case EQRItemCategory::Food:
+		if (Survival) Survival->ConsumeFood(Held);
+		// ConsumeFood is expected to decrement the stack; if it leaves
+		// the instance valid we trust the API. No double-remove here.
+		break;
+
+	case EQRItemCategory::Medicine:
+		if (Survival)
+		{
+			Survival->ApplyHealing(25.0f);
+			if (Inventory) Inventory->TryRemoveItem(Def->ItemId, 1);
+		}
+		break;
+
+	default:
+		break;
+	}
 }
 
 void AQRCharacter::OnCreativeBrowserPressed()

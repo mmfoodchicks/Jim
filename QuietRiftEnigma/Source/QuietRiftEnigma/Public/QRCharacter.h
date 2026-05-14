@@ -12,6 +12,7 @@ class UQRFactionComponent;
 class UQRFPViewComponent;
 class UQRVaultComponent;
 class UQRHotbarComponent;
+class UQRBuildModeComponent;
 class UCameraComponent;
 class UStaticMeshComponent;
 class USpringArmComponent;
@@ -49,6 +50,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UQRHotbarComponent> Hotbar;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UQRBuildModeComponent> Build;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
@@ -126,6 +130,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> HotbarPrevAction;
 
+	// Right-mouse "use held item" — dispatches by item category:
+	//   Weapon   → SetADS on press, clear ADS on release
+	//   Food     → ConsumeFood (one-shot, press only)
+	//   Medicine → ApplyHealing (one-shot)
+	//   Other    → no-op
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> UseHeldAction;
+
+	// Class spawned by Drop when the held item's category is Wildlife.
+	// Defaults to AQRWildlifeActor (static-mesh wanderer).
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Items")
+	TSubclassOf<class AQRWildlifeActor> WildlifeActorClass;
+
 	// ── Config ───────────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	float WalkSpeed = 350.0f;
@@ -201,12 +218,23 @@ public:
 	void OnDied();
 	virtual void OnDied_Implementation();
 
-	// Drop the currently-equipped hotbar item into the world.
+	// Drop the currently-equipped hotbar item into the world. Dispatches
+	// by category: Wildlife → spawn wandering actor; building-prefixed
+	// (BLD_) → enter build mode with that piece selected; else → drop
+	// as world item.
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void TryDropHeld();
 
 	UFUNCTION(Server, Reliable)
 	void Server_DropHeld();
+
+	// "Use" the held item via right-mouse. Press/release pair lets
+	// weapons hold-to-aim while consumables fire once on press.
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void TryUseHeld(bool bPressed);
+
+	UFUNCTION(Server, Reliable)
+	void Server_UseHeld(bool bPressed);
 
 	// Widget classes spawned for the local player on BeginPlay. Default to
 	// the C++ HUD / browser; override in BP to swap in a designer-authored
@@ -243,6 +271,15 @@ private:
 	void LeanRightReleased();
 	void OnDropPressed();
 	void OnCreativeBrowserPressed();
+	void OnUseHeldPressed();
+	void OnUseHeldReleased();
+
+	// Per-category drop dispatch; runs on the server.
+	void DoDropHeld();
+	// Per-category use dispatch; runs on the server.
+	void DoUseHeld(bool bPressed);
+	// Tracks whether the current RMB hold started an ADS so release can clear it.
+	bool bUseStartedADS = false;
 	void OnHotbarSlotInput(int32 SlotIndex);
 	void OnHotbarNext();
 	void OnHotbarPrev();
