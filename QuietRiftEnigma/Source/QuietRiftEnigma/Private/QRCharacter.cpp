@@ -4,6 +4,7 @@
 #include "QRWeaponComponent.h"
 #include "QRFactionComponent.h"
 #include "QRDialogueComponent.h"
+#include "QRLootContainerComponent.h"
 #include "QRGameplayTags.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -215,6 +216,16 @@ void AQRCharacter::Server_Interact_Implementation(AActor* Target)
 		if (UQRDialogueComponent* Dialogue = Cast<UQRDialogueComponent>(DlgComp))
 		{
 			Dialogue->StartConversation(this);
+		}
+	}
+
+	// Auto-loot if the target carries a UQRLootContainerComponent.
+	if (UActorComponent* LootComp = Target->FindComponentByClass(
+		UQRLootContainerComponent::StaticClass()))
+	{
+		if (UQRLootContainerComponent* Container = Cast<UQRLootContainerComponent>(LootComp))
+		{
+			Container->TryLoot(this);
 		}
 	}
 }
