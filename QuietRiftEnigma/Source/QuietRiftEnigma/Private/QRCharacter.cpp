@@ -1,13 +1,19 @@
 #include "QRCharacter.h"
 #include "QRInventoryComponent.h"
+#include "QRItemInstance.h"
+#include "QRItemDefinition.h"
 #include "QRSurvivalComponent.h"
 #include "QRWeaponComponent.h"
 #include "QRFactionComponent.h"
 #include "QRDialogueComponent.h"
 #include "QRLootContainerComponent.h"
 #include "QRVaultComponent.h"
+#include "QRHotbarComponent.h"
+#include "QRWorldItem.h"
 #include "QRGameplayTags.h"
 #include "QRFPViewComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -36,6 +42,18 @@ AQRCharacter::AQRCharacter()
 	ArmsMesh->SetCastShadow(false);
 	ArmsMesh->SetRelativeLocation(FVector(-30.0f, 0.0f, -150.0f));
 
+	// Held-item mesh: attached to the arms (so it inherits FP-only visibility
+	// and follows the camera). The actual mesh is set at runtime from the
+	// equipped item's WorldMesh. SOCKET_GripPoint can be added to the arms
+	// skeleton to control where the item sits; otherwise it pivots from the
+	// arms root and you can nudge it with the relative offset below.
+	HeldItemMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeldItemMesh"));
+	HeldItemMesh->SetupAttachment(ArmsMesh, FName("SOCKET_GripPoint"));
+	HeldItemMesh->SetOnlyOwnerSee(true);
+	HeldItemMesh->SetCastShadow(false);
+	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeldItemMesh->SetVisibility(false);
+
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
 
@@ -50,6 +68,7 @@ AQRCharacter::AQRCharacter()
 	Weapon    = CreateDefaultSubobject<UQRWeaponComponent>(TEXT("Weapon"));
 	Faction   = CreateDefaultSubobject<UQRFactionComponent>(TEXT("Faction"));
 	Vault     = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
+	Hotbar    = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
 
 	SurvivorId = FName("PLR_0001");
 }
@@ -87,6 +106,14 @@ void AQRCharacter::BeginPlay()
 
 	// Cache the view component for lean routing.
 	CachedView = FindComponentByClass<UQRFPViewComponent>();
+
+	// Held-item mesh follows the inventory's HandSlot. Refresh once on
+	// spawn and whenever the inventory changes.
+	if (Inventory)
+	{
+		Inventory->OnInventoryChanged.AddDynamic(this, &AQRCharacter::RefreshHeldItemMesh);
+	}
+	RefreshHeldItemMesh();
 }
 
 void AQRCharacter::Tick(float DeltaTime)
@@ -128,6 +155,22 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (LeanLeftAction)  EI->BindAction(LeanLeftAction,  ETriggerEvent::Completed, this, &AQRCharacter::LeanLeftReleased);
 		if (LeanRightAction) EI->BindAction(LeanRightAction, ETriggerEvent::Started,   this, &AQRCharacter::LeanRightPressed);
 		if (LeanRightAction) EI->BindAction(LeanRightAction, ETriggerEvent::Completed, this, &AQRCharacter::LeanRightReleased);
+
+		if (DropAction)             EI->BindAction(DropAction,             ETriggerEvent::Started, this, &AQRCharacter::OnDropPressed);
+		if (CreativeBrowserAction)  EI->BindAction(CreativeBrowserAction,  ETriggerEvent::Started, this, &AQRCharacter::OnCreativeBrowserPressed);
+		if (HotbarNextAction)       EI->BindAction(HotbarNextAction,       ETriggerEvent::Started, this, &AQRCharacter::OnHotbarNext);
+		if (HotbarPrevAction)       EI->BindAction(HotbarPrevAction,       ETriggerEvent::Started, this, &AQRCharacter::OnHotbarPrev);
+
+		// Per-slot bindings carry the slot index as a payload, so the same
+		// handler routes all 9 keys without 9 trampoline functions.
+		for (int32 i = 0; i < HotbarSlotActions.Num(); ++i)
+		{
+			if (HotbarSlotActions[i])
+			{
+				EI->BindAction(HotbarSlotActions[i], ETriggerEvent::Started,
+					this, &AQRCharacter::OnHotbarSlotInput, i);
+			}
+		}
 	}
 }
 
@@ -297,6 +340,12 @@ void AQRCharacter::Server_Interact_Implementation(AActor* Target)
 			Container->TryLoot(this);
 		}
 	}
+
+	// Auto-pickup if the target is an AQRWorldItem (dropped / placed item).
+	if (AQRWorldItem* WorldItem = Cast<AQRWorldItem>(Target))
+	{
+		WorldItem->TryPickup(this);
+	}
 }
 
 void AQRCharacter::HandleJumpPressed()
@@ -321,6 +370,60 @@ void AQRCharacter::UpdateLeanInput()
 	// Both held → cancel out, neither held → 0, one held → +/-1.
 	const float Target = (bLeanRightHeld ? 1.0f : 0.0f) - (bLeanLeftHeld ? 1.0f : 0.0f);
 	if (CachedView) CachedView->SetLeanInput(Target);
+}
+
+void AQRCharacter::OnDropPressed()
+{
+	TryDropHeld();
+}
+
+void AQRCharacter::TryDropHeld()
+{
+	if (!Hotbar) return;
+	if (!HasAuthority()) { Server_DropHeld(); return; }
+	Hotbar->DropActiveItem(/*QuantityToDrop*/ -1);
+}
+
+void AQRCharacter::Server_DropHeld_Implementation()
+{
+	if (Hotbar) Hotbar->DropActiveItem(/*QuantityToDrop*/ -1);
+}
+
+void AQRCharacter::OnCreativeBrowserPressed()
+{
+	OnCreativeBrowserToggled.Broadcast();
+}
+
+void AQRCharacter::OnHotbarSlotInput(int32 SlotIndex)
+{
+	if (Hotbar) Hotbar->SelectSlot(SlotIndex);
+}
+
+void AQRCharacter::OnHotbarNext()
+{
+	if (Hotbar) Hotbar->SelectNext();
+}
+
+void AQRCharacter::OnHotbarPrev()
+{
+	if (Hotbar) Hotbar->SelectPrev();
+}
+
+void AQRCharacter::RefreshHeldItemMesh()
+{
+	if (!HeldItemMesh) return;
+
+	UStaticMesh* TargetMesh = nullptr;
+	if (Inventory && Inventory->HandSlot)
+	{
+		if (const UQRItemDefinition* Def = Inventory->HandSlot->Definition)
+		{
+			TargetMesh = Def->WorldMesh.LoadSynchronous();
+		}
+	}
+
+	HeldItemMesh->SetStaticMesh(TargetMesh);
+	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
 }
 
 void AQRCharacter::OnDied_Implementation()

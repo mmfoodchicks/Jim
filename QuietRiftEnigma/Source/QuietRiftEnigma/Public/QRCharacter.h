@@ -11,13 +11,16 @@ class UQRWeaponComponent;
 class UQRFactionComponent;
 class UQRFPViewComponent;
 class UQRVaultComponent;
+class UQRHotbarComponent;
 class UCameraComponent;
+class UStaticMeshComponent;
 class USpringArmComponent;
 class UInputMappingContext;
 class UInputAction;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteract, AActor*, Target);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCrouchToggled);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCreativeBrowserToggled);
 
 // The player character — first-person, with all survival/inventory components wired
 UCLASS(BlueprintType, Blueprintable)
@@ -44,12 +47,22 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UQRVaultComponent> Vault;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UQRHotbarComponent> Hotbar;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
 
 	// First-person arm mesh
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Visuals")
 	TObjectPtr<USkeletalMeshComponent> ArmsMesh;
+
+	// Mesh shown when the player is holding an item. Attaches to ArmsMesh
+	// at SOCKET_GripPoint if that socket exists, otherwise to the arms root.
+	// Driven by Hotbar's active slot → inventory HandSlot → this mesh's
+	// static mesh is set from the item definition's WorldMesh.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Visuals")
+	TObjectPtr<UStaticMeshComponent> HeldItemMesh;
 
 	// ── Input ─────────────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -88,6 +101,31 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> LeanRightAction;
 
+	// Drop the currently-held hotbar item. Bind to G (or whatever — must NOT
+	// be Q/E, those are lean).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> DropAction;
+
+	// Toggle the creative item-browser widget. Bind to Tab. The character
+	// fires OnCreativeBrowserToggled; the WBP_CreativeBrowser widget listens
+	// and shows/hides itself.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> CreativeBrowserAction;
+
+	// One action per slot 1..9. The character binds each with the slot
+	// index as a payload so a single OnHotbarSlotInput handler routes them.
+	// Leave entries null to skip wiring a particular slot in C++ (BP can
+	// still drive Hotbar->SelectSlot directly).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TArray<TObjectPtr<UInputAction>> HotbarSlotActions;
+
+	// Mouse-wheel cycle for the hotbar (optional, recommended).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> HotbarNextAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> HotbarPrevAction;
+
 	// ── Config ───────────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	float WalkSpeed = 350.0f;
@@ -124,6 +162,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Character|Events")
 	FOnInteract OnInteract;
 
+	// Fires every time the Tab/CreativeBrowserAction key is pressed. The
+	// browser widget itself owns the open/closed state — it just toggles
+	// on this event.
+	UPROPERTY(BlueprintAssignable, Category = "Character|Events")
+	FOnCreativeBrowserToggled OnCreativeBrowserToggled;
+
 	// ── Interface ────────────────────────────
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void TryInteract();
@@ -157,6 +201,13 @@ public:
 	void OnDied();
 	virtual void OnDied_Implementation();
 
+	// Drop the currently-equipped hotbar item into the world.
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void TryDropHeld();
+
+	UFUNCTION(Server, Reliable)
+	void Server_DropHeld();
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -175,6 +226,16 @@ private:
 	void LeanLeftReleased();
 	void LeanRightPressed();
 	void LeanRightReleased();
+	void OnDropPressed();
+	void OnCreativeBrowserPressed();
+	void OnHotbarSlotInput(int32 SlotIndex);
+	void OnHotbarNext();
+	void OnHotbarPrev();
+
+	// Refresh HeldItemMesh from the inventory's current HandSlot. Subscribed
+	// to inventory OnInventoryChanged in BeginPlay.
+	UFUNCTION()
+	void RefreshHeldItemMesh();
 
 	void ScanForInteractable();
 	TWeakObjectPtr<AActor> CurrentInteractable;
