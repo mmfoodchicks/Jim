@@ -10,6 +10,8 @@
 #include "GameFramework/Actor.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Sound/SoundBase.h"
+#include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 
 UQRWeaponComponent::UQRWeaponComponent()
@@ -24,16 +26,19 @@ UQRWeaponComponent::UQRWeaponComponent()
 		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Muzzle;
 		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Impact;
 		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Tracer;
+		ConstructorHelpers::FObjectFinder<USoundBase>     Shot;
 		FFabFXFinder()
 			: Muzzle(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/MuzzleFlashes/NS_MuzzleFlash.NS_MuzzleFlash"))
 			, Impact(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/Impacts/NS_Impact_Metal.NS_Impact_Metal"))
 			, Tracer(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/Trails/NS_BulletTracer.NS_BulletTracer"))
+			, Shot  (TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Gunshot_1-1_Cue.Gunshot_1-1_Cue"))
 		{}
 	};
 	static FFabFXFinder Finder;
 	if (Finder.Muzzle.Succeeded()) MuzzleFlashFX = Finder.Muzzle.Object;
 	if (Finder.Impact.Succeeded()) ImpactFX     = Finder.Impact.Object;
 	if (Finder.Tracer.Succeeded()) TracerFX     = Finder.Tracer.Object;
+	if (Finder.Shot.Succeeded())   FireSound    = Finder.Shot.Object;
 }
 
 void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -274,5 +279,11 @@ void UQRWeaponComponent::Multicast_PlayFireFX_Implementation(
 		const FVector Delta = HitLoc - MuzzleLoc;
 		const FRotator TracerRot = Delta.Rotation();
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(W, TracerFX, MuzzleLoc, TracerRot);
+	}
+
+	// Weapon fire SFX at the muzzle.
+	if (FireSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(W, FireSound, MuzzleLoc, FireSoundVolume);
 	}
 }

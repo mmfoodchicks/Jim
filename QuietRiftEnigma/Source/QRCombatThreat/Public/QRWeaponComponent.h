@@ -7,6 +7,7 @@
 
 class UQRItemInstance;
 class UNiagaraSystem;
+class USoundBase;
 
 UENUM(BlueprintType)
 enum class EQRWeaponType : uint8
@@ -173,6 +174,16 @@ public:
 	// If empty, the trace's start point is used as a fallback.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
 	FName MuzzleSocketName;
+
+	// Fire SFX played at the muzzle. Defaults to the Free_Sounds_Pack
+	// Gunshot_1-1; designer can override per-weapon.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	TObjectPtr<USoundBase> FireSound;
+
+	// Volume multiplier on FireSound (1.0 = pack default).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX",
+		meta = (ClampMin = "0", ClampMax = "4"))
+	float FireSoundVolume = 1.0f;
 
 	// ── Runtime State ─────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")

@@ -30,6 +30,7 @@
 #include "Net/UnrealNetwork.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/HitResult.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
 
 AQRCharacter::AQRCharacter()
 {
@@ -207,9 +208,35 @@ void AQRCharacter::Tick(float DeltaTime)
 				const float Interval = FMath::Lerp(FootstepWalkInterval, FootstepSprintInterval, SpeedAlpha);
 				const float Vol      = FootstepVolumeMult * FMath::Lerp(0.6f, 1.0f, SpeedAlpha);
 
+				const float HalfH = GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
 				FVector FootLoc = GetActorLocation();
-				FootLoc.Z -= GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
-				QRUISound::PlayFootstep(this, FootLoc, Vol);
+				FootLoc.Z -= HalfH;
+
+				// Surface detection: short line trace from feet downward,
+				// read the hit's physical material, map to our footstep
+				// surface enum. No PhysMat → falls back to Concrete inside
+				// QRUISound::SurfaceFromPhysMat.
+				EQRFootSurface Surface = EQRFootSurface::Concrete;
+				FHitResult Hit;
+				FCollisionQueryParams Params(SCENE_QUERY_STAT(QRFootstepTrace), /*bComplex*/ true);
+				Params.AddIgnoredActor(this);
+				Params.bReturnPhysicalMaterial = true;
+				const FVector TraceStart = GetActorLocation();
+				const FVector TraceEnd   = TraceStart - FVector(0, 0, HalfH + 30.0f);
+				if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params))
+				{
+					if (UPhysicalMaterial* PM = Hit.PhysMaterial.Get())
+					{
+						Surface = QRUISound::SurfaceFromPhysMat(static_cast<uint8>(PM->SurfaceType));
+					}
+				}
+
+				// Gait selection — walk for slow, jog mid, run fast.
+				EQRFootGait Gait = EQRFootGait::Walk;
+				if (SpeedAlpha > 0.66f)      Gait = EQRFootGait::Run;
+				else if (SpeedAlpha > 0.33f) Gait = EQRFootGait::Jog;
+
+				QRUISound::PlayFootstep(this, FootLoc, Surface, Gait, Vol);
 
 				FootstepTimer = Interval;
 			}
