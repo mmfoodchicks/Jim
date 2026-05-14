@@ -21,7 +21,6 @@ __pycache__/
 # These live on disk for development reference but stay out of git.
 # Re-track individual subdirs explicitly if you need a specific asset
 # from a pack to ship with the project.
-QuietRiftEnigma/Content/Fabs/
 
 # ── OS junk ──
 .DS_Store

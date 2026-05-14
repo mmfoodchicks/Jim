@@ -6,6 +6,7 @@
 #include "QRWeaponComponent.generated.h"
 
 class UQRItemInstance;
+class UNiagaraSystem;
 
 UENUM(BlueprintType)
 enum class EQRWeaponType : uint8
@@ -31,6 +32,25 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWeaponFired,   AActor*, Target, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWeaponJammed);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWeaponReloaded);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAmmoChanged, int32, Remaining);
+
+// Result of a trace-fire pass. Tells the firer how to apply the recoil.
+USTRUCT(BlueprintType)
+struct QRCOMBATTHREAT_API FQRFireResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly) bool bFired = false;
+	UPROPERTY(BlueprintReadOnly) bool bHitSomething = false;
+	UPROPERTY(BlueprintReadOnly) TObjectPtr<AActor> HitActor = nullptr;
+	UPROPERTY(BlueprintReadOnly) FVector HitLocation = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly) FVector HitNormal = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly) float Damage = 0.0f;
+	UPROPERTY(BlueprintReadOnly) float DistanceMeters = 0.0f;
+
+	// How much pitch / yaw to apply to the firer's view as kick.
+	UPROPERTY(BlueprintReadOnly) float RecoilPitch = 0.0f;
+	UPROPERTY(BlueprintReadOnly) float RecoilYaw = 0.0f;
+};
 
 // Handles weapon logic: firing, jamming, fouling, noise generation, reloading
 UCLASS(ClassGroup=(QuietRift), meta=(BlueprintSpawnableComponent))
@@ -91,6 +111,69 @@ public:
 		meta = (ClampMin = "0"))
 	float MalfunctionClearSeconds = 4.0f;
 
+	// ── Spread + recoil (trace-fire tuning) ─
+	// Base cone half-angle in degrees applied to every shot. Aim-down-
+	// sights cuts spread; hip-fire / moving / fouling multiply it.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aiming",
+		meta = (ClampMin = "0", ClampMax = "30"))
+	float BaseSpreadDegrees = 1.0f;
+
+	// Spread multiplier when NOT aiming down sights (hip fire).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aiming",
+		meta = (ClampMin = "1", ClampMax = "10"))
+	float HipFireSpreadMult = 3.0f;
+
+	// Additional spread multiplier while the firer is moving.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aiming",
+		meta = (ClampMin = "1", ClampMax = "5"))
+	float MovingSpreadMult = 1.8f;
+
+	// Additional spread multiplier at full fouling (FoulingFactor == 1.0).
+	// Linearly interpolated between 1.0 and this value by FoulingFactor.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aiming",
+		meta = (ClampMin = "1", ClampMax = "5"))
+	float FoulingSpreadMult = 2.0f;
+
+	// Trace range in meters before the shot is considered a miss into
+	// the void. 500m covers all in-game engagement distances; raise for
+	// the long-range sniper, lower for shotgun.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aiming",
+		meta = (ClampMin = "10", ClampMax = "2000"))
+	float MaxRangeMeters = 500.0f;
+
+	// Recoil applied to the firer's controller (degrees).
+	// Pitch is always up. Yaw is randomly +/-.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aiming",
+		meta = (ClampMin = "0", ClampMax = "15"))
+	float RecoilPitch = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Aiming",
+		meta = (ClampMin = "0", ClampMax = "15"))
+	float RecoilYawRandomRange = 0.5f;
+
+	// ── FX ───────────────────────────────────
+	// Spawned at the muzzle on each successful fire. Defaults to the
+	// NiagaraExamples MuzzleFlash if the Fab pack is present; designer
+	// can override per-weapon.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	TObjectPtr<UNiagaraSystem> MuzzleFlashFX;
+
+	// Spawned at the trace's impact point on a hit, oriented to the hit
+	// normal. NS_Impact_Metal by default — surface-specific impacts
+	// (concrete / wood / glass) can be wired by inspecting the hit
+	// physical material later.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	TObjectPtr<UNiagaraSystem> ImpactFX;
+
+	// Optional tracer ribbon spawned from muzzle toward the hit point.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	TObjectPtr<UNiagaraSystem> TracerFX;
+
+	// Socket name on the held weapon mesh used as the muzzle origin.
+	// If empty, the trace's start point is used as a fallback.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|FX")
+	FName MuzzleSocketName;
+
 	// ── Runtime State ─────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Weapon")
 	EQRWeaponState WeaponState = EQRWeaponState::Holstered;
@@ -127,6 +210,21 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Weapon")
 	bool TryFire(AActor* Target, UQRItemInstance* AmmoInstance);
 
+	// Trace-fire from a ray. Used by the player's FP camera path —
+	// caller passes the camera's location + forward, and we run a
+	// line trace through the world with spread offset applied, then
+	// (on hit) call the standard TryFire path with the hit actor.
+	// Returns a result struct with hit info and recoil deltas the
+	// caller should apply to its controller.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Weapon")
+	FQRFireResult TryFireFromTrace(FVector TraceStart, FVector TraceForward,
+		bool bIsAimed, bool bIsMoving, UQRItemInstance* AmmoInstance);
+
+	// Compute the current spread cone half-angle in degrees, taking ADS,
+	// movement, and fouling into account.
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	float GetEffectiveSpreadDegrees(bool bIsAimed, bool bIsMoving) const;
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Weapon")
 	void BeginReload();
 
@@ -155,6 +253,12 @@ public:
 	// v1.17: True when jammed or state is Empty/Reloading
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	bool IsReadyToFire() const { return !bIsJammed && WeaponState == EQRWeaponState::Ready && CurrentAmmo > 0; }
+
+	// Plays the muzzle / impact / tracer FX on every client. Called from
+	// TryFireFromTrace on the authority. Unreliable — losing one cosmetic
+	// burst is fine.
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayFireFX(FVector MuzzleLoc, FVector HitLoc, FVector HitNormal, bool bHit);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

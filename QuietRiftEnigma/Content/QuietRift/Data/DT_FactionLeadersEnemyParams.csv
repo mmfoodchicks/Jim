@@ -1,3 +1,13 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:793b0a0c4860d45f2b7c7b761dc98b635ebadf844da2c725fa00e15d8d6d6ef8
-size 2816
+FactionLeaders_Enemy_Params,,,,,,,
+,,,,,,,
+FactionLeaderTemplateId,FactionArchetype,ExperienceBand,StatRange,CompassProfile,RaidBehavior,FailurePattern,PlayerInteraction
+FLT_RAIDER_BOSS_GREEN,Raider Splinter,Inexperienced,"L 2-4, S 3-6, COM 3-5","Aggression high, Caution low, Opportunism high","Loud frontal raid, poor exfil, overcommits after first breach",Breaks if casualties >25% or leader injured,Can be discredited by food/mercy choice
+FLT_RAIDER_BOSS_HARDENED,Raider Splinter,Experienced,"L 6-8, S 6-9, COM 5-8","Aggression high, Caution medium, Opportunism high","Scouts pantry/armory/power, uses decoy, retreats with stolen goods","Falls back at objective success, not body count",Capture/kill reduces raid cadence
+FLT_SECURITY_COMMANDER_GREEN,Security Junta,Inexperienced,"L 3-5, S 5-7, COM 4-6","Discipline high, Mercy low, Caution medium","Rigid patrol, predictable breach, over-punishes prisoners",Morale brittle if authority challenged,Can escalate diplomacy needlessly
+FLT_SECURITY_COMMANDER_VETERAN,Security Junta,Experienced,"L 7-9, S 7-10, COM 7-9","Discipline high, Caution high, Opportunism medium","Phased raid, suppressive fire, armory target, secured withdrawal",Will negotiate if strength shown,Powerful ally/enemy
+FLT_SCIENCE_DIRECTOR,Science Directorate,Experienced,"L 6-9, S 7-10 Research, COM 4-8","Science high, Mercy variable, RemnantCuriosity high",Avoids direct raid; sends scouts/saboteurs for samples/data,Panics if experiment exposed,"Rewards services/data access, not random gear"
+FLT_ENGINEER_FOREMAN,Engineer Compact,Experienced,"L 5-8, S 7-10 Engineer, COM 5-8","Infrastructure high, Security medium",Targets tools/power routes; fortifies outposts fast,Withdraws if parts objective achieved,Strong trade/service logic
+FLT_SCAVENGER_SPEAKER,Free Scavengers,Variable,"L 3-8, S mixed, COM 4-9","Autonomy high, Extraction medium, Mercy variable","Prefers race, theft, bargaining, ambush avoidance",Splits if bossy terms imposed,Can become contractor ally
+FLT_HOLDFAST_ELDER,Isolationist Holdfast,Experienced,"L 6-9, S Civic/Medical 5-8, COM 7-10","Isolation high, Compassion internal-only",Avoids raids; denies entry; strong defensive posture,Trade possible through quarantine proof,Can become medical ally
+FLT_REMNANT_PROPHET,Remnant-Touched Cell,Experienced/Unstable,"L 5-9, S Research/Military 5-9, COM volatile","RemnantCuriosity extreme, Compassion low/warped","Uses site hazards, captives, relay tricks; not manpower-heavy",Collapses if D proof breaks belief,Danger is ideology + site control
+FLT_COMMONWEALTH_ORGANIZER,Commonwealth Camp,Experienced,"L 5-9, S Civic/Farm/Medical 5-8, COM 5-9","Compassion high, Security moderate, Science moderate","Rarely raids; escorts, rescues, mutual defense",Can fracture under scarcity,Ally path focused on shared systems

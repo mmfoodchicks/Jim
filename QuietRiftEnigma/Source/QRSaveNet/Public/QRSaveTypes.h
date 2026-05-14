@@ -196,6 +196,11 @@ struct QRSAVENET_API FQRGameSaveData
 	// World delta
 	UPROPERTY() TArray<FQRChunkDelta> ChunkDeltas;
 
+	// Loot persistence — GUIDs of containers the player has already looted.
+	// UQRLootedRegistry exports/imports this set on save / load so emptied
+	// containers stay empty across reloads.
+	UPROPERTY() TArray<FGuid> LootedContainerIds;
+
 	// Faction data
 	UPROPERTY() TMap<FName, float> FactionTrustScores;
 };
