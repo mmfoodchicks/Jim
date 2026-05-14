@@ -60,10 +60,44 @@ void AQRGameMode::BeginPlay()
 		SaveSystem->OnLoadComplete.AddUObject(this, &AQRGameMode::HandleLoadComplete);
 		SaveSystem->LoadGame(AutosaveSlotName);
 	}
+
+	// Periodic background autosave. Disabled if AutosaveIntervalSeconds
+	// is 0 — manual + lifecycle saves still work.
+	if (AutosaveIntervalSeconds > 0.0f)
+	{
+		GetWorldTimerManager().SetTimer(
+			AutosaveTimerHandle,
+			this, &AQRGameMode::HandleAutosaveTick,
+			AutosaveIntervalSeconds,
+			/*bLoop*/ true,
+			/*FirstDelay*/ AutosaveIntervalSeconds);
+	}
+}
+
+void AQRGameMode::HandleAutosaveTick()
+{
+	UE_LOG(LogTemp, Log, TEXT("[QR] Periodic autosave triggered"));
+	QuickSave();
+}
+
+void AQRGameMode::Logout(AController* Exiting)
+{
+	// In listen-server / dedicated co-op, save the world snapshot when
+	// any player exits so their progress isn't lost if the host quits
+	// next. v1 keeps a single shared slot; per-PC slots come later.
+	if (Exiting && Exiting->IsPlayerController())
+	{
+		QuickSave();
+	}
+	Super::Logout(Exiting);
 }
 
 void AQRGameMode::EndPlay(const EEndPlayReason::Type Reason)
 {
+	// Cancel the autosave loop so the destroyed game mode doesn't keep
+	// pulling on a freed timer manager.
+	GetWorldTimerManager().ClearTimer(AutosaveTimerHandle);
+
 	// Autosave on graceful shutdown. Quit / level-travel / PIE-stop
 	// all route through EndPlay, so this gives us a single hook that
 	// covers every "session is ending" path.
@@ -141,6 +175,30 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 			Inv->TryAddByDefinition(Def, FMath::Max(1, Saved.Quantity), Remainder);
 		}
 	}
+
+	// Hand slot restore — pull the matching definition out of inventory
+	// (just re-added above) and equip it. Save struct only carries ItemId
+	// and Quantity, so a fresh-equipped instance is acceptable for v1.
+	if (UQRInventoryComponent* Inv = Player->Inventory)
+	{
+		if (PendingLoadedData.PlayerInventory.bHasHandSlot)
+		{
+			const FName HandId = PendingLoadedData.PlayerInventory.HandSlot.ItemId;
+			for (UQRItemInstance* Inst : Inv->Items)
+			{
+				if (Inst && Inst->Definition && Inst->Definition->ItemId == HandId)
+				{
+					Inv->TryEquipToHandSlot(Inst);
+					break;
+				}
+			}
+		}
+	}
+
+	// Identity (name + pronouns + voice profile). Appearance lives on
+	// the character creator flow and isn't restored mid-session — the
+	// creator runs only at New Game.
+	Player->PlayerIdentity = PendingLoadedData.PlayerIdentity;
 
 	// Move the pawn to the saved location if non-zero. Avoids zeroing
 	// out a freshly-spawned PlayerStart when there's no saved transform.
@@ -241,6 +299,7 @@ void AQRGameMode::QuickSave()
 			Data.PlayerData.SurvivorId    = Player->SurvivorId;
 			Data.PlayerData.WorldLocation = Player->GetActorLocation();
 			Data.PlayerData.bIsAlive      = true;
+			Data.PlayerIdentity           = Player->PlayerIdentity;
 
 			if (UQRSurvivalComponent* Surv = Player->Survival)
 			{

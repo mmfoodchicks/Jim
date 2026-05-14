@@ -24,6 +24,7 @@
 #include "QRCraftingBench.h"
 #include "QRDialogueWidget.h"
 #include "QRBuildPieceSelectorWidget.h"
+#include "QRInventoryGridWidget.h"
 #include "QRGameMode.h"
 #include "QRUISound.h"
 #include "Kismet/GameplayStatics.h"
@@ -85,6 +86,7 @@ AQRCharacter::AQRCharacter()
 	CraftingWidgetClass   = UQRCraftingWidget::StaticClass();
 	DialogueWidgetClass   = UQRDialogueWidget::StaticClass();
 	BuildPieceSelectorClass = UQRBuildPieceSelectorWidget::StaticClass();
+	InventoryGridClass    = UQRInventoryGridWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -320,6 +322,10 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (PauseAction)
 		{
 			EI->BindAction(PauseAction, ETriggerEvent::Started, this, &AQRCharacter::OnPausePressed);
+		}
+		if (InventoryAction)
+		{
+			EI->BindAction(InventoryAction, ETriggerEvent::Started, this, &AQRCharacter::OnInventoryPressed);
 		}
 
 		// Per-slot bindings carry the slot index as a payload, so the same
@@ -654,6 +660,33 @@ void AQRCharacter::DoDropHeld()
 
 void AQRCharacter::OnUseHeldPressed()  { TryUseHeld(true);  }
 void AQRCharacter::OnUseHeldReleased() { TryUseHeld(false); }
+
+void AQRCharacter::OnInventoryPressed()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController()) return;
+
+	// Toggle behavior: close if already open, otherwise mount.
+	if (InventoryGrid && InventoryGrid->IsInViewport())
+	{
+		InventoryGrid->RemoveFromParent();
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
+		return;
+	}
+
+	if (!InventoryGridClass || !Inventory) return;
+	InventoryGrid = CreateWidget<UQRInventoryGridWidget>(PC, InventoryGridClass);
+	if (!InventoryGrid) return;
+
+	InventoryGrid->AddToViewport(/*ZOrder*/ 300);
+	InventoryGrid->Bind(Inventory);
+
+	PC->bShowMouseCursor = true;
+	FInputModeGameAndUI Mode;
+	Mode.SetWidgetToFocus(InventoryGrid->TakeWidget());
+	PC->SetInputMode(Mode);
+}
 
 void AQRCharacter::QR_OpenSettings()
 {

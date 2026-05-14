@@ -99,6 +99,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Save")
 	void QuickLoad();
 
+	// Autosave interval in real seconds. 0 disables the periodic timer
+	// (manual + lifecycle saves still work).
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Save",
+		meta = (ClampMin = "0", ClampMax = "3600"))
+	float AutosaveIntervalSeconds = 300.0f;  // 5 minutes default
+
+	// Slot the autosave / quicksave / quickload all use.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Save")
+	FString AutosaveSlotName = TEXT("QuickSave");
+
 	// Console-callable wrappers so the in-editor "QR.Save" / "QR.Load"
 	// commands fire on whichever AQRGameMode is currently authoritative.
 	UFUNCTION(Exec, Category = "Save")
@@ -146,6 +156,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void Logout(AController* Exiting) override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 private:
@@ -157,4 +168,9 @@ private:
 	bool            bHasPendingLoadedData = false;
 
 	void HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data);
+
+	// Driven by AutosaveIntervalSeconds. Set in BeginPlay, cleared in
+	// EndPlay; fires QuickSave on each tick.
+	FTimerHandle AutosaveTimerHandle;
+	void HandleAutosaveTick();
 };

@@ -142,6 +142,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> PauseAction;
 
+	// I — toggles full inventory grid overlay.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> InventoryAction;
+
 	// Class spawned by Drop when the held item's category is Wildlife.
 	// Defaults to AQRWildlifeActor (static-mesh wanderer).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Items")
@@ -267,6 +271,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<class UQRBuildPieceSelectorWidget> BuildPieceSelectorClass;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRInventoryGridWidget> InventoryGridClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRInventoryGridWidget> InventoryGrid = nullptr;
+
 	// Opens the settings overlay. Routed through ConsoleCommand from
 	// the pause / main menu widgets so they don't take a direct C++
 	// dep on the character.
@@ -325,6 +335,7 @@ private:
 	void OnUseHeldPressed();
 	void OnUseHeldReleased();
 	void OnPausePressed();
+	void OnInventoryPressed();
 
 	// Per-category drop dispatch; runs on the server.
 	void DoDropHeld();
