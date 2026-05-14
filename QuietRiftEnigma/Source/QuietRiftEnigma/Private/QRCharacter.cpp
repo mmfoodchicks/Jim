@@ -6,6 +6,7 @@
 #include "QRDialogueComponent.h"
 #include "QRLootContainerComponent.h"
 #include "QRGameplayTags.h"
+#include "QRFPViewComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -116,6 +117,8 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (InteractAction) EI->BindAction(InteractAction, ETriggerEvent::Started,   this, &AQRCharacter::TryInteract);
 		if (SprintAction)   EI->BindAction(SprintAction,   ETriggerEvent::Started,   this, &AQRCharacter::StartSprint);
 		if (SprintAction)   EI->BindAction(SprintAction,   ETriggerEvent::Completed, this, &AQRCharacter::StopSprint);
+		if (FireAction)     EI->BindAction(FireAction,     ETriggerEvent::Started,   this, &AQRCharacter::TryFireWeapon);
+		if (ReloadAction)   EI->BindAction(ReloadAction,   ETriggerEvent::Started,   this, &AQRCharacter::TryReload);
 	}
 }
 
@@ -198,6 +201,63 @@ void AQRCharacter::TryInteract()
 	}
 
 	OnInteract.Broadcast(CurrentInteractable.Get());
+}
+
+void AQRCharacter::TryFireWeapon()
+{
+	if (!Weapon || !FirstPersonCamera) return;
+
+	const FVector  Start   = FirstPersonCamera->GetComponentLocation();
+	const FVector  Forward = FirstPersonCamera->GetForwardVector();
+	const bool     bMoving = GetVelocity().Size2D() > 50.0f;
+	bool           bAimed  = false;
+	if (UQRFPViewComponent* View = FindComponentByClass<UQRFPViewComponent>())
+	{
+		bAimed = View->IsADS();
+	}
+
+	if (!HasAuthority())
+	{
+		Server_Fire(Start, Forward, bAimed, bMoving);
+		return;
+	}
+
+	const FQRFireResult Result = Weapon->TryFireFromTrace(Start, Forward, bAimed, bMoving, /*AmmoInstance*/ nullptr);
+	if (Result.bFired)
+	{
+		// Apply kick on the firing controller. Pitch is up (negative
+		// camera pitch input in UE convention), yaw is +/- random.
+		AddControllerPitchInput(-Result.RecoilPitch);
+		AddControllerYawInput(Result.RecoilYaw);
+	}
+}
+
+void AQRCharacter::Server_Fire_Implementation(FVector TraceStart, FVector TraceForward,
+	bool bIsAimed, bool bIsMoving)
+{
+	if (!Weapon) return;
+	const FQRFireResult Result = Weapon->TryFireFromTrace(TraceStart, TraceForward, bIsAimed, bIsMoving, nullptr);
+	if (Result.bFired)
+	{
+		AddControllerPitchInput(-Result.RecoilPitch);
+		AddControllerYawInput(Result.RecoilYaw);
+	}
+}
+
+void AQRCharacter::TryReload()
+{
+	if (!Weapon) return;
+	if (!HasAuthority()) { Server_Reload(); return; }
+	Weapon->BeginReload();
+	// FinishReload(NewAmmoCount) is called by the animation/notify after
+	// ReloadTimeSeconds; gameplay code can also call it directly for an
+	// instant reload (debug / cheats). Hooking the animation up to call
+	// FinishReload at the end of the reload pose is a BP-side task.
+}
+
+void AQRCharacter::Server_Reload_Implementation()
+{
+	if (Weapon) Weapon->BeginReload();
 }
 
 void AQRCharacter::Server_Interact_Implementation(AActor* Target)

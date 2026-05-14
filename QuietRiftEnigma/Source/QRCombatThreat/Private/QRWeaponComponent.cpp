@@ -5,6 +5,9 @@
 #include "GameplayTagContainer.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
+#include "Engine/HitResult.h"
+#include "CollisionQueryParams.h"
+#include "GameFramework/Actor.h"
 
 UQRWeaponComponent::UQRWeaponComponent()
 {
@@ -122,4 +125,80 @@ void UQRWeaponComponent::Clean()
 {
 	FoulingFactor = 0.0f;
 	// Cleaning also clears any pre-jam condition (does not clear active jam — use ClearJam first)
+}
+
+float UQRWeaponComponent::GetEffectiveSpreadDegrees(bool bIsAimed, bool bIsMoving) const
+{
+	float Spread = BaseSpreadDegrees;
+	if (!bIsAimed) Spread *= HipFireSpreadMult;
+	if (bIsMoving) Spread *= MovingSpreadMult;
+	// Fouling lerps spread up to FoulingSpreadMult at full fouling.
+	const float FoulMult = FMath::Lerp(1.0f, FoulingSpreadMult, FoulingFactor);
+	Spread *= FoulMult;
+	return Spread;
+}
+
+FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector TraceForward,
+	bool bIsAimed, bool bIsMoving, UQRItemInstance* AmmoInstance)
+{
+	FQRFireResult Result;
+	if (!CanFire()) return Result;
+
+	UWorld* W = GetWorld();
+	if (!W) return Result;
+	if (!TraceForward.Normalize()) return Result;
+
+	// Compute spread-adjusted direction. RandPointInCircle-like approach
+	// using a small uniform offset in the plane perpendicular to forward.
+	const float SpreadDeg = GetEffectiveSpreadDegrees(bIsAimed, bIsMoving);
+	const float SpreadRad = FMath::DegreesToRadians(SpreadDeg);
+	// Sample a random direction inside the spread cone.
+	const float Theta = FMath::FRandRange(0.0f, 2.0f * PI);
+	// sin(spread) for the cone radius at a unit distance, then a random
+	// 0..1 sqrt-distributed magnitude so spread is uniform over area.
+	const float Magnitude = FMath::Sqrt(FMath::FRand()) * FMath::Tan(SpreadRad);
+	// Build orthonormal basis around TraceForward.
+	FVector Right = FVector::CrossProduct(FVector::UpVector, TraceForward);
+	if (!Right.Normalize()) Right = FVector::RightVector;
+	const FVector Up = FVector::CrossProduct(TraceForward, Right);
+	const FVector Offset = (Right * FMath::Cos(Theta) + Up * FMath::Sin(Theta)) * Magnitude;
+	const FVector FinalDir = (TraceForward + Offset).GetSafeNormal();
+
+	const float RangeCm = MaxRangeMeters * 100.0f;
+	const FVector TraceEnd = TraceStart + FinalDir * RangeCm;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(QRWeaponFire), /*bTraceComplex*/ false);
+	// Ignore the weapon's owner so the player doesn't shoot themselves.
+	if (AActor* MyOwner = GetOwner()) Params.AddIgnoredActor(MyOwner);
+	const bool bHit = W->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+
+	AActor* HitActor = bHit ? Hit.GetActor() : nullptr;
+
+	// Delegate to the standard TryFire path for damage / fouling / state
+	// transitions. We pass HitActor so it applies damage via the survival
+	// component as it already does; if HitActor is null this is just a
+	// "fire into the air" which still consumes ammo + ages the weapon.
+	const bool bFired = TryFire(HitActor, AmmoInstance);
+
+	Result.bFired = bFired;
+	if (!bFired)
+	{
+		// TryFire might have produced a jam — recoil shouldn't apply then.
+		return Result;
+	}
+
+	Result.bHitSomething = bHit;
+	Result.HitActor      = HitActor;
+	Result.HitLocation   = bHit ? Hit.ImpactPoint  : TraceEnd;
+	Result.HitNormal     = bHit ? Hit.ImpactNormal : -FinalDir;
+	Result.DistanceMeters = bHit ? (Hit.Distance / 100.0f) : MaxRangeMeters;
+	Result.Damage         = ComputeEffectiveDamage(Result.DistanceMeters);
+
+	// Recoil — aimed shots get reduced kick. Standard FPS feel.
+	const float AimMult = bIsAimed ? 0.5f : 1.0f;
+	Result.RecoilPitch = RecoilPitch * AimMult;
+	Result.RecoilYaw   = FMath::FRandRange(-RecoilYawRandomRange, RecoilYawRandomRange) * AimMult;
+
+	return Result;
 }

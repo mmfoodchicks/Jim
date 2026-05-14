@@ -117,6 +117,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void TryInteract();
 
+	// Fire the equipped weapon along the camera forward vector. Local
+	// caller (input event); routes through Server_Fire on a client.
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void TryFireWeapon();
+
+	UFUNCTION(Server, Reliable)
+	void Server_Fire(FVector TraceStart, FVector TraceForward, bool bIsAimed, bool bIsMoving);
+
+	// Begin reloading the equipped weapon.
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void TryReload();
+
+	UFUNCTION(Server, Reliable)
+	void Server_Reload();
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Character")
 	void SetSprinting(bool bSprint);
 
