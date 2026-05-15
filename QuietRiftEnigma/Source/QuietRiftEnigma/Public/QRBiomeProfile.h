@@ -8,15 +8,31 @@
 class UMaterialInterface;
 
 /**
+ * Depth band the biome belongs to in the Master GDD §4 progression.
+ * Drives palette progression for trees and predator difficulty:
+ *   Surface (Tier 1) — Glassbark, beginner-friendly, readable sightlines
+ *   Mid     (Tier 2) — Velvetspine / Slagroot, more vertical / damp
+ *   Deep    (Tier 3) — Asterbark, premium resources, hostile remnants
+ *   Remnant (Tier 4) — innermost ring around the Rift, Concordat
+ *                       Fanatic-tier guard, Resonance Chamber sites
+ */
+UENUM(BlueprintType)
+enum class EQRDepthBand : uint8
+{
+	Surface  UMETA(DisplayName = "Surface (Tier 1)"),
+	Mid      UMETA(DisplayName = "Mid (Tier 2)"),
+	Deep     UMETA(DisplayName = "Deep (Tier 3)"),
+	Remnant  UMETA(DisplayName = "Remnant (Tier 4)"),
+};
+
+/**
  * Designer-authored biome description. Holds the scatter palette,
  * density rules, and the landscape material that paints the terrain
  * underneath. AQRProceduralScatterActor reads this when set so multiple
  * scatter volumes can share a single source of truth per biome.
  *
- * Save these as UDataAsset assets at /Game/QuietRift/Data/Biomes/.
- * The Python script qr_seed_biome_profiles.py creates three starter
- * profiles (Alien Jungle, Polar Tundra, Desert Sand) with palettes
- * pulled from the relevant Fab packs.
+ * The canonical 14 biomes (Master GDD §4) are seeded by
+ * qr_seed_biome_profiles.py and live at /Game/QuietRift/Data/Biomes/.
  */
 UCLASS(BlueprintType)
 class QUIETRIFTENIGMA_API UQRBiomeProfile : public UDataAsset
@@ -31,6 +47,13 @@ public:
 	// Optional tag a designer can use to gate spawning, weather, music.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Biome")
 	FName BiomeTag;
+
+	// Depth band per Master GDD §4. Drives flora/fauna progression —
+	// surface biomes use Tier 1 trees (Glassbark), deep biomes use
+	// Tier 3 (Asterbark), Remnant zones tighten predator density and
+	// activate wake-state hazards.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Biome")
+	EQRDepthBand DepthBand = EQRDepthBand::Surface;
 
 	// Scatter palette for this biome. Same struct
 	// AQRProceduralScatterActor::Palette uses, so a profile is a
