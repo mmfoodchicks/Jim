@@ -74,6 +74,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Spawner|Wrecks")
 	TMap<FName, FQRCrashLootTemplate> CrashLootTemplates;
 
+	// Optional POI archetype DataTable (rows of FQRPOIArchetypeRow).
+	// When set, overrides the hardcoded archetype-id → ActorClass map
+	// and the corresponding LootTemplate per archetype. Lets designers
+	// add new archetypes (caves variants, faction lookouts, etc.)
+	// without recompiling C++.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Spawner|Archetypes")
+	TObjectPtr<class UDataTable> POIArchetypeTable;
+
 	// ── Tunables ──────────────────────────────────────────────────
 
 	// Approximate animals per square kilometer per biome. Multiplied
@@ -105,8 +113,22 @@ public:
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "QR|Spawner|Sections")
 	void SpawnCavesOnly();
 
+	// ── Remnant escalation ────────────────────────────────────────
+	// Rift-family tech node ids that bump every spawned RemnantSite
+	// to the next wake state when unlocked by UQRResearchComponent.
+	// Order matters — first id unlocks Stirring, second Active, etc.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Spawner|Remnants")
+	TArray<FName> RiftTechNodeProgression;
+
+	// Force-set every live AQRRemnantSite to the same wake state.
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "QR|Spawner|Remnants")
+	void BumpAllRemnantsToState(EQRRemnantWakeState NewState);
+
 protected:
 	virtual void BeginPlay() override;
+
+	UFUNCTION()
+	void HandleTechUnlocked(FName TechNodeId);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Spawner")
 	bool bSpawnOnBeginPlay = false;

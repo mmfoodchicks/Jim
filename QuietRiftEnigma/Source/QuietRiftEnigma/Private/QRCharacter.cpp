@@ -25,6 +25,10 @@
 #include "QRDialogueWidget.h"
 #include "QRBuildPieceSelectorWidget.h"
 #include "QRInventoryGridWidget.h"
+#include "QRBiomeProfile.h"
+#include "QRWorldGenSubsystem.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundBase.h"
 #include "QRGameMode.h"
 #include "QRUISound.h"
 #include "Kismet/GameplayStatics.h"
@@ -101,9 +105,16 @@ AQRCharacter::AQRCharacter()
 	Survival  = CreateDefaultSubobject<UQRSurvivalComponent>(TEXT("Survival"));
 	Weapon    = CreateDefaultSubobject<UQRWeaponComponent>(TEXT("Weapon"));
 	Faction   = CreateDefaultSubobject<UQRFactionComponent>(TEXT("Faction"));
-	Vault     = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
-	Hotbar    = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
-	Build     = CreateDefaultSubobject<UQRBuildModeComponent>(TEXT("Build"));
+	Vault         = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
+	Hotbar        = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
+	Build         = CreateDefaultSubobject<UQRBuildModeComponent>(TEXT("Build"));
+	BiomeAmbient  = CreateDefaultSubobject<UAudioComponent>(TEXT("BiomeAmbient"));
+	if (BiomeAmbient)
+	{
+		BiomeAmbient->SetupAttachment(RootComponent);
+		BiomeAmbient->bAutoActivate = false;
+		BiomeAmbient->VolumeMultiplier = 0.5f;
+	}
 
 	WildlifeActorClass = AQRWildlifeActor::StaticClass();
 
@@ -285,6 +296,37 @@ void AQRCharacter::Tick(float DeltaTime)
 		{
 			// Reset so the first step after standing still doesn't fire instantly.
 			FootstepTimer = 0.0f;
+		}
+
+		// Biome poll — once per second, query the worldgen subsystem at
+		// our current position. If a manually-placed zone is already
+		// active, defer to it (ActiveBiomeStack non-empty).
+		BiomePollAccum += DeltaTime;
+		if (BiomePollAccum >= 1.0f && ActiveBiomeStack.Num() == 0)
+		{
+			BiomePollAccum = 0.0f;
+			if (UWorld* W = GetWorld())
+			{
+				if (UQRWorldGenSubsystem* Sub = W->GetSubsystem<UQRWorldGenSubsystem>())
+				{
+					if (Sub->bGenerated)
+					{
+						const FName Biome = Sub->GetBiomeAt(GetActorLocation());
+						if (Biome != ActiveBiomeName)
+						{
+							// Look up the BP_<biome> data asset under the
+							// canonical path and swap ambient if found.
+							const FString AssetPath = FString::Printf(
+								TEXT("/Game/QuietRift/Data/Biomes/BP_%s.BP_%s"),
+								*Biome.ToString(), *Biome.ToString());
+							if (UQRBiomeProfile* Profile = LoadObject<UQRBiomeProfile>(nullptr, *AssetPath))
+							{
+								ApplyBiomeProfile(Profile);
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }
@@ -875,5 +917,61 @@ void AQRCharacter::OnDied_Implementation()
 		{
 			GM->HandlePlayerDied(this);
 		}
+	}
+}
+
+// ─── Biome ambient audio ─────────────────────────────────────────────
+
+void AQRCharacter::ApplyBiomeProfile(UQRBiomeProfile* Profile)
+{
+	if (!Profile || !BiomeAmbient) return;
+	if (Profile->BiomeTag == ActiveBiomeName) return;
+	ActiveBiomeName = Profile->BiomeTag;
+
+	USoundBase* Sound = Profile->AmbientLoop.LoadSynchronous();
+	BiomeAmbient->Stop();
+	if (Sound)
+	{
+		BiomeAmbient->SetSound(Sound);
+		BiomeAmbient->Play();
+	}
+}
+
+void AQRCharacter::OnBiomeZoneEnter(UQRBiomeProfile* Profile, int32 Priority)
+{
+	if (!Profile) return;
+	ActiveBiomeStack.Add(Profile);
+	ActiveBiomeStackPriorities.Add(Priority);
+
+	// Highest-priority active zone wins.
+	int32 BestIdx = INDEX_NONE;
+	int32 BestPriority = TNumericLimits<int32>::Min();
+	for (int32 i = 0; i < ActiveBiomeStack.Num(); ++i)
+	{
+		if (ActiveBiomeStack[i].IsValid() && ActiveBiomeStackPriorities[i] > BestPriority)
+		{
+			BestPriority = ActiveBiomeStackPriorities[i];
+			BestIdx = i;
+		}
+	}
+	if (BestIdx != INDEX_NONE) ApplyBiomeProfile(ActiveBiomeStack[BestIdx].Get());
+}
+
+void AQRCharacter::OnBiomeZoneExit(UQRBiomeProfile* Profile, int32 Priority)
+{
+	for (int32 i = ActiveBiomeStack.Num() - 1; i >= 0; --i)
+	{
+		if (ActiveBiomeStack[i].Get() == Profile && ActiveBiomeStackPriorities[i] == Priority)
+		{
+			ActiveBiomeStack.RemoveAt(i);
+			ActiveBiomeStackPriorities.RemoveAt(i);
+			break;
+		}
+	}
+
+	// Fall back to worldgen biome at current position (handled on tick).
+	if (ActiveBiomeStack.Num() == 0)
+	{
+		ActiveBiomeName = NAME_None;  // forces tick to re-apply
 	}
 }

@@ -167,3 +167,36 @@ struct QUIETRIFTENIGMA_API FQRCrashLootTemplate
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FQRCrashLootEntry> Entries;
 };
+
+
+/**
+ * DataTable row that describes one POI archetype end-to-end. When the
+ * spawner has a POIArchetypeTable set, it reads these rows instead of
+ * using its hardcoded TMap defaults — designer can author per-project
+ * POI behavior without recompiling.
+ *
+ * RowName matches the archetype id used by UQRWorldGenSubsystem's POI
+ * placements (ArmoryWreck / RemnantSite / FactionSatellite / …).
+ */
+USTRUCT(BlueprintType)
+struct QUIETRIFTENIGMA_API FQRPOIArchetypeRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	// Actor class spawned at each placement of this archetype.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSoftClassPtr<AActor> ActorClass;
+
+	// Optional mesh library — spawner picks one at random per
+	// placement so the same archetype isn't visually identical.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<TSoftObjectPtr<class UStaticMesh>> MeshOptions;
+
+	// For crash-site archetypes, this overrides the hardcoded loot
+	// template. Empty Entries → fall back to spawner default.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FQRCrashLootTemplate LootTemplate;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FText DisplayName;
+};

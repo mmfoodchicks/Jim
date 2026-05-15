@@ -5,6 +5,12 @@
 #include "QRCaveEntrance.h"
 #include "QRWildlifeActor.h"
 #include "QRNPCActor.h"
+#include "QRGameMode.h"
+#include "QRResearchComponent.h"
+#include "GameFramework/GameStateBase.h"
+#include "Engine/DataTable.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "Engine/HitResult.h"
 #include "CollisionQueryParams.h"
@@ -29,6 +35,48 @@ void AQRWorldGenSpawner::BeginPlay()
 {
 	Super::BeginPlay();
 	if (bSpawnOnBeginPlay) SpawnAll();
+
+	// Subscribe to research events so Rift-tier unlocks bump every
+	// spawned RemnantSite to the next wake state.
+	if (AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr)
+	{
+		if (UQRResearchComponent* Research = GM->Research)
+		{
+			Research->OnTechNodeUnlocked.AddDynamic(this, &AQRWorldGenSpawner::HandleTechUnlocked);
+		}
+	}
+}
+
+void AQRWorldGenSpawner::HandleTechUnlocked(FName TechNodeId)
+{
+	const int32 Idx = RiftTechNodeProgression.IndexOfByKey(TechNodeId);
+	if (Idx == INDEX_NONE) return;
+
+	// Map index → wake state. Surface (0) doesn't escalate; first Rift
+	// node bumps Dormant→Stirring (1), second→Active (2), third→Hostile
+	// (3, dangerous!), fourth→Subsiding (4).
+	static const EQRRemnantWakeState States[] = {
+		EQRRemnantWakeState::Stirring,
+		EQRRemnantWakeState::Active,
+		EQRRemnantWakeState::Hostile,
+		EQRRemnantWakeState::Subsiding,
+	};
+	const int32 StateIdx = FMath::Clamp(Idx, 0, UE_ARRAY_COUNT(States) - 1);
+	BumpAllRemnantsToState(States[StateIdx]);
+
+	UE_LOG(LogTemp, Log, TEXT("[QRWorldGenSpawner] Rift research '%s' advanced remnants to state %d"),
+		*TechNodeId.ToString(), static_cast<int32>(States[StateIdx]));
+}
+
+void AQRWorldGenSpawner::BumpAllRemnantsToState(EQRRemnantWakeState NewState)
+{
+	for (TWeakObjectPtr<AActor>& W : SpawnedActors)
+	{
+		if (AQRRemnantSite* R = Cast<AQRRemnantSite>(W.Get()))
+		{
+			R->SetWakeState(NewState);
+		}
+	}
 }
 
 
@@ -188,6 +236,63 @@ void AQRWorldGenSpawner::SpawnPOIs()
 		if (TraceGround(P.WorldLocation, GroundHit)) SpawnLoc = GroundHit;
 		const FRotator Rot(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f);
 
+		// 1. POIArchetypeTable override path — if set and a row matches
+		//    the archetype id, use the table's actor class + loot.
+		UClass*                       OverrideCls    = nullptr;
+		const FQRCrashLootTemplate*   OverrideTemplate = nullptr;
+		UStaticMesh*                  OverrideMesh   = nullptr;
+		if (POIArchetypeTable)
+		{
+			if (FQRPOIArchetypeRow* Row = POIArchetypeTable->FindRow<FQRPOIArchetypeRow>(P.ArchetypeId, TEXT("")))
+			{
+				OverrideCls = Row->ActorClass.LoadSynchronous();
+				if (Row->LootTemplate.Entries.Num() > 0) OverrideTemplate = &Row->LootTemplate;
+				if (Row->MeshOptions.Num() > 0)
+				{
+					const int32 PickIdx = FMath::Abs(GetTypeHash(P.WorldLocation.ToString())) % Row->MeshOptions.Num();
+					OverrideMesh = Row->MeshOptions[PickIdx].LoadSynchronous();
+				}
+			}
+		}
+
+		if (OverrideCls)
+		{
+			if (AActor* A = SpawnAt(OverrideCls, SpawnLoc, Rot))
+			{
+				// Common cases: remnant kind cycling + crash site loot.
+				if (AQRRemnantSite* R = Cast<AQRRemnantSite>(A))
+				{
+					R->Kind = RemnantCycle[RemnantCycleIdx++ % RemnantCycle.Num()];
+				}
+				if (AQRCrashSiteActor* Crash = Cast<AQRCrashSiteActor>(A))
+				{
+					Crash->ArchetypeId = P.ArchetypeId;
+					const int32 LootSeed = Sub->WorldSeed
+						^ GetTypeHash(P.ArchetypeId)
+						^ GetTypeHash(P.WorldLocation.ToString());
+					if (OverrideTemplate)
+					{
+						Crash->PopulateLoot(*OverrideTemplate, LootSeed);
+					}
+					else if (CrashLootTemplates.Contains(P.ArchetypeId))
+					{
+						Crash->PopulateLoot(CrashLootTemplates[P.ArchetypeId], LootSeed);
+					}
+				}
+				// Optional mesh override — assigns to the first
+				// UStaticMeshComponent on the spawned actor.
+				if (OverrideMesh)
+				{
+					if (UStaticMeshComponent* SMC = A->FindComponentByClass<UStaticMeshComponent>())
+					{
+						SMC->SetStaticMesh(OverrideMesh);
+					}
+				}
+			}
+			continue;
+		}
+
+		// 2. Hardcoded fallback path — same logic as before.
 		if (P.ArchetypeId == TEXT("ConcordatCapital") && ConcordatCapitalClass)
 		{
 			SpawnAt(ConcordatCapitalClass, SpawnLoc, Rot);
@@ -214,8 +319,6 @@ void AQRWorldGenSpawner::SpawnPOIs()
 				if (AQRCrashSiteActor* Crash = Cast<AQRCrashSiteActor>(A))
 				{
 					Crash->ArchetypeId = P.ArchetypeId;
-					// Seed the loot roll from world seed + archetype name so
-					// the same wreck always rolls the same contents.
 					const int32 LootSeed = Sub->WorldSeed
 						^ GetTypeHash(P.ArchetypeId)
 						^ GetTypeHash(P.WorldLocation.ToString());

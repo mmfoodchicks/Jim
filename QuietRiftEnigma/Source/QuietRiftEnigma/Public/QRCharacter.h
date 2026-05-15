@@ -348,6 +348,34 @@ private:
 	// grounded, moving characters).
 	float FootstepTimer = 0.0f;
 
+	// ── Biome ambient ─────────────────────────
+	// Played as a looping ambient layer. Swapped when the player moves
+	// between cells with different biomes (or enters/exits an
+	// AQRBiomeZone). Lives on the character so it follows the listener
+	// without needing world placement.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio|Biome")
+	TObjectPtr<class UAudioComponent> BiomeAmbient = nullptr;
+
+	UFUNCTION(BlueprintCallable, Category = "QR|Biome")
+	void OnBiomeZoneEnter(class UQRBiomeProfile* Profile, int32 Priority);
+
+	UFUNCTION(BlueprintCallable, BlueprintCallable, Category = "QR|Biome")
+	void OnBiomeZoneExit(class UQRBiomeProfile* Profile, int32 Priority);
+
+	// Last biome name we activated audio for, so we only swap when it
+	// actually changes.
+	FName ActiveBiomeName;
+
+	// Stack of overlapping zones, highest priority wins.
+	UPROPERTY()
+	TArray<TWeakObjectPtr<class UQRBiomeProfile>> ActiveBiomeStack;
+	TArray<int32> ActiveBiomeStackPriorities;
+
+	float BiomePollAccum = 0.0f;
+
+	// Apply a biome profile (swap ambient audio, set active name).
+	void ApplyBiomeProfile(class UQRBiomeProfile* Profile);
+
 	// Last observed health value — used by HandleHealthChanged to detect
 	// damage (drop) vs healing (rise) so we only play the hit SFX on hits.
 	float LastObservedHealth = 100.0f;
