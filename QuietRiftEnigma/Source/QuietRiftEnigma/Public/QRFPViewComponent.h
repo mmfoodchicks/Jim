@@ -52,6 +52,20 @@ public:
 		meta = (ClampMin = "20", ClampMax = "90"))
 	float ADSFOV = 65.0f;
 
+	// FOV when ADSing with a long-range scope equipped (~4× magnification).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
+		meta = (ClampMin = "5", ClampMax = "60"))
+	float ScopeFOV = 20.0f;
+
+	// True while the held weapon carries a scope attachment. Set by
+	// AQRCharacter when the active hand-slot item changes. ADS while
+	// this is true uses ScopeFOV + shows the scope overlay widget.
+	UPROPERTY(BlueprintReadOnly, Category = "FP View")
+	bool bScopeAvailable = false;
+
+	UFUNCTION(BlueprintCallable, Category = "FP View")
+	void SetScopeAvailable(bool bHasScope);
+
 	// How fast FOV interpolates between states (units = lerp speed; ~6 is snappy).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
 		meta = (ClampMin = "0.5", ClampMax = "30"))

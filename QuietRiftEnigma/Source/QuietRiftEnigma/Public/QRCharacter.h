@@ -146,6 +146,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InventoryAction;
 
+	// K — toggles the Codex (discovery / lore) screen.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> CodexAction;
+
 	// Class spawned by Drop when the held item's category is Wildlife.
 	// Defaults to AQRWildlifeActor (static-mesh wanderer).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Items")
@@ -277,6 +281,18 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UQRInventoryGridWidget> InventoryGrid = nullptr;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRCodexWidget> CodexWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRCodexWidget> CodexWidget = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRScopeOverlayWidget> ScopeOverlayClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRScopeOverlayWidget> ScopeOverlay = nullptr;
+
 	// Opens the settings overlay. Routed through ConsoleCommand from
 	// the pause / main menu widgets so they don't take a direct C++
 	// dep on the character.
@@ -336,6 +352,7 @@ private:
 	void OnUseHeldReleased();
 	void OnPausePressed();
 	void OnInventoryPressed();
+	void OnCodexPressed();
 
 	// Per-category drop dispatch; runs on the server.
 	void DoDropHeld();

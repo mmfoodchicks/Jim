@@ -2,10 +2,12 @@
 #include "QRItemDefinition.h"
 #include "QRItemInstance.h"
 #include "QRInventoryComponent.h"
+#include "QRCodexSubsystem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
 
 AQRWorldItem::AQRWorldItem()
@@ -94,6 +96,16 @@ bool AQRWorldItem::TryPickup(AActor* Picker)
 	{
 		Quantity = Remainder;
 		return false;
+	}
+
+	// Codex: record pickup so the discovery tracker advances.
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->Record(Def->ItemId, TEXT("Item"), Def->DisplayName,
+				EQRCodexDiscoveryState::Sampled);
+		}
 	}
 
 	Destroy();

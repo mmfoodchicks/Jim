@@ -99,9 +99,11 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 	// ── 1. FOV blend ────────────────────────────
 	// ADS wins over sprint (you can't aim while sprinting in most games anyway).
+	// Scope tier wins over regular ADS when bScopeAvailable is true.
 	float TargetFOV = BaseFOV;
-	if (bIsADS)        TargetFOV = ADSFOV;
-	else if (bSprinting) TargetFOV = SprintFOV;
+	if (bIsADS && bScopeAvailable) TargetFOV = ScopeFOV;
+	else if (bIsADS)               TargetFOV = ADSFOV;
+	else if (bSprinting)           TargetFOV = SprintFOV;
 
 	const float NewFOV = FMath::FInterpTo(CameraTarget->FieldOfView, TargetFOV,
 	                                        DeltaTime, FOVInterpSpeed);
@@ -188,4 +190,10 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	}
 
 	CameraTarget->SetRelativeLocation(RelLoc);
+}
+
+
+void UQRFPViewComponent::SetScopeAvailable(bool bHasScope)
+{
+	bScopeAvailable = bHasScope;
 }

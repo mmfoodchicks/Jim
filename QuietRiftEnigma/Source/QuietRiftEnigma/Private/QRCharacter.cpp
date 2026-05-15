@@ -27,6 +27,9 @@
 #include "QRInventoryGridWidget.h"
 #include "QRBiomeProfile.h"
 #include "QRWorldGenSubsystem.h"
+#include "QRCodexSubsystem.h"
+#include "QRCodexWidget.h"
+#include "QRScopeOverlayWidget.h"
 #include "Components/AudioComponent.h"
 #include "Sound/SoundBase.h"
 #include "QRGameMode.h"
@@ -91,6 +94,8 @@ AQRCharacter::AQRCharacter()
 	DialogueWidgetClass   = UQRDialogueWidget::StaticClass();
 	BuildPieceSelectorClass = UQRBuildPieceSelectorWidget::StaticClass();
 	InventoryGridClass    = UQRInventoryGridWidget::StaticClass();
+	CodexWidgetClass      = UQRCodexWidget::StaticClass();
+	ScopeOverlayClass     = UQRScopeOverlayWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -202,6 +207,15 @@ void AQRCharacter::BeginPlay()
 			{
 				VitalsHUD->AddToViewport(/*ZOrder*/ 10);
 				VitalsHUD->Bind(Survival);
+			}
+		}
+		if (ScopeOverlayClass && CachedView)
+		{
+			ScopeOverlay = CreateWidget<UQRScopeOverlayWidget>(LocalPC, ScopeOverlayClass);
+			if (ScopeOverlay)
+			{
+				ScopeOverlay->AddToViewport(/*ZOrder*/ 400);
+				ScopeOverlay->Bind(CachedView);
 			}
 		}
 	}
@@ -368,6 +382,10 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (InventoryAction)
 		{
 			EI->BindAction(InventoryAction, ETriggerEvent::Started, this, &AQRCharacter::OnInventoryPressed);
+		}
+		if (CodexAction)
+		{
+			EI->BindAction(CodexAction, ETriggerEvent::Started, this, &AQRCharacter::OnCodexPressed);
 		}
 
 		// Per-slot bindings carry the slot index as a payload, so the same
@@ -730,6 +748,30 @@ void AQRCharacter::OnInventoryPressed()
 	PC->SetInputMode(Mode);
 }
 
+void AQRCharacter::OnCodexPressed()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController()) return;
+
+	if (CodexWidget && CodexWidget->IsInViewport())
+	{
+		CodexWidget->RemoveFromParent();
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
+		return;
+	}
+
+	if (!CodexWidgetClass) return;
+	CodexWidget = CreateWidget<UQRCodexWidget>(PC, CodexWidgetClass);
+	if (!CodexWidget) return;
+	CodexWidget->AddToViewport(/*ZOrder*/ 350);
+
+	PC->bShowMouseCursor = true;
+	FInputModeGameAndUI Mode;
+	Mode.SetWidgetToFocus(CodexWidget->TakeWidget());
+	PC->SetInputMode(Mode);
+}
+
 void AQRCharacter::QR_OpenSettings()
 {
 	if (!SettingsWidgetClass) return;
@@ -885,6 +927,19 @@ void AQRCharacter::RefreshHeldItemMesh()
 
 	HeldItemMesh->SetStaticMesh(TargetMesh);
 	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
+
+	// Scope detection — long-range sniper or any weapon with ItemId
+	// containing SNIPER or with a scope attachment in tags. Designer
+	// can override via per-weapon tags later. For now: name-based.
+	bool bHasScope = false;
+	if (Inventory && Inventory->HandSlot && Inventory->HandSlot->Definition)
+	{
+		const FString Id = Inventory->HandSlot->Definition->ItemId.ToString();
+		bHasScope = Id.Contains(TEXT("SNIPER"))
+				 || Id.Contains(TEXT("DMR"))
+				 || Id.Contains(TEXT("SCOPE"));
+	}
+	if (CachedView) CachedView->SetScopeAvailable(bHasScope);
 }
 
 void AQRCharacter::HandleHealthChanged(float NewHealth)
@@ -934,6 +989,16 @@ void AQRCharacter::ApplyBiomeProfile(UQRBiomeProfile* Profile)
 	{
 		BiomeAmbient->SetSound(Sound);
 		BiomeAmbient->Play();
+	}
+
+	// Codex: record biome on first contact.
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->Record(Profile->BiomeTag, TEXT("Biome"), Profile->DisplayName,
+				EQRCodexDiscoveryState::Observed);
+		}
 	}
 }
 

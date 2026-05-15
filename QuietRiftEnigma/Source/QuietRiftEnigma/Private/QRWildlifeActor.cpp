@@ -1,6 +1,8 @@
 #include "QRWildlifeActor.h"
 #include "QRCharacter.h"
 #include "QRSurvivalComponent.h"
+#include "QRCodexSubsystem.h"
+#include "QRItemDefinition.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -126,6 +128,24 @@ void AQRWildlifeActor::Tick(float DeltaTime)
 		{
 			AggroTarget = Player;
 			SetState(bIsPredator ? EQRWildlifeState::Stalk : EQRWildlifeState::Flee);
+
+			// Codex: first sighting → record this species as Observed.
+			// AQRWildlifeActor is a subclass of AQRWorldItem so it carries
+			// an ItemId / Definition we can use as the codex key.
+			if (UWorld* W = GetWorld())
+			{
+				if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+				{
+					const FName Id = ItemId.IsNone() && Definition
+						? Definition->ItemId
+						: ItemId;
+					const FText DisplayName = (Definition && !Definition->DisplayName.IsEmpty())
+						? Definition->DisplayName
+						: FText::FromName(Id);
+					Codex->Record(Id, TEXT("Fauna"), DisplayName,
+						EQRCodexDiscoveryState::Observed);
+				}
+			}
 		}
 	}
 
