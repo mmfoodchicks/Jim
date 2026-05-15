@@ -17,6 +17,9 @@
 #include "QRCampSimComponent.h"
 #include "QRSkyManager.h"
 #include "QRWeatherFXManager.h"
+#include "QRWorldGenSubsystem.h"
+#include "QRWorldGenSeedActor.h"
+#include "QRWorldGenSpawner.h"
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
@@ -84,6 +87,42 @@ void AQRGameMode::BeginPlay()
 				WeatherFXManager = GetWorld()->SpawnActor<AQRWeatherFXManager>(WeatherFXManagerClass,
 					FVector::ZeroVector, FRotator::ZeroRotator);
 			}
+		}
+	}
+
+	// Auto-bootstrap the procedural world. Runs ONLY when there's no
+	// pre-existing world-gen actor in the level AND no save to load
+	// (a save means we're resuming a previously-generated world).
+	if (bAutoBootstrapWorld && GetWorld())
+	{
+		// Skip if a designer already placed worldgen actors.
+		bool bExisting = false;
+		for (TActorIterator<AQRWorldGenSeedActor> It(GetWorld()); It; ++It) { bExisting = true; break; }
+		const bool bResumingSave = SaveSystem && SaveSystem->DoesSaveExist(AutosaveSlotName);
+		if (!bExisting && !bResumingSave)
+		{
+			// Spawn seed actor + spawner at origin and run them.
+			AQRWorldGenSeedActor* Seed = GetWorld()->SpawnActor<AQRWorldGenSeedActor>(
+				AQRWorldGenSeedActor::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			AQRWorldGenSpawner* WSpawner = GetWorld()->SpawnActor<AQRWorldGenSpawner>(
+				AQRWorldGenSpawner::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			if (Seed)
+			{
+				Seed->WorldSeed       = BootstrapWorldSeed;
+				Seed->WorldMapSizeKm  = BootstrapMapSizeKm;
+				Seed->CellSizeMeters  = BootstrapCellSizeMeters;
+				Seed->Generate();
+			}
+			if (WSpawner)
+			{
+				WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
+				WSpawner->SpawnAll();
+			}
+			UE_LOG(LogTemp, Log,
+				TEXT("[QRGameMode] auto-bootstrapped world (seed %d, %.0fkm, fauna %.1f/km²)"),
+				BootstrapWorldSeed, BootstrapMapSizeKm, BootstrapFaunaPerKm2);
 		}
 	}
 

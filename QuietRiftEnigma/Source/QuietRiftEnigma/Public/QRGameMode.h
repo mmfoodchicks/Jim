@@ -89,6 +89,36 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "World|Atmosphere")
 	TObjectPtr<class AQRWeatherFXManager> WeatherFXManager;
 
+	// If true, BeginPlay auto-runs the worldgen pipeline + populates
+	// the world if nothing is pre-placed in the level. Lets the game
+	// boot from "New Game" without designer setup. Turn off for hand-
+	// authored levels.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Worldgen")
+	bool bAutoBootstrapWorld = true;
+
+	// Seed used when auto-bootstrapping. Same value = same world
+	// every New Game. Override per-level for designer test scenes.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Worldgen")
+	int32 BootstrapWorldSeed = 1337;
+
+	// World size for the auto-bootstrap path. Defaults to 8 km so the
+	// generated world fits inside the L_DevTest floor + nearby terrain.
+	// Bump to 64 km once you have a Landscape covering the full area.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Worldgen",
+		meta = (ClampMin = "1", ClampMax = "128"))
+	float BootstrapMapSizeKm = 8.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Worldgen",
+		meta = (ClampMin = "32", ClampMax = "1024"))
+	float BootstrapCellSizeMeters = 128.0f;
+
+	// Fauna budget for the auto-bootstrap path. Lower than the
+	// AQRWorldGenSpawner default so first-play isn't a 25k-actor
+	// scatter that stalls the editor.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Worldgen",
+		meta = (ClampMin = "0", ClampMax = "100"))
+	float BootstrapFaunaPerKm2 = 2.0f;
+
 	// ── Session Setup ─────────────────────────
 	// Maximum players this session was created for (set by lobby before travel).
 	// Drives starting NPC count: solo=3, 2p=2, 3p=1, 4p+=0.

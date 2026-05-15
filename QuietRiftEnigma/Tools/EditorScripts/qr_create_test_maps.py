@@ -110,7 +110,10 @@ def build_main_menu():
 # ─── L_DevTest ────────────────────────────────────────────────────────
 
 def _spawn_floor():
-    """Spawn the engine default cube scaled to a 100m × 100m plate at z=0."""
+    """Spawn the engine default cube scaled to an 8 km × 8 km plate at
+    z=0 so AQRGameMode's auto-bootstrap (default 8 km worldgen) has
+    something to ground-trace against. Replace with a real Landscape
+    actor when you're ready for terrain."""
     cube_mesh = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
     if not cube_mesh:
         return
@@ -124,8 +127,9 @@ def _spawn_floor():
 
     smc = actor.static_mesh_component
     smc.set_static_mesh(cube_mesh)
-    # Engine cube is 100cm per side, scale to 10000×10000×100 (= 100m × 100m × 1m).
-    actor.set_actor_scale3d(unreal.Vector(100.0, 100.0, 1.0))
+    # Engine cube is 100cm per side. Scale to 800000×800000×100
+    # (= 8 km × 8 km × 1 m) so the auto-bootstrap world fits.
+    actor.set_actor_scale3d(unreal.Vector(8000.0, 8000.0, 1.0))
     actor.set_actor_label("Floor_DevTest")
 
 
