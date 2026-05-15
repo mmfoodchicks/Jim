@@ -210,19 +210,25 @@ L_MainMenu and L_DevTest are functional but plain.
 
 ---
 
-## Phase 7 — Procedural world generation (Phase WIP)
+## Phase 7 — Procedural world generation
 
-_Coming next once your landscape / world-gen packs are merged in._
+Detailed setup lives in [`PROCEDURAL_WORLD_PLAN.md`](PROCEDURAL_WORLD_PLAN.md).
+Quick checklist:
 
-- [ ] Survey: name the packs you downloaded so I can evaluate them.
-- [ ] Decide between approaches:
-  - PCG (Unreal's built-in procedural content generation) — best
-    for foliage / decoration scatter on a hand-painted landscape.
-  - World Partition + procedural biome streaming — best for an
-    "infinite" world.
-  - Hand-authored landscape + level instances — simplest, least
-    procedural.
-- [ ] (Once packs are surveyed) — script foundation lands here.
+- [ ] Run `qr_seed_biome_profiles.py` — creates three starter
+      `UQRBiomeProfile` data assets (Alien Jungle / Polar Tundra /
+      Desert Sand).
+- [ ] Run `qr_create_proc_world_map.py` — creates `/Game/Maps/L_ProcTest`
+      with a floor + one scatter actor.
+- [ ] Open `L_ProcTest`. Select `ProcScatter_Default`. Details panel
+      → set **BiomeProfile = BP_AlienJungle** → click **Generate**.
+      Verify 500ish scattered plants + rocks appear.
+- [ ] Optional: replace the flat floor with a real Landscape actor
+      painted using MWLandscapeAutoMaterial's master material.
+- [ ] Optional: drop additional scatter actors for other biomes
+      (Polar Tundra, Desert Sand).
+- [ ] Optional: drop ScifiJungle's `BP_PCG_Manager` for dense
+      forest layers alongside the scatter actor.
 
 ---
 

@@ -6,6 +6,7 @@
 
 class UBoxComponent;
 class UStaticMesh;
+class UQRBiomeProfile;
 
 /**
  * One entry in a scatter actor's palette. The Mesh / ActorClass / Tag
@@ -93,7 +94,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|Scatter")
 	TObjectPtr<UBoxComponent> Bounds;
 
-	// Things this scatter can place. Empty palette = no-op.
+	// Optional biome profile data asset. When set, its Palette overrides
+	// the inline Palette below and its Suggested* defaults override
+	// TargetCount / MinSpacing / MaxSlopeDeg if those are left at the
+	// constructor defaults. Multiple scatter actors that share a profile
+	// guarantee a consistent biome look.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter")
+	TObjectPtr<UQRBiomeProfile> BiomeProfile;
+
+	// Things this scatter can place. Ignored if BiomeProfile is set.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter")
 	TArray<FQRScatterEntry> Palette;
 

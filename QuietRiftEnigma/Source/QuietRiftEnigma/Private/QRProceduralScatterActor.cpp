@@ -1,4 +1,5 @@
 #include "QRProceduralScatterActor.h"
+#include "QRBiomeProfile.h"
 #include "Components/BoxComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/World.h"
@@ -45,7 +46,16 @@ void AQRProceduralScatterActor::ClearGenerated()
 void AQRProceduralScatterActor::Generate()
 {
 	UWorld* W = GetWorld();
-	if (!W || Palette.Num() == 0 || !Bounds) return;
+	if (!W || !Bounds) return;
+
+	// Pull palette from BiomeProfile when set so the actor's inline
+	// Palette field can stay empty in the typical case.
+	const TArray<FQRScatterEntry>& EffectivePalette =
+		BiomeProfile && BiomeProfile->Palette.Num() > 0
+			? BiomeProfile->Palette
+			: Palette;
+
+	if (EffectivePalette.Num() == 0) return;
 
 	ClearGenerated();
 
@@ -63,9 +73,22 @@ void AQRProceduralScatterActor::Generate()
 	while (Placed.Num() < TargetCount && Attempts < MaxAttempts)
 	{
 		++Attempts;
-		const int32 PaletteIdx = PickPaletteIndex(Rng);
-		if (PaletteIdx < 0) continue;
-		const FQRScatterEntry& Entry = Palette[PaletteIdx];
+
+		// Re-pick using EffectivePalette so the biome profile path works
+		// without copying the array.
+		float TotalWeight = 0.0f;
+		for (const FQRScatterEntry& E : EffectivePalette) TotalWeight += FMath::Max(0.0f, E.Weight);
+		if (TotalWeight <= 0.0f) break;
+		const float Pick = Rng.FRandRange(0.0f, TotalWeight);
+		float Acc = 0.0f;
+		int32 PaletteIdx = EffectivePalette.Num() - 1;
+		for (int32 i = 0; i < EffectivePalette.Num(); ++i)
+		{
+			Acc += FMath::Max(0.0f, EffectivePalette[i].Weight);
+			if (Pick <= Acc) { PaletteIdx = i; break; }
+		}
+
+		const FQRScatterEntry& Entry = EffectivePalette[PaletteIdx];
 
 		if (TryPlaceOne(Entry, Rng, WorldBox, Placed))
 		{
