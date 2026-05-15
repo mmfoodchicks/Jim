@@ -55,8 +55,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Spawner|Factions")
 	TSubclassOf<AActor> ConcordatCapitalClass;
 
+	// Each FactionSatellite POI placement becomes one of these. Default
+	// is AQRFactionCamp (population/military/leadership sim that grows
+	// + raids autonomously). Designer can swap to a simpler NPC class
+	// for non-strategic camps.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Spawner|Factions")
-	TSubclassOf<AQRNPCActor> FactionSatelliteClass;
+	TSubclassOf<AActor> FactionSatelliteClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Spawner|Fauna")
 	TSubclassOf<AQRWildlifeActor> WildlifeFallbackClass;

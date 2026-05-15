@@ -13,11 +13,14 @@
 #include "QRSurvivalComponent.h"
 #include "QRInventoryComponent.h"
 #include "QRMissionDirector.h"
+#include "QRFactionCamp.h"
+#include "QRCampSimComponent.h"
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -226,6 +229,18 @@ void AQRGameMode::Tick(float DeltaTime)
 	const float GameHoursElapsed = DeltaTime * 24.0f / DayLengthRealSeconds;
 	if (Weather)           Weather->AdvanceByHours(GameHoursElapsed);
 	if (VanguardConcordat) VanguardConcordat->AdvanceTime(GameHoursElapsed);
+
+	// Each AI camp ticks its own sim — grand-strategy style. Camps
+	// grow population, train military, accumulate hostility, and
+	// launch raids independently. The Concordat above is the mega-
+	// faction special-case; these are the regular satellite camps.
+	for (TActorIterator<AQRFactionCamp> It(GetWorld()); It; ++It)
+	{
+		if (AQRFactionCamp* Camp = *It)
+		{
+			if (Camp->Sim) Camp->Sim->AdvanceGameHours(GameHoursElapsed);
+		}
+	}
 
 	float DayProgress = FMath::Fmod(WorldTimeSeconds, DayLengthRealSeconds) / DayLengthRealSeconds;
 	bool bWasNight    = bIsNight;

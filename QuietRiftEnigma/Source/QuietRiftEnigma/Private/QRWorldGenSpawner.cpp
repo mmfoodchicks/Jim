@@ -5,6 +5,8 @@
 #include "QRCaveEntrance.h"
 #include "QRWildlifeActor.h"
 #include "QRNPCActor.h"
+#include "QRFactionCamp.h"
+#include "QRCampSimComponent.h"
 #include "QRGameMode.h"
 #include "QRResearchComponent.h"
 #include "GameFramework/GameStateBase.h"
@@ -26,6 +28,7 @@ AQRWorldGenSpawner::AQRWorldGenSpawner()
 	CrashSiteClass       = AQRCrashSiteActor::StaticClass();
 	CaveEntranceClass    = AQRCaveEntrance::StaticClass();
 	WildlifeFallbackClass = AQRWildlifeActor::StaticClass();
+	FactionSatelliteClass = AQRFactionCamp::StaticClass();
 
 	PopulateDefaultCrashTemplates();
 }
@@ -279,6 +282,18 @@ void AQRWorldGenSpawner::SpawnPOIs()
 						Crash->PopulateLoot(CrashLootTemplates[P.ArchetypeId], LootSeed);
 					}
 				}
+				if (AQRFactionCamp* Camp = Cast<AQRFactionCamp>(A))
+				{
+					const int32 Idx = SpawnedActors.Num();
+					const FString IdStr = FString::Printf(TEXT("Camp_%03d"), Idx);
+					Camp->DisplayName = FText::FromString(IdStr);
+					if (Camp->Sim)
+					{
+						Camp->Sim->CampId = FName(*IdStr);
+						const int32 LeadHash = FMath::Abs(GetTypeHash(P.WorldLocation.ToString()) ^ Sub->WorldSeed);
+						Camp->Sim->FallbackLeadership = (LeadHash % 100) / 10.0f;
+					}
+				}
 				// Optional mesh override — assigns to the first
 				// UStaticMeshComponent on the spawned actor.
 				if (OverrideMesh)
@@ -310,7 +325,27 @@ void AQRWorldGenSpawner::SpawnPOIs()
 		}
 		else if (P.ArchetypeId == TEXT("FactionSatellite") && FactionSatelliteClass)
 		{
-			SpawnAt(FactionSatelliteClass, SpawnLoc, Rot);
+			if (AActor* A = SpawnAt(FactionSatelliteClass, SpawnLoc, Rot))
+			{
+				// Seed each camp's sim with a deterministic but varied
+				// CampId + leadership. Same WorldSeed → same camps.
+				if (AQRFactionCamp* Camp = Cast<AQRFactionCamp>(A))
+				{
+					const int32 Idx = SpawnedActors.Num();  // grows as we spawn
+					const FString IdStr = FString::Printf(TEXT("Camp_%03d"), Idx);
+					Camp->DisplayName = FText::FromString(IdStr);
+					if (Camp->Sim)
+					{
+						Camp->Sim->CampId = FName(*IdStr);
+						// Spread leadership across the camps so some are
+						// dangerous strategists, others rush blindly.
+						// Seeded by world+position so it's deterministic.
+						const int32 LeadHash = FMath::Abs(GetTypeHash(P.WorldLocation.ToString()) ^ Sub->WorldSeed);
+						const float Leadership = (LeadHash % 100) / 10.0f;  // 0..10
+						Camp->Sim->FallbackLeadership = Leadership;
+					}
+				}
+			}
 		}
 		else if (CrashSiteClass && CrashLootTemplates.Contains(P.ArchetypeId))
 		{
