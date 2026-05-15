@@ -99,3 +99,71 @@ struct QUIETRIFTENIGMA_API FQRBiomeBandPool
 	// weighted Voronoi-like distribution on macro noise.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FName> Biomes;
 };
+
+
+/**
+ * Remnant wake state per Master GDD §13 / GAME_OVERVIEW.md.
+ * AQRRemnantSite drives this FSM in response to player Rift research.
+ */
+UENUM(BlueprintType)
+enum class EQRRemnantWakeState : uint8
+{
+	Dormant   UMETA(DisplayName = "Dormant"),
+	Stirring  UMETA(DisplayName = "Stirring"),
+	Active    UMETA(DisplayName = "Active"),
+	Hostile   UMETA(DisplayName = "Hostile"),
+	Subsiding UMETA(DisplayName = "Subsiding"),
+};
+
+
+/**
+ * Remnant structure type (Master GDD §13). Drives mesh selection +
+ * research yield + wake-state escalation curve.
+ */
+UENUM(BlueprintType)
+enum class EQRRemnantKind : uint8
+{
+	SignalSpire       UMETA(DisplayName = "Signal Spire"),
+	PowerCore         UMETA(DisplayName = "Power Core"),
+	DataArchive       UMETA(DisplayName = "Data Archive"),
+	ResonanceChamber  UMETA(DisplayName = "Resonance Chamber"),
+};
+
+
+/**
+ * Single loot entry for a hardcoded crash-site wreck. ItemId references
+ * a UQRItemDefinition by id; Quantity / DurabilityMin/Max randomize
+ * within the placement seed for deterministic-shareable loot.
+ */
+USTRUCT(BlueprintType)
+struct QUIETRIFTENIGMA_API FQRCrashLootEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName ItemId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1"))
+	int32 MinQty = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1"))
+	int32 MaxQty = 1;
+
+	// 0..1, used by spawner to roll inclusion per entry. 1.0 = always.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0", ClampMax = "1"))
+	float SpawnChance = 1.0f;
+};
+
+
+/**
+ * Loot template applied to a hardcoded crash-site wreck. Keyed by
+ * archetype id (ArmoryWreck / MedBayWreck / …) in the spawner.
+ */
+USTRUCT(BlueprintType)
+struct QUIETRIFTENIGMA_API FQRCrashLootTemplate
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FQRCrashLootEntry> Entries;
+};
