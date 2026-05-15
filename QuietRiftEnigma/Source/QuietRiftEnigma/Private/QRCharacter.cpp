@@ -772,6 +772,26 @@ void AQRCharacter::OnCodexPressed()
 	PC->SetInputMode(Mode);
 }
 
+void AQRCharacter::QR_StudyItem(FName Id)
+{
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			const FQRCodexEntry Existing = Codex->GetEntry(Id);
+			const FText DisplayName = Existing.DisplayName.IsEmpty()
+				? FText::FromName(Id)
+				: Existing.DisplayName;
+			// Auto-infer category: if the existing entry has one, use it;
+			// else default to Item (player typically studies inventory items).
+			const FName Category = Existing.Category.IsNone()
+				? FName(TEXT("Item"))
+				: Existing.Category;
+			Codex->Record(Id, Category, DisplayName, EQRCodexDiscoveryState::Researched);
+		}
+	}
+}
+
 void AQRCharacter::QR_OpenSettings()
 {
 	if (!SettingsWidgetClass) return;

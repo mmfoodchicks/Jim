@@ -2,6 +2,7 @@
 #include "QRCharacter.h"
 #include "QRSurvivalComponent.h"
 #include "QRCodexSubsystem.h"
+#include "QRMissionDirector.h"
 #include "QRItemDefinition.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -111,6 +112,12 @@ void AQRWildlifeActor::ReceiveDamage(float Amount, AActor* Source)
 
 	if (Health <= 0.0f)
 	{
+		// Report the kill to the mission director before we go dead.
+		const FName SpeciesId = ItemId.IsNone() && Definition
+			? Definition->ItemId
+			: ItemId;
+		UQRMissionDirector::ReportSpeciesKilled(GetWorld(), SpeciesId, 1);
+
 		SetState(EQRWildlifeState::Dead);
 	}
 }

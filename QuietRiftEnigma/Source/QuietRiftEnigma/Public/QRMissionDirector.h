@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/DataTable.h"
+#include "QRTypes.h"
 #include "QRMissionDirector.generated.h"
 
 
@@ -161,4 +162,32 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "QR|Missions")
 	bool IsMissionActive(FName MissionId) const;
+
+	// Subscribe to gameplay events on the local player's components.
+	// Called from BeginPlay; safe to re-call when the player respawns.
+	UFUNCTION(BlueprintCallable, Category = "QR|Missions")
+	void HookPlayerEvents(class AQRCharacter* Player);
+
+	UFUNCTION(BlueprintCallable, Category = "QR|Missions")
+	void UnhookPlayerEvents();
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
+private:
+	UPROPERTY()
+	TWeakObjectPtr<class AQRCharacter> HookedPlayer;
+
+	UFUNCTION()
+	void HandleItemAdded(class UQRItemInstance* Item, int32 SlotIndex);
+
+	UFUNCTION()
+	void HandleCodexUpdated(FName EntryId, EQRCodexDiscoveryState NewState);
+
+public:
+	// Called by AQRWildlifeActor when a tracked species dies. Static
+	// helper iterates every active director (single director in v1)
+	// and reports a KillTarget delta.
+	static void ReportSpeciesKilled(class UWorld* World, FName SpeciesId, int32 Delta);
 };

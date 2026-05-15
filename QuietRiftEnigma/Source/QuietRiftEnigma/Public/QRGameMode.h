@@ -14,6 +14,7 @@ class AQRRaidScheduler;
 class AQRVanguardColony;
 class AQRCharacter;
 class UQRDeathScreenWidget;
+class UQRMissionDirector;
 
 // Main game mode — controls session start, tutorial unlock flow, and ending resolution
 UCLASS(BlueprintType, Blueprintable)
@@ -64,6 +65,11 @@ public:
 	// ── Save System ───────────────────────────
 	UPROPERTY(BlueprintReadOnly, Category = "Save")
 	TObjectPtr<UQRSaveGameSystem> SaveSystem;
+
+	// Mission director — owns the active mission list, rolls templates,
+	// listens to inventory / wildlife / codex events for auto-progress.
+	UPROPERTY(BlueprintReadOnly, Category = "Missions")
+	TObjectPtr<UQRMissionDirector> MissionDirector;
 
 	// ── Session Setup ─────────────────────────
 	// Maximum players this session was created for (set by lobby before travel).

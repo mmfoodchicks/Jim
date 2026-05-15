@@ -12,6 +12,7 @@
 #include "QRDeathScreenWidget.h"
 #include "QRSurvivalComponent.h"
 #include "QRInventoryComponent.h"
+#include "QRMissionDirector.h"
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
@@ -27,7 +28,8 @@ AQRGameMode::AQRGameMode()
 
 	DefaultPawnClass = AQRCharacter::StaticClass();
 
-	SaveSystem = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
+	SaveSystem      = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
+	MissionDirector = CreateDefaultSubobject<UQRMissionDirector>(TEXT("MissionDirector"));
 
 	// Default death-screen widget class — C++ placeholder, swap via BP.
 	DeathScreenClass = UQRDeathScreenWidget::StaticClass();

@@ -299,6 +299,12 @@ public:
 	UFUNCTION(Exec, Category = "UI")
 	void QR_OpenSettings();
 
+	// Advances a codex entry to the Researched state. Called when the
+	// player completes a "study item" recipe at a workbench, or for
+	// testing via the in-game console (Tilde → "QR_StudyItem PLT_LATTICE_BULB").
+	UFUNCTION(Exec, BlueprintCallable, Category = "QR|Codex")
+	void QR_StudyItem(FName Id);
+
 	UPROPERTY()
 	TObjectPtr<class UQRHotbarHUDWidget> HotbarHUD = nullptr;
 

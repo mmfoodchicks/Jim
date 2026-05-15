@@ -1,4 +1,11 @@
 #include "QRMissionDirector.h"
+#include "QRCharacter.h"
+#include "QRInventoryComponent.h"
+#include "QRItemInstance.h"
+#include "QRItemDefinition.h"
+#include "QRCodexSubsystem.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
 
 
 UQRMissionDirector::UQRMissionDirector()
@@ -103,4 +110,117 @@ bool UQRMissionDirector::IsMissionActive(FName MissionId) const
 {
 	return ActiveMissions.ContainsByPredicate(
 		[&](const FQRActiveMission& M) { return M.MissionId == MissionId; });
+}
+
+
+void UQRMissionDirector::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Bind to the player's components + the codex subsystem. Director
+	// lives on AQRGameMode so player spawns after — defer to the
+	// world's first PlayerController arriving.
+	if (UWorld* W = GetWorld())
+	{
+		if (APlayerController* PC = W->GetFirstPlayerController())
+		{
+			if (AQRCharacter* Char = Cast<AQRCharacter>(PC->GetPawn()))
+			{
+				HookPlayerEvents(Char);
+			}
+		}
+
+		// Codex events come from the world subsystem.
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->OnEntryUpdated.AddDynamic(this, &UQRMissionDirector::HandleCodexUpdated);
+		}
+	}
+}
+
+
+void UQRMissionDirector::EndPlay(const EEndPlayReason::Type Reason)
+{
+	UnhookPlayerEvents();
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->OnEntryUpdated.RemoveDynamic(this, &UQRMissionDirector::HandleCodexUpdated);
+		}
+	}
+	Super::EndPlay(Reason);
+}
+
+
+void UQRMissionDirector::HookPlayerEvents(AQRCharacter* Player)
+{
+	UnhookPlayerEvents();
+	if (!Player || !Player->Inventory) return;
+	Player->Inventory->OnItemAdded.AddDynamic(this, &UQRMissionDirector::HandleItemAdded);
+	HookedPlayer = Player;
+}
+
+
+void UQRMissionDirector::UnhookPlayerEvents()
+{
+	if (AQRCharacter* P = HookedPlayer.Get())
+	{
+		if (P->Inventory)
+		{
+			P->Inventory->OnItemAdded.RemoveDynamic(this, &UQRMissionDirector::HandleItemAdded);
+		}
+	}
+	HookedPlayer = nullptr;
+}
+
+
+void UQRMissionDirector::HandleItemAdded(UQRItemInstance* Item, int32 SlotIndex)
+{
+	if (!Item || !Item->Definition) return;
+	const FName ItemId = Item->Definition->ItemId;
+	const int32 Qty    = Item->Quantity;
+
+	// Find FetchItem missions matching this target.
+	for (FQRActiveMission& M : ActiveMissions)
+	{
+		if (M.Family == EQRMissionFamily::FetchItem && M.TargetId == ItemId)
+		{
+			ReportProgress(M.MissionId, Qty);
+		}
+	}
+}
+
+
+void UQRMissionDirector::HandleCodexUpdated(FName EntryId, EQRCodexDiscoveryState NewState)
+{
+	if (NewState != EQRCodexDiscoveryState::Researched) return;
+	for (FQRActiveMission& M : ActiveMissions)
+	{
+		if (M.Family == EQRMissionFamily::ResearchItem && M.TargetId == EntryId)
+		{
+			ReportProgress(M.MissionId, 1);
+		}
+	}
+}
+
+
+void UQRMissionDirector::ReportSpeciesKilled(UWorld* World, FName SpeciesId, int32 Delta)
+{
+	if (!World) return;
+	// Find every active mission director in the world (typically one,
+	// owned by the GameMode).
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (UQRMissionDirector* MD = It->FindComponentByClass<UQRMissionDirector>())
+		{
+			for (FQRActiveMission& M : MD->ActiveMissions)
+			{
+				if (M.Family == EQRMissionFamily::KillTarget && M.TargetId == SpeciesId)
+				{
+					MD->ReportProgress(M.MissionId, Delta);
+				}
+			}
+		}
+	}
 }
