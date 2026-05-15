@@ -4,7 +4,9 @@
 #include "QRWeatherComponent.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/Pawn.h"
 
 
 UQRCampSimComponent::UQRCampSimComponent()
@@ -136,17 +138,70 @@ void UQRCampSimComponent::TryDecideRaid()
 
 FVector UQRCampSimComponent::FindRaidTargetLocation() const
 {
-	// v1 targets the local player. Smarter target selection (player
-	// outposts / undefended POIs / supply lines) is a follow-up once
-	// the player-camp actor exists.
-	if (UWorld* W = GetWorld())
+	UWorld* W = GetWorld();
+	if (!W) return FVector::ZeroVector;
+	AActor* Owner = GetOwner();
+	const FVector OwnerLoc = Owner ? Owner->GetActorLocation() : FVector::ZeroVector;
+
+	// Score candidates by:
+	//   • Relative weakness  (target weaker than us = preferred)
+	//   • Distance           (closer = preferred)
+	//   • Hostility relative (high-hostility target = preferred)
+	// Player gets a base hostility-bonus equal to this camp's Hostility.
+	// Other camps contribute their own hostility differential.
+	FVector BestLoc = OwnerLoc;
+	float BestScore = -1.0f;
+
+	auto Score = [&](const FVector& Loc, float TargetMilitary, float HostilityToTarget) -> float
 	{
-		if (APlayerController* PC = W->GetFirstPlayerController())
+		const float DistKm = FVector::Distance(OwnerLoc, Loc) / 100000.0f;
+		// Prefer closer + weaker + hostile targets.
+		const float DistScore     = FMath::Clamp(1.0f - (DistKm / 25.0f), 0.0f, 1.0f);
+		const float WeaknessScore = FMath::Clamp(1.0f - (TargetMilitary / FMath::Max(1.0f, (float)State.MilitaryStrength)), 0.0f, 1.5f);
+		const float HostScore     = FMath::Clamp(HostilityToTarget, 0.0f, 1.0f);
+		return DistScore * 0.35f + WeaknessScore * 0.30f + HostScore * 0.35f;
+	};
+
+	// 1. Player pawn — treated as a single "target" with unknown
+	//    military but high importance. Use a soft military stand-in of 5.
+	if (APlayerController* PC = W->GetFirstPlayerController())
+	{
+		if (APawn* P = PC->GetPawn())
 		{
-			if (APawn* P = PC->GetPawn()) return P->GetActorLocation();
+			const float S = Score(P->GetActorLocation(), 5.0f, State.Hostility);
+			if (S > BestScore) { BestScore = S; BestLoc = P->GetActorLocation(); }
 		}
 	}
-	return GetOwner() ? GetOwner()->GetActorLocation() : FVector::ZeroVector;
+
+	// 2. Other camps. We compare faction tags via UQRFactionComponent
+	//    if both sides carry one. For v1 we use a simple "different
+	//    actor + different camp id" heuristic — any other AQRFactionCamp
+	//    is a potential rival.
+	{
+		// Forward-declared iterator avoid: include EngineUtils only in
+		// the cpp so we don't pollute the header.
+		extern UWorld* GWorld;
+		// Walk actors via the world's actor list.
+		for (TActorIterator<AActor> It(W); It; ++It)
+		{
+			AActor* A = *It;
+			if (!A || A == Owner) continue;
+			UQRCampSimComponent* Other = A->FindComponentByClass<UQRCampSimComponent>();
+			if (!Other) continue;
+			if (Other == this) continue;
+			// Don't attack camps with same-faction id (treat as allies).
+			if (Other->CampId == CampId) continue;
+			// Camps only consider each other when both above mid hostility.
+			if (State.Hostility < 0.55f) continue;
+
+			const float S = Score(A->GetActorLocation(),
+				static_cast<float>(Other->State.MilitaryStrength),
+				State.Hostility);
+			if (S > BestScore) { BestScore = S; BestLoc = A->GetActorLocation(); }
+		}
+	}
+
+	return BestLoc;
 }
 
 

@@ -52,4 +52,31 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Camp")
 	FText DisplayName;
+
+	// NPC actor class spawned for each raid-party member. Defaults to
+	// AQRNPCActor; designer can swap to a faction-themed soldier.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Camp")
+	TSubclassOf<class AQRNPCActor> RaiderClass;
+
+	// Drops effective leadership to 0 and applies a hostility decay.
+	// Call when the camp's leader NPC is killed by the player or in
+	// faction-vs-faction combat. The sim then reads chaotic leadership
+	// (poor decisions, rash raids) until the player kills the camp
+	// off entirely or it recovers (recovery is a follow-up feature).
+	UFUNCTION(BlueprintCallable, Category = "QR|Camp")
+	void OnLeaderDied();
+
+protected:
+	virtual void BeginPlay() override;
+
+private:
+	UFUNCTION()
+	void HandleRaidLaunched(struct FQRRaidPlan Plan);
+
+	// Track whether the leader is still alive — sim reads this via the
+	// component's accessor. Cleared by OnLeaderDied.
+	bool bLeaderAlive = true;
+public:
+	UFUNCTION(BlueprintPure, Category = "QR|Camp")
+	bool IsLeaderAlive() const { return bLeaderAlive; }
 };
