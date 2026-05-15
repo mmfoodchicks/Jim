@@ -16,6 +16,7 @@ public class QuietRiftEnigma : ModuleRules
 			"UMG",
 			"AIModule",
 			"NavigationSystem",
+			"Niagara",
 			"GameplayTags",
 			"GameplayTasks",
 			"QRCore",

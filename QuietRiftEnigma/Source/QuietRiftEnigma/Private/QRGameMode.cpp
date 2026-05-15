@@ -15,6 +15,8 @@
 #include "QRMissionDirector.h"
 #include "QRFactionCamp.h"
 #include "QRCampSimComponent.h"
+#include "QRSkyManager.h"
+#include "QRWeatherFXManager.h"
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
@@ -36,6 +38,10 @@ AQRGameMode::AQRGameMode()
 
 	// Default death-screen widget class — C++ placeholder, swap via BP.
 	DeathScreenClass = UQRDeathScreenWidget::StaticClass();
+
+	// Atmosphere defaults.
+	SkyManagerClass       = AQRSkyManager::StaticClass();
+	WeatherFXManagerClass = AQRWeatherFXManager::StaticClass();
 }
 
 void AQRGameMode::BeginPlay()
@@ -56,6 +62,30 @@ void AQRGameMode::BeginPlay()
 
 	// Activate tutorial mission
 	ActivateMission(FName("MQ_000"));
+
+	// Auto-spawn atmosphere managers if the level didn't pre-place them.
+	// Designer-placed instances win (TActorIterator finds them first).
+	if (bAutoSpawnAtmosphere && GetWorld())
+	{
+		if (SkyManagerClass && !SkyManager)
+		{
+			for (TActorIterator<AQRSkyManager> It(GetWorld()); It; ++It) { SkyManager = *It; break; }
+			if (!SkyManager)
+			{
+				SkyManager = GetWorld()->SpawnActor<AQRSkyManager>(SkyManagerClass,
+					FVector::ZeroVector, FRotator::ZeroRotator);
+			}
+		}
+		if (WeatherFXManagerClass && !WeatherFXManager)
+		{
+			for (TActorIterator<AQRWeatherFXManager> It(GetWorld()); It; ++It) { WeatherFXManager = *It; break; }
+			if (!WeatherFXManager)
+			{
+				WeatherFXManager = GetWorld()->SpawnActor<AQRWeatherFXManager>(WeatherFXManagerClass,
+					FVector::ZeroVector, FRotator::ZeroRotator);
+			}
+		}
+	}
 
 	// Auto-load on session start. Async — applies to player pawn from
 	// ApplyLoadedDataToPlayer once the character spawns + asks for its

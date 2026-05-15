@@ -39,6 +39,35 @@ void AQRWildlifeActor::SetState(EQRWildlifeState NewState)
 		SetActorTickEnabled(false);
 		// Collapse the AQRWorldItem sphere collision so the carcass
 		// only responds to F-interact, no longer blocks the player.
+		// Spawn a couple of generic meat / hide drops around the
+		// carcass so the player gets paid for the kill. Bigger
+		// wildlife (Dray, Hauler) should subclass + override.
+		if (HasAuthority() && GetWorld())
+		{
+			static const TArray<FName> DefaultDrops = {
+				TEXT("FOD_RAW_MEAT"),
+				TEXT("RAW_HIDE"),
+			};
+			for (int32 i = 0; i < DefaultDrops.Num(); ++i)
+			{
+				const FName DropId = DefaultDrops[i];
+				const FString DefPath = FString::Printf(
+					TEXT("/Game/QuietRift/Data/Items/%s.%s"),
+					*DropId.ToString(), *DropId.ToString());
+				UQRItemDefinition* DropDef = LoadObject<UQRItemDefinition>(nullptr, *DefPath);
+				if (!DropDef) continue;
+				const float Angle = (i / static_cast<float>(DefaultDrops.Num())) * 2.0f * PI;
+				const FVector Off(FMath::Cos(Angle) * 80.0f, FMath::Sin(Angle) * 80.0f, 0.0f);
+				FActorSpawnParameters SP;
+				SP.Owner = this;
+				SP.SpawnCollisionHandlingOverride =
+					ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+				AQRWorldItem* Drop = GetWorld()->SpawnActor<AQRWorldItem>(
+					AQRWorldItem::StaticClass(),
+					GetActorLocation() + Off, FRotator::ZeroRotator, SP);
+				if (Drop) Drop->InitializeFrom(DropDef, FMath::RandRange(1, 2));
+			}
+		}
 		break;
 	default:
 		break;

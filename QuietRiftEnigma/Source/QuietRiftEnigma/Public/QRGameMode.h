@@ -71,6 +71,24 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Missions")
 	TObjectPtr<UQRMissionDirector> MissionDirector;
 
+	// Optional class overrides for the world's atmosphere managers.
+	// Auto-spawned on BeginPlay if no instance already exists in the
+	// level. Set bAutoSpawnAtmosphere = false to skip.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Atmosphere")
+	TSubclassOf<class AQRSkyManager> SkyManagerClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Atmosphere")
+	TSubclassOf<class AQRWeatherFXManager> WeatherFXManagerClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Atmosphere")
+	bool bAutoSpawnAtmosphere = true;
+
+	UPROPERTY(BlueprintReadOnly, Category = "World|Atmosphere")
+	TObjectPtr<class AQRSkyManager> SkyManager;
+
+	UPROPERTY(BlueprintReadOnly, Category = "World|Atmosphere")
+	TObjectPtr<class AQRWeatherFXManager> WeatherFXManager;
+
 	// ── Session Setup ─────────────────────────
 	// Maximum players this session was created for (set by lobby before travel).
 	// Drives starting NPC count: solo=3, 2p=2, 3p=1, 4p+=0.
