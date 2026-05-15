@@ -37,6 +37,7 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	if (!Character->UseHeldAction)    Character->UseHeldAction    = MakeAction(Character, "IA_UseHeld_RT",    EInputActionValueType::Boolean);
 	if (!Character->PauseAction)      Character->PauseAction      = MakeAction(Character, "IA_Pause_RT",      EInputActionValueType::Boolean);
 	if (!Character->InventoryAction)  Character->InventoryAction  = MakeAction(Character, "IA_Inventory_RT",  EInputActionValueType::Boolean);
+	if (!Character->CodexAction)      Character->CodexAction      = MakeAction(Character, "IA_Codex_RT",      EInputActionValueType::Boolean);
 
 	if (Character->HotbarSlotActions.Num() < 9) Character->HotbarSlotActions.SetNum(9);
 	for (int32 i = 0; i < 9; ++i)
@@ -88,6 +89,7 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	IMC->MapKey(Character->UseHeldAction,          EKeys::RightMouseButton);
 	IMC->MapKey(Character->PauseAction,            EKeys::Escape);
 	IMC->MapKey(Character->InventoryAction,        EKeys::I);
+	IMC->MapKey(Character->CodexAction,            EKeys::K);
 
 	const FKey SlotKeys[9] = {
 		EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,

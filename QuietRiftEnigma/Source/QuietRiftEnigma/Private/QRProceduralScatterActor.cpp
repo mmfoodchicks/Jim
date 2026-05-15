@@ -1,5 +1,6 @@
 #include "QRProceduralScatterActor.h"
 #include "QRBiomeProfile.h"
+#include "QRWorldGenSubsystem.h"
 #include "Components/BoxComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/World.h"
@@ -73,51 +74,34 @@ void AQRProceduralScatterActor::Generate()
 	while (Placed.Num() < TargetCount && Attempts < MaxAttempts)
 	{
 		++Attempts;
-
-		// Re-pick using EffectivePalette so the biome profile path works
-		// without copying the array.
-		float TotalWeight = 0.0f;
-		for (const FQRScatterEntry& E : EffectivePalette) TotalWeight += FMath::Max(0.0f, E.Weight);
-		if (TotalWeight <= 0.0f) break;
-		const float Pick = Rng.FRandRange(0.0f, TotalWeight);
-		float Acc = 0.0f;
-		int32 PaletteIdx = EffectivePalette.Num() - 1;
-		for (int32 i = 0; i < EffectivePalette.Num(); ++i)
-		{
-			Acc += FMath::Max(0.0f, EffectivePalette[i].Weight);
-			if (Pick <= Acc) { PaletteIdx = i; break; }
-		}
-
-		const FQRScatterEntry& Entry = EffectivePalette[PaletteIdx];
-
-		if (TryPlaceOne(Entry, Rng, WorldBox, Placed))
-		{
-			// TryPlaceOne pushes the world position into Placed itself.
-		}
+		TryPlaceOne(EffectivePalette, Rng, WorldBox, Placed);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[ProcScatter] %s placed %d / %d (attempts=%d)"),
 		*GetName(), Placed.Num(), TargetCount, Attempts);
 }
 
-int32 AQRProceduralScatterActor::PickPaletteIndex(FRandomStream& Rng) const
+int32 AQRProceduralScatterActor::PickPaletteIndex(
+	const TArray<FQRScatterEntry>& Pool, FRandomStream& Rng) const
 {
 	float TotalWeight = 0.0f;
-	for (const FQRScatterEntry& E : Palette) TotalWeight += FMath::Max(0.0f, E.Weight);
+	for (const FQRScatterEntry& E : Pool) TotalWeight += FMath::Max(0.0f, E.Weight);
 	if (TotalWeight <= 0.0f) return -1;
 
 	const float Pick = Rng.FRandRange(0.0f, TotalWeight);
 	float Acc = 0.0f;
-	for (int32 i = 0; i < Palette.Num(); ++i)
+	for (int32 i = 0; i < Pool.Num(); ++i)
 	{
-		Acc += FMath::Max(0.0f, Palette[i].Weight);
+		Acc += FMath::Max(0.0f, Pool[i].Weight);
 		if (Pick <= Acc) return i;
 	}
-	return Palette.Num() - 1;
+	return Pool.Num() - 1;
 }
 
-bool AQRProceduralScatterActor::TryPlaceOne(const FQRScatterEntry& Entry,
-	FRandomStream& Rng, const FBox& WorldBox, const TArray<FVector>& AlreadyPlaced)
+bool AQRProceduralScatterActor::TryPlaceOne(
+	const TArray<FQRScatterEntry>& BasePalette,
+	FRandomStream& Rng, const FBox& WorldBox,
+	TArray<FVector>& AlreadyPlaced)
 {
 	UWorld* W = GetWorld();
 	if (!W) return false;
@@ -139,6 +123,36 @@ bool AQRProceduralScatterActor::TryPlaceOne(const FQRScatterEntry& Entry,
 	{
 		return false;
 	}
+
+	// WorldGen integration — once the XY is known, ask the subsystem
+	// what biome owns the cell and swap to that biome's palette.
+	// Falls back to BasePalette when the subsystem hasn't generated
+	// yet or the cell biome isn't in our map.
+	const TArray<FQRScatterEntry>* ActivePalette = &BasePalette;
+	if (bUseWorldGenSubsystem)
+	{
+		if (UQRWorldGenSubsystem* Sub = W->GetSubsystem<UQRWorldGenSubsystem>())
+		{
+			if (Sub->bGenerated)
+			{
+				const FName Biome = Sub->GetBiomeAt(Hit.ImpactPoint);
+				if (TObjectPtr<UQRBiomeProfile>* Found = BiomeProfileMap.Find(Biome))
+				{
+					if (UQRBiomeProfile* Profile = *Found)
+					{
+						if (Profile->Palette.Num() > 0)
+						{
+							ActivePalette = &Profile->Palette;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	const int32 EntryIdx = PickPaletteIndex(*ActivePalette, Rng);
+	if (EntryIdx == INDEX_NONE) return false;
+	const FQRScatterEntry& Entry = (*ActivePalette)[EntryIdx];
 
 	// Slope check.
 	const float SlopeDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(Hit.ImpactNormal.Z, -1.f, 1.f)));
@@ -178,7 +192,7 @@ bool AQRProceduralScatterActor::TryPlaceOne(const FQRScatterEntry& Entry,
 		const FTransform InstanceXform(Rot, Loc, FVector(Scale));
 		HISM->AddInstance(InstanceXform, /*bWorldSpace*/ true);
 
-		const_cast<TArray<FVector>&>(AlreadyPlaced).Add(Loc);
+		AlreadyPlaced.Add(Loc);
 		return true;
 	}
 
@@ -193,7 +207,7 @@ bool AQRProceduralScatterActor::TryPlaceOne(const FQRScatterEntry& Entry,
 		{
 			Spawned->SetActorScale3D(FVector(Scale));
 			SpawnedActors.Add(Spawned);
-			const_cast<TArray<FVector>&>(AlreadyPlaced).Add(Loc);
+			AlreadyPlaced.Add(Loc);
 			return true;
 		}
 	}

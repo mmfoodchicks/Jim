@@ -12,11 +12,20 @@
 #include "QRDeathScreenWidget.h"
 #include "QRSurvivalComponent.h"
 #include "QRInventoryComponent.h"
+#include "QRMissionDirector.h"
+#include "QRFactionCamp.h"
+#include "QRCampSimComponent.h"
+#include "QRSkyManager.h"
+#include "QRWeatherFXManager.h"
+#include "QRWorldGenSubsystem.h"
+#include "QRWorldGenSeedActor.h"
+#include "QRWorldGenSpawner.h"
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -27,10 +36,15 @@ AQRGameMode::AQRGameMode()
 
 	DefaultPawnClass = AQRCharacter::StaticClass();
 
-	SaveSystem = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
+	SaveSystem      = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
+	MissionDirector = CreateDefaultSubobject<UQRMissionDirector>(TEXT("MissionDirector"));
 
 	// Default death-screen widget class — C++ placeholder, swap via BP.
 	DeathScreenClass = UQRDeathScreenWidget::StaticClass();
+
+	// Atmosphere defaults.
+	SkyManagerClass       = AQRSkyManager::StaticClass();
+	WeatherFXManagerClass = AQRWeatherFXManager::StaticClass();
 }
 
 void AQRGameMode::BeginPlay()
@@ -51,6 +65,66 @@ void AQRGameMode::BeginPlay()
 
 	// Activate tutorial mission
 	ActivateMission(FName("MQ_000"));
+
+	// Auto-spawn atmosphere managers if the level didn't pre-place them.
+	// Designer-placed instances win (TActorIterator finds them first).
+	if (bAutoSpawnAtmosphere && GetWorld())
+	{
+		if (SkyManagerClass && !SkyManager)
+		{
+			for (TActorIterator<AQRSkyManager> It(GetWorld()); It; ++It) { SkyManager = *It; break; }
+			if (!SkyManager)
+			{
+				SkyManager = GetWorld()->SpawnActor<AQRSkyManager>(SkyManagerClass,
+					FVector::ZeroVector, FRotator::ZeroRotator);
+			}
+		}
+		if (WeatherFXManagerClass && !WeatherFXManager)
+		{
+			for (TActorIterator<AQRWeatherFXManager> It(GetWorld()); It; ++It) { WeatherFXManager = *It; break; }
+			if (!WeatherFXManager)
+			{
+				WeatherFXManager = GetWorld()->SpawnActor<AQRWeatherFXManager>(WeatherFXManagerClass,
+					FVector::ZeroVector, FRotator::ZeroRotator);
+			}
+		}
+	}
+
+	// Auto-bootstrap the procedural world. Runs ONLY when there's no
+	// pre-existing world-gen actor in the level AND no save to load
+	// (a save means we're resuming a previously-generated world).
+	if (bAutoBootstrapWorld && GetWorld())
+	{
+		// Skip if a designer already placed worldgen actors.
+		bool bExisting = false;
+		for (TActorIterator<AQRWorldGenSeedActor> It(GetWorld()); It; ++It) { bExisting = true; break; }
+		const bool bResumingSave = SaveSystem && SaveSystem->DoesSaveExist(AutosaveSlotName);
+		if (!bExisting && !bResumingSave)
+		{
+			// Spawn seed actor + spawner at origin and run them.
+			AQRWorldGenSeedActor* Seed = GetWorld()->SpawnActor<AQRWorldGenSeedActor>(
+				AQRWorldGenSeedActor::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			AQRWorldGenSpawner* WSpawner = GetWorld()->SpawnActor<AQRWorldGenSpawner>(
+				AQRWorldGenSpawner::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			if (Seed)
+			{
+				Seed->WorldSeed       = BootstrapWorldSeed;
+				Seed->WorldMapSizeKm  = BootstrapMapSizeKm;
+				Seed->CellSizeMeters  = BootstrapCellSizeMeters;
+				Seed->Generate();
+			}
+			if (WSpawner)
+			{
+				WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
+				WSpawner->SpawnAll();
+			}
+			UE_LOG(LogTemp, Log,
+				TEXT("[QRGameMode] auto-bootstrapped world (seed %d, %.0fkm, fauna %.1f/km²)"),
+				BootstrapWorldSeed, BootstrapMapSizeKm, BootstrapFaunaPerKm2);
+		}
+	}
 
 	// Auto-load on session start. Async — applies to player pawn from
 	// ApplyLoadedDataToPlayer once the character spawns + asks for its
@@ -224,6 +298,18 @@ void AQRGameMode::Tick(float DeltaTime)
 	const float GameHoursElapsed = DeltaTime * 24.0f / DayLengthRealSeconds;
 	if (Weather)           Weather->AdvanceByHours(GameHoursElapsed);
 	if (VanguardConcordat) VanguardConcordat->AdvanceTime(GameHoursElapsed);
+
+	// Each AI camp ticks its own sim — grand-strategy style. Camps
+	// grow population, train military, accumulate hostility, and
+	// launch raids independently. The Concordat above is the mega-
+	// faction special-case; these are the regular satellite camps.
+	for (TActorIterator<AQRFactionCamp> It(GetWorld()); It; ++It)
+	{
+		if (AQRFactionCamp* Camp = *It)
+		{
+			if (Camp->Sim) Camp->Sim->AdvanceGameHours(GameHoursElapsed);
+		}
+	}
 
 	float DayProgress = FMath::Fmod(WorldTimeSeconds, DayLengthRealSeconds) / DayLengthRealSeconds;
 	bool bWasNight    = bIsNight;

@@ -25,6 +25,13 @@
 #include "QRDialogueWidget.h"
 #include "QRBuildPieceSelectorWidget.h"
 #include "QRInventoryGridWidget.h"
+#include "QRBiomeProfile.h"
+#include "QRWorldGenSubsystem.h"
+#include "QRCodexSubsystem.h"
+#include "QRCodexWidget.h"
+#include "QRScopeOverlayWidget.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundBase.h"
 #include "QRGameMode.h"
 #include "QRUISound.h"
 #include "Kismet/GameplayStatics.h"
@@ -87,6 +94,8 @@ AQRCharacter::AQRCharacter()
 	DialogueWidgetClass   = UQRDialogueWidget::StaticClass();
 	BuildPieceSelectorClass = UQRBuildPieceSelectorWidget::StaticClass();
 	InventoryGridClass    = UQRInventoryGridWidget::StaticClass();
+	CodexWidgetClass      = UQRCodexWidget::StaticClass();
+	ScopeOverlayClass     = UQRScopeOverlayWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -101,9 +110,16 @@ AQRCharacter::AQRCharacter()
 	Survival  = CreateDefaultSubobject<UQRSurvivalComponent>(TEXT("Survival"));
 	Weapon    = CreateDefaultSubobject<UQRWeaponComponent>(TEXT("Weapon"));
 	Faction   = CreateDefaultSubobject<UQRFactionComponent>(TEXT("Faction"));
-	Vault     = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
-	Hotbar    = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
-	Build     = CreateDefaultSubobject<UQRBuildModeComponent>(TEXT("Build"));
+	Vault         = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
+	Hotbar        = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
+	Build         = CreateDefaultSubobject<UQRBuildModeComponent>(TEXT("Build"));
+	BiomeAmbient  = CreateDefaultSubobject<UAudioComponent>(TEXT("BiomeAmbient"));
+	if (BiomeAmbient)
+	{
+		BiomeAmbient->SetupAttachment(RootComponent);
+		BiomeAmbient->bAutoActivate = false;
+		BiomeAmbient->VolumeMultiplier = 0.5f;
+	}
 
 	WildlifeActorClass = AQRWildlifeActor::StaticClass();
 
@@ -191,6 +207,15 @@ void AQRCharacter::BeginPlay()
 			{
 				VitalsHUD->AddToViewport(/*ZOrder*/ 10);
 				VitalsHUD->Bind(Survival);
+			}
+		}
+		if (ScopeOverlayClass && CachedView)
+		{
+			ScopeOverlay = CreateWidget<UQRScopeOverlayWidget>(LocalPC, ScopeOverlayClass);
+			if (ScopeOverlay)
+			{
+				ScopeOverlay->AddToViewport(/*ZOrder*/ 400);
+				ScopeOverlay->Bind(CachedView);
 			}
 		}
 	}
@@ -286,6 +311,37 @@ void AQRCharacter::Tick(float DeltaTime)
 			// Reset so the first step after standing still doesn't fire instantly.
 			FootstepTimer = 0.0f;
 		}
+
+		// Biome poll — once per second, query the worldgen subsystem at
+		// our current position. If a manually-placed zone is already
+		// active, defer to it (ActiveBiomeStack non-empty).
+		BiomePollAccum += DeltaTime;
+		if (BiomePollAccum >= 1.0f && ActiveBiomeStack.Num() == 0)
+		{
+			BiomePollAccum = 0.0f;
+			if (UWorld* W = GetWorld())
+			{
+				if (UQRWorldGenSubsystem* Sub = W->GetSubsystem<UQRWorldGenSubsystem>())
+				{
+					if (Sub->bGenerated)
+					{
+						const FName Biome = Sub->GetBiomeAt(GetActorLocation());
+						if (Biome != ActiveBiomeName)
+						{
+							// Look up the BP_<biome> data asset under the
+							// canonical path and swap ambient if found.
+							const FString AssetPath = FString::Printf(
+								TEXT("/Game/QuietRift/Data/Biomes/BP_%s.BP_%s"),
+								*Biome.ToString(), *Biome.ToString());
+							if (UQRBiomeProfile* Profile = LoadObject<UQRBiomeProfile>(nullptr, *AssetPath))
+							{
+								ApplyBiomeProfile(Profile);
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -326,6 +382,10 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (InventoryAction)
 		{
 			EI->BindAction(InventoryAction, ETriggerEvent::Started, this, &AQRCharacter::OnInventoryPressed);
+		}
+		if (CodexAction)
+		{
+			EI->BindAction(CodexAction, ETriggerEvent::Started, this, &AQRCharacter::OnCodexPressed);
 		}
 
 		// Per-slot bindings carry the slot index as a payload, so the same
@@ -688,6 +748,50 @@ void AQRCharacter::OnInventoryPressed()
 	PC->SetInputMode(Mode);
 }
 
+void AQRCharacter::OnCodexPressed()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController()) return;
+
+	if (CodexWidget && CodexWidget->IsInViewport())
+	{
+		CodexWidget->RemoveFromParent();
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
+		return;
+	}
+
+	if (!CodexWidgetClass) return;
+	CodexWidget = CreateWidget<UQRCodexWidget>(PC, CodexWidgetClass);
+	if (!CodexWidget) return;
+	CodexWidget->AddToViewport(/*ZOrder*/ 350);
+
+	PC->bShowMouseCursor = true;
+	FInputModeGameAndUI Mode;
+	Mode.SetWidgetToFocus(CodexWidget->TakeWidget());
+	PC->SetInputMode(Mode);
+}
+
+void AQRCharacter::QR_StudyItem(FName Id)
+{
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			const FQRCodexEntry Existing = Codex->GetEntry(Id);
+			const FText DisplayName = Existing.DisplayName.IsEmpty()
+				? FText::FromName(Id)
+				: Existing.DisplayName;
+			// Auto-infer category: if the existing entry has one, use it;
+			// else default to Item (player typically studies inventory items).
+			const FName Category = Existing.Category.IsNone()
+				? FName(TEXT("Item"))
+				: Existing.Category;
+			Codex->Record(Id, Category, DisplayName, EQRCodexDiscoveryState::Researched);
+		}
+	}
+}
+
 void AQRCharacter::QR_OpenSettings()
 {
 	if (!SettingsWidgetClass) return;
@@ -843,6 +947,19 @@ void AQRCharacter::RefreshHeldItemMesh()
 
 	HeldItemMesh->SetStaticMesh(TargetMesh);
 	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
+
+	// Scope detection — long-range sniper or any weapon with ItemId
+	// containing SNIPER or with a scope attachment in tags. Designer
+	// can override via per-weapon tags later. For now: name-based.
+	bool bHasScope = false;
+	if (Inventory && Inventory->HandSlot && Inventory->HandSlot->Definition)
+	{
+		const FString Id = Inventory->HandSlot->Definition->ItemId.ToString();
+		bHasScope = Id.Contains(TEXT("SNIPER"))
+				 || Id.Contains(TEXT("DMR"))
+				 || Id.Contains(TEXT("SCOPE"));
+	}
+	if (CachedView) CachedView->SetScopeAvailable(bHasScope);
 }
 
 void AQRCharacter::HandleHealthChanged(float NewHealth)
@@ -875,5 +992,71 @@ void AQRCharacter::OnDied_Implementation()
 		{
 			GM->HandlePlayerDied(this);
 		}
+	}
+}
+
+// ─── Biome ambient audio ─────────────────────────────────────────────
+
+void AQRCharacter::ApplyBiomeProfile(UQRBiomeProfile* Profile)
+{
+	if (!Profile || !BiomeAmbient) return;
+	if (Profile->BiomeTag == ActiveBiomeName) return;
+	ActiveBiomeName = Profile->BiomeTag;
+
+	USoundBase* Sound = Profile->AmbientLoop.LoadSynchronous();
+	BiomeAmbient->Stop();
+	if (Sound)
+	{
+		BiomeAmbient->SetSound(Sound);
+		BiomeAmbient->Play();
+	}
+
+	// Codex: record biome on first contact.
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->Record(Profile->BiomeTag, TEXT("Biome"), Profile->DisplayName,
+				EQRCodexDiscoveryState::Observed);
+		}
+	}
+}
+
+void AQRCharacter::OnBiomeZoneEnter(UQRBiomeProfile* Profile, int32 Priority)
+{
+	if (!Profile) return;
+	ActiveBiomeStack.Add(Profile);
+	ActiveBiomeStackPriorities.Add(Priority);
+
+	// Highest-priority active zone wins.
+	int32 BestIdx = INDEX_NONE;
+	int32 BestPriority = TNumericLimits<int32>::Min();
+	for (int32 i = 0; i < ActiveBiomeStack.Num(); ++i)
+	{
+		if (ActiveBiomeStack[i].IsValid() && ActiveBiomeStackPriorities[i] > BestPriority)
+		{
+			BestPriority = ActiveBiomeStackPriorities[i];
+			BestIdx = i;
+		}
+	}
+	if (BestIdx != INDEX_NONE) ApplyBiomeProfile(ActiveBiomeStack[BestIdx].Get());
+}
+
+void AQRCharacter::OnBiomeZoneExit(UQRBiomeProfile* Profile, int32 Priority)
+{
+	for (int32 i = ActiveBiomeStack.Num() - 1; i >= 0; --i)
+	{
+		if (ActiveBiomeStack[i].Get() == Profile && ActiveBiomeStackPriorities[i] == Priority)
+		{
+			ActiveBiomeStack.RemoveAt(i);
+			ActiveBiomeStackPriorities.RemoveAt(i);
+			break;
+		}
+	}
+
+	// Fall back to worldgen biome at current position (handled on tick).
+	if (ActiveBiomeStack.Num() == 0)
+	{
+		ActiveBiomeName = NAME_None;  // forces tick to re-apply
 	}
 }

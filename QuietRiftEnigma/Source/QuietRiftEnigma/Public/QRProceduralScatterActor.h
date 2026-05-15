@@ -102,7 +102,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter")
 	TObjectPtr<UQRBiomeProfile> BiomeProfile;
 
-	// Things this scatter can place. Ignored if BiomeProfile is set.
+	// When true, each placement attempt queries UQRWorldGenSubsystem
+	// for the biome at that world position and uses BiomeProfileMap to
+	// pick the appropriate UQRBiomeProfile. This lets one scatter actor
+	// span the whole map and still produce per-biome content. Ignored
+	// when the subsystem hasn't generated yet or the map is empty.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter|WorldGen")
+	bool bUseWorldGenSubsystem = false;
+
+	// Tag → BiomeProfile lookup used when bUseWorldGenSubsystem is on.
+	// Designer fills with the 14 canonical biome profiles created by
+	// qr_seed_biome_profiles.py. Keys are biome tag FNames
+	// (BasaltShelf, WindPlains, …).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter|WorldGen")
+	TMap<FName, TObjectPtr<UQRBiomeProfile>> BiomeProfileMap;
+
+	// Things this scatter can place. Ignored if BiomeProfile is set or
+	// bUseWorldGenSubsystem is on.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter")
 	TArray<FQRScatterEntry> Palette;
 
@@ -157,9 +173,14 @@ protected:
 
 private:
 	// Pick a palette index weighted by FQRScatterEntry::Weight.
-	int32 PickPaletteIndex(FRandomStream& Rng) const;
+	int32 PickPaletteIndex(const TArray<FQRScatterEntry>& Pool, FRandomStream& Rng) const;
 
-	// One placement attempt. Returns true if it succeeded.
-	bool TryPlaceOne(const FQRScatterEntry& Entry, FRandomStream& Rng,
-		const FBox& WorldBox, const TArray<FVector>& AlreadyPlaced);
+	// One placement attempt. Samples a random XY in the box, traces
+	// the ground, picks a weighted entry from the appropriate palette
+	// (the BasePalette unless bUseWorldGenSubsystem is on, in which
+	// case the cell's biome profile palette wins). Returns true on a
+	// successful spawn.
+	bool TryPlaceOne(const TArray<FQRScatterEntry>& BasePalette,
+		FRandomStream& Rng, const FBox& WorldBox,
+		TArray<FVector>& AlreadyPlaced);
 };
