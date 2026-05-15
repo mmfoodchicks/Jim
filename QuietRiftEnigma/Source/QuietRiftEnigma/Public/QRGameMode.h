@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "QRTypes.h"
+#include "QRSaveTypes.h"
 #include "QRGameMode.generated.h"
 
 class UQRColonyStateComponent;
@@ -11,6 +12,8 @@ class UQRSaveGameSystem;
 class UQRWeatherComponent;
 class AQRRaidScheduler;
 class AQRVanguardColony;
+class AQRCharacter;
+class UQRDeathScreenWidget;
 
 // Main game mode — controls session start, tutorial unlock flow, and ending resolution
 UCLASS(BlueprintType, Blueprintable)
@@ -96,6 +99,48 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Save")
 	void QuickLoad();
 
+	// Autosave interval in real seconds. 0 disables the periodic timer
+	// (manual + lifecycle saves still work).
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Save",
+		meta = (ClampMin = "0", ClampMax = "3600"))
+	float AutosaveIntervalSeconds = 300.0f;  // 5 minutes default
+
+	// Slot the autosave / quicksave / quickload all use.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Save")
+	FString AutosaveSlotName = TEXT("QuickSave");
+
+	// Console-callable wrappers so the in-editor "QR.Save" / "QR.Load"
+	// commands fire on whichever AQRGameMode is currently authoritative.
+	UFUNCTION(Exec, Category = "Save")
+	void QR_Save();
+
+	UFUNCTION(Exec, Category = "Save")
+	void QR_Load();
+
+	// Apply the most recently loaded save data to a newly-spawned
+	// player pawn. Called by AQRCharacter::BeginPlay so vitals and
+	// inventory line up after the async load completes.
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	void ApplyLoadedDataToPlayer(AQRCharacter* Player);
+
+	// Default slot name used by QuickSave / QuickLoad and the autosave
+	// on EndPlay. Designer can override per-session.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Save")
+	FString AutosaveSlotName = TEXT("QuickSave");
+
+	// ── Death / Respawn ─────────────────────────
+	// Called by AQRCharacter::OnDied. Mounts a death screen on the local
+	// PC, sets a timer for RespawnDelaySeconds, then RestartPlayer-s.
+	UFUNCTION(BlueprintCallable, Category = "Player")
+	void HandlePlayerDied(AQRCharacter* DeadPawn);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Player",
+		meta = (ClampMin = "0.5", ClampMax = "30"))
+	float RespawnDelaySeconds = 3.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Player")
+	TSubclassOf<UQRDeathScreenWidget> DeathScreenClass;
+
 	UFUNCTION(BlueprintNativeEvent, Category = "World")
 	void OnDayStarted(int32 NewDay);
 	virtual void OnDayStarted_Implementation(int32 NewDay) {}
@@ -111,4 +156,21 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void Logout(AController* Exiting) override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
+private:
+	// Cached save snapshot from the most recent successful load.
+	// AQRCharacter peeks at this on its own BeginPlay via
+	// ApplyLoadedDataToPlayer so vitals + inventory restore correctly
+	// after the async LoadFromSlot completes.
+	FQRGameSaveData PendingLoadedData;
+	bool            bHasPendingLoadedData = false;
+
+	void HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data);
+
+	// Driven by AutosaveIntervalSeconds. Set in BeginPlay, cleared in
+	// EndPlay; fires QuickSave on each tick.
+	FTimerHandle AutosaveTimerHandle;
+	void HandleAutosaveTick();
 };

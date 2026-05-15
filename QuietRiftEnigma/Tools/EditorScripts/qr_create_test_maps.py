@@ -1,0 +1,171 @@
+"""
+Quiet Rift: Enigma — create L_MainMenu and L_DevTest from scratch.
+
+L_MainMenu:
+  • Empty level (no geometry)
+  • Directional light + skylight + atmospheric fog
+  • PlayerStart at origin (the menu doesn't need a real spawn but the
+    engine fails to load worlds without one)
+  • World Settings → DefaultGameMode = AQRMainMenuGameMode
+
+L_DevTest:
+  • 100m flat floor (StaticMeshActor with the engine cube scaled)
+  • Directional light + skylight + atmosphere
+  • PlayerStart 200cm above the floor
+  • Pre-placed AQRCraftingBench, AQRNPCSpawner, AQRWildlifeActor for
+    quick smoke-tests
+  • World Settings → DefaultGameMode = AQRGameMode
+
+Run from the UE Python console:
+  exec(open(r'<Project>/Tools/EditorScripts/qr_create_test_maps.py').read())
+
+Or:
+  import qr_create_test_maps
+  qr_create_test_maps.run()
+
+Re-running overwrites both maps. Pass run(only="dev") or only="menu" to
+build just one.
+"""
+
+import unreal
+
+
+MAP_ROOT = "/Game/Maps"
+
+MAIN_MENU_PATH = "{}/L_MainMenu".format(MAP_ROOT)
+DEV_TEST_PATH  = "{}/L_DevTest".format(MAP_ROOT)
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────
+
+def _ensure_dir(path):
+    if not unreal.EditorAssetLibrary.does_directory_exist(path):
+        unreal.EditorAssetLibrary.make_directory(path)
+
+
+def _new_empty_level(map_path):
+    """Creates a fresh empty level at /Game/<path> and opens it."""
+    # UE5.7's EditorLevelLibrary.new_level expects "/Game/..." style.
+    ok = unreal.EditorLevelLibrary.new_level(map_path)
+    if not ok:
+        print("[maps] new_level failed for " + map_path)
+        return False
+    return True
+
+
+def _spawn(cls_path, loc=(0,0,0), rot=(0,0,0)):
+    """Load + spawn an actor class at the given world transform."""
+    cls = unreal.load_object(None, cls_path)
+    if not cls:
+        print("[maps] couldn't load class " + cls_path)
+        return None
+    return unreal.EditorLevelLibrary.spawn_actor_from_class(
+        cls,
+        unreal.Vector(*loc),
+        unreal.Rotator(*rot))
+
+
+def _set_game_mode(class_path):
+    """Sets the world settings' DefaultGameMode to the given class."""
+    cls = unreal.load_object(None, class_path)
+    if not cls:
+        print("[maps] couldn't load game-mode class " + class_path)
+        return
+    ws = unreal.EditorLevelLibrary.get_game_mode_settings_for_current_level()
+    if ws:
+        ws.set_editor_property("default_game_mode", cls)
+    # The setter above is the documented path; fall back to setting on
+    # the AWorldSettings actor directly if the helper isn't available.
+    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+    if settings:
+        try:
+            settings.set_editor_property("default_game_mode", cls)
+        except Exception as e:
+            print("[maps] world settings game mode set failed: " + str(e))
+
+
+def _save():
+    unreal.EditorLevelLibrary.save_current_level()
+
+
+# ─── L_MainMenu ───────────────────────────────────────────────────────
+
+def build_main_menu():
+    print("[maps] building L_MainMenu…")
+    if not _new_empty_level(MAIN_MENU_PATH):
+        return
+
+    # Standard atmosphere setup — just enough to render gracefully
+    # behind the menu widget. Sky color is dark by intent.
+    _spawn("/Script/Engine.DirectionalLight",   loc=(0, 0, 800),  rot=(-45, 0, 0))
+    _spawn("/Script/Engine.SkyLight",           loc=(0, 0, 400))
+    _spawn("/Script/Engine.AtmosphericFog",     loc=(0, 0, 0))
+    _spawn("/Script/Engine.PlayerStart",        loc=(0, 0, 100))
+
+    _set_game_mode("/Script/QuietRiftEnigma.QRMainMenuGameMode")
+    _save()
+    print("[maps] L_MainMenu saved")
+
+
+# ─── L_DevTest ────────────────────────────────────────────────────────
+
+def _spawn_floor():
+    """Spawn the engine default cube scaled to a 100m × 100m plate at z=0."""
+    cube_mesh = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
+    if not cube_mesh:
+        return
+
+    actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        unreal.StaticMeshActor,
+        unreal.Vector(0, 0, -50),
+        unreal.Rotator(0, 0, 0))
+    if not actor:
+        return
+
+    smc = actor.static_mesh_component
+    smc.set_static_mesh(cube_mesh)
+    # Engine cube is 100cm per side, scale to 10000×10000×100 (= 100m × 100m × 1m).
+    actor.set_actor_scale3d(unreal.Vector(100.0, 100.0, 1.0))
+    actor.set_actor_label("Floor_DevTest")
+
+
+def build_dev_test():
+    print("[maps] building L_DevTest…")
+    if not _new_empty_level(DEV_TEST_PATH):
+        return
+
+    _spawn_floor()
+    _spawn("/Script/Engine.DirectionalLight",   loc=(0, 0, 1500), rot=(-50, 30, 0))
+    _spawn("/Script/Engine.SkyLight",           loc=(0, 0, 800))
+    _spawn("/Script/Engine.AtmosphericFog",     loc=(0, 0, 0))
+    _spawn("/Script/Engine.PlayerStart",        loc=(0, 0, 200))
+
+    # Pre-place a crafting bench, NPC spawner, and one wildlife actor
+    # so the dev tester can validate the F-interact + dialogue + ADS
+    # paths immediately. Try/except in case the C++ class isn't compiled
+    # (BP-only first-time setups).
+    try:
+        _spawn("/Script/QuietRiftEnigma.QRCraftingBench", loc=(300, 0, 50))
+        _spawn("/Script/QuietRiftEnigma.QRNPCSpawner",     loc=(0, 300, 0))
+        _spawn("/Script/QuietRiftEnigma.QRWildlifeActor",  loc=(-300, 0, 50))
+    except Exception as e:
+        print("[maps] pre-placement skipped: " + str(e))
+
+    _set_game_mode("/Script/QuietRiftEnigma.QRGameMode")
+    _save()
+    print("[maps] L_DevTest saved")
+
+
+# ─── Entry point ──────────────────────────────────────────────────────
+
+def run(only=None):
+    _ensure_dir(MAP_ROOT)
+    if only is None or only == "menu":
+        build_main_menu()
+    if only is None or only == "dev":
+        build_dev_test()
+    print("[maps] done")
+
+
+if __name__ == "__main__":
+    run()

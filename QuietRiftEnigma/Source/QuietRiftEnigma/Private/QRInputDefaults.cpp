@@ -35,6 +35,8 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	if (!Character->HotbarNextAction) Character->HotbarNextAction = MakeAction(Character, "IA_HotbarNext_RT", EInputActionValueType::Boolean);
 	if (!Character->HotbarPrevAction) Character->HotbarPrevAction = MakeAction(Character, "IA_HotbarPrev_RT", EInputActionValueType::Boolean);
 	if (!Character->UseHeldAction)    Character->UseHeldAction    = MakeAction(Character, "IA_UseHeld_RT",    EInputActionValueType::Boolean);
+	if (!Character->PauseAction)      Character->PauseAction      = MakeAction(Character, "IA_Pause_RT",      EInputActionValueType::Boolean);
+	if (!Character->InventoryAction)  Character->InventoryAction  = MakeAction(Character, "IA_Inventory_RT",  EInputActionValueType::Boolean);
 
 	if (Character->HotbarSlotActions.Num() < 9) Character->HotbarSlotActions.SetNum(9);
 	for (int32 i = 0; i < 9; ++i)
@@ -84,6 +86,8 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	IMC->MapKey(Character->HotbarNextAction,       EKeys::MouseScrollDown);
 	IMC->MapKey(Character->HotbarPrevAction,       EKeys::MouseScrollUp);
 	IMC->MapKey(Character->UseHeldAction,          EKeys::RightMouseButton);
+	IMC->MapKey(Character->PauseAction,            EKeys::Escape);
+	IMC->MapKey(Character->InventoryAction,        EKeys::I);
 
 	const FKey SlotKeys[9] = {
 		EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,

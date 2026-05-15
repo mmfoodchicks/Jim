@@ -138,6 +138,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> UseHeldAction;
 
+	// Esc — toggles pause menu overlay.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> PauseAction;
+
+	// I — toggles full inventory grid overlay.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> InventoryAction;
+
 	// Class spawned by Drop when the held item's category is Wildlife.
 	// Defaults to AQRWildlifeActor (static-mesh wanderer).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Items")
@@ -245,11 +253,47 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<class UQRCreativeBrowserWidget> CreativeBrowserClass;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRVitalsHUDWidget> VitalsHUDClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRPauseMenuWidget> PauseMenuClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRSettingsWidget> SettingsWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRCraftingWidget> CraftingWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRDialogueWidget> DialogueWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRBuildPieceSelectorWidget> BuildPieceSelectorClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRInventoryGridWidget> InventoryGridClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRInventoryGridWidget> InventoryGrid = nullptr;
+
+	// Opens the settings overlay. Routed through ConsoleCommand from
+	// the pause / main menu widgets so they don't take a direct C++
+	// dep on the character.
+	UFUNCTION(Exec, Category = "UI")
+	void QR_OpenSettings();
+
 	UPROPERTY()
 	TObjectPtr<class UQRHotbarHUDWidget> HotbarHUD = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<class UQRCreativeBrowserWidget> CreativeBrowser = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<class UQRVitalsHUDWidget> VitalsHUD = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<class UQRPauseMenuWidget> PauseMenu = nullptr;
 
 	// ── Footsteps ────────────────────────────
 	// Speed threshold (cm/s) above which a step is allowed to play.
@@ -290,6 +334,8 @@ private:
 	void OnCreativeBrowserPressed();
 	void OnUseHeldPressed();
 	void OnUseHeldReleased();
+	void OnPausePressed();
+	void OnInventoryPressed();
 
 	// Per-category drop dispatch; runs on the server.
 	void DoDropHeld();
@@ -301,6 +347,13 @@ private:
 	// Time until next footstep (counts down each Tick on locally-controlled,
 	// grounded, moving characters).
 	float FootstepTimer = 0.0f;
+
+	// Last observed health value — used by HandleHealthChanged to detect
+	// damage (drop) vs healing (rise) so we only play the hit SFX on hits.
+	float LastObservedHealth = 100.0f;
+
+	UFUNCTION()
+	void HandleHealthChanged(float NewHealth);
 	void OnHotbarSlotInput(int32 SlotIndex);
 	void OnHotbarNext();
 	void OnHotbarPrev();

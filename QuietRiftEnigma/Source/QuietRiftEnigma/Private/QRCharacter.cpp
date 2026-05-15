@@ -17,7 +17,17 @@
 #include "QRFPViewComponent.h"
 #include "QRHotbarHUDWidget.h"
 #include "QRCreativeBrowserWidget.h"
+#include "QRVitalsHUDWidget.h"
+#include "QRPauseMenuWidget.h"
+#include "QRSettingsWidget.h"
+#include "QRCraftingWidget.h"
+#include "QRCraftingBench.h"
+#include "QRDialogueWidget.h"
+#include "QRBuildPieceSelectorWidget.h"
+#include "QRInventoryGridWidget.h"
+#include "QRGameMode.h"
 #include "QRUISound.h"
+#include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Blueprint/UserWidget.h"
@@ -30,6 +40,7 @@
 #include "Net/UnrealNetwork.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/HitResult.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
 
 AQRCharacter::AQRCharacter()
 {
@@ -69,6 +80,13 @@ AQRCharacter::AQRCharacter()
 	// UI defaults — local C++ widgets unless overridden in BP.
 	HotbarHUDClass        = UQRHotbarHUDWidget::StaticClass();
 	CreativeBrowserClass  = UQRCreativeBrowserWidget::StaticClass();
+	VitalsHUDClass        = UQRVitalsHUDWidget::StaticClass();
+	PauseMenuClass        = UQRPauseMenuWidget::StaticClass();
+	SettingsWidgetClass   = UQRSettingsWidget::StaticClass();
+	CraftingWidgetClass   = UQRCraftingWidget::StaticClass();
+	DialogueWidgetClass   = UQRDialogueWidget::StaticClass();
+	BuildPieceSelectorClass = UQRBuildPieceSelectorWidget::StaticClass();
+	InventoryGridClass    = UQRInventoryGridWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -107,6 +125,8 @@ void AQRCharacter::BeginPlay()
 	// Bind death delegate
 	if (Survival)
 		Survival->OnDeath.AddDynamic(this, &AQRCharacter::OnDied);
+		Survival->OnHealthChanged.AddDynamic(this, &AQRCharacter::HandleHealthChanged);
+		LastObservedHealth = Survival->Health;
 
 	// Fill any unset input action slots + build a runtime mapping context
 	// with sensible defaults (WASD / mouse / F / G / Tab / 1-9 / etc).
@@ -164,6 +184,27 @@ void AQRCharacter::BeginPlay()
 				CreativeBrowser->Bind(Hotbar);
 			}
 		}
+		if (VitalsHUDClass && Survival)
+		{
+			VitalsHUD = CreateWidget<UQRVitalsHUDWidget>(LocalPC, VitalsHUDClass);
+			if (VitalsHUD)
+			{
+				VitalsHUD->AddToViewport(/*ZOrder*/ 10);
+				VitalsHUD->Bind(Survival);
+			}
+		}
+	}
+
+	// Pull any pending save snapshot from the game mode (server only —
+	// it owns the save state; clients get vitals via replication and
+	// inventory via the standard inventory replication once the
+	// authoritative pawn is populated).
+	if (HasAuthority())
+	{
+		if (AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr)
+		{
+			GM->ApplyLoadedDataToPlayer(this);
+		}
 	}
 }
 
@@ -207,9 +248,35 @@ void AQRCharacter::Tick(float DeltaTime)
 				const float Interval = FMath::Lerp(FootstepWalkInterval, FootstepSprintInterval, SpeedAlpha);
 				const float Vol      = FootstepVolumeMult * FMath::Lerp(0.6f, 1.0f, SpeedAlpha);
 
+				const float HalfH = GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
 				FVector FootLoc = GetActorLocation();
-				FootLoc.Z -= GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
-				QRUISound::PlayFootstep(this, FootLoc, Vol);
+				FootLoc.Z -= HalfH;
+
+				// Surface detection: short line trace from feet downward,
+				// read the hit's physical material, map to our footstep
+				// surface enum. No PhysMat → falls back to Concrete inside
+				// QRUISound::SurfaceFromPhysMat.
+				EQRFootSurface Surface = EQRFootSurface::Concrete;
+				FHitResult Hit;
+				FCollisionQueryParams Params(SCENE_QUERY_STAT(QRFootstepTrace), /*bComplex*/ true);
+				Params.AddIgnoredActor(this);
+				Params.bReturnPhysicalMaterial = true;
+				const FVector TraceStart = GetActorLocation();
+				const FVector TraceEnd   = TraceStart - FVector(0, 0, HalfH + 30.0f);
+				if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params))
+				{
+					if (UPhysicalMaterial* PM = Hit.PhysMaterial.Get())
+					{
+						Surface = QRUISound::SurfaceFromPhysMat(static_cast<uint8>(PM->SurfaceType));
+					}
+				}
+
+				// Gait selection — walk for slow, jog mid, run fast.
+				EQRFootGait Gait = EQRFootGait::Walk;
+				if (SpeedAlpha > 0.66f)      Gait = EQRFootGait::Run;
+				else if (SpeedAlpha > 0.33f) Gait = EQRFootGait::Jog;
+
+				QRUISound::PlayFootstep(this, FootLoc, Surface, Gait, Vol);
 
 				FootstepTimer = Interval;
 			}
@@ -251,6 +318,14 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		{
 			EI->BindAction(UseHeldAction, ETriggerEvent::Started,   this, &AQRCharacter::OnUseHeldPressed);
 			EI->BindAction(UseHeldAction, ETriggerEvent::Completed, this, &AQRCharacter::OnUseHeldReleased);
+		}
+		if (PauseAction)
+		{
+			EI->BindAction(PauseAction, ETriggerEvent::Started, this, &AQRCharacter::OnPausePressed);
+		}
+		if (InventoryAction)
+		{
+			EI->BindAction(InventoryAction, ETriggerEvent::Started, this, &AQRCharacter::OnInventoryPressed);
 		}
 
 		// Per-slot bindings carry the slot index as a payload, so the same
@@ -336,6 +411,52 @@ void AQRCharacter::ScanForInteractable()
 void AQRCharacter::TryInteract()
 {
 	if (!CurrentInteractable.IsValid()) return;
+
+	// Client-side: if the focus is a crafting bench, open the local UI.
+	// This is purely cosmetic; the queue/cancel buttons inside the
+	// widget call into the component which RPCs the server.
+	if (CraftingWidgetClass)
+	{
+		if (AQRCraftingBench* Bench = Cast<AQRCraftingBench>(CurrentInteractable.Get()))
+		{
+			APlayerController* PC = Cast<APlayerController>(GetController());
+			if (PC && PC->IsLocalController())
+			{
+				UQRCraftingWidget* W = CreateWidget<UQRCraftingWidget>(PC, CraftingWidgetClass);
+				if (W)
+				{
+					W->AddToViewport(/*ZOrder*/ 200);
+					W->Bind(Bench);
+					PC->bShowMouseCursor = true;
+					FInputModeGameAndUI Mode;
+					Mode.SetWidgetToFocus(W->TakeWidget());
+					PC->SetInputMode(Mode);
+				}
+				return;
+			}
+		}
+	}
+
+	// Client-side dialogue overlay: if the focus has a UQRDialogueComponent,
+	// mount the dialogue widget locally and let the standard Server_Interact
+	// path actually start the conversation (component lives on the actor,
+	// the widget just subscribes to its events).
+	if (DialogueWidgetClass)
+	{
+		if (UQRDialogueComponent* Dlg = CurrentInteractable->FindComponentByClass<UQRDialogueComponent>())
+		{
+			APlayerController* PC = Cast<APlayerController>(GetController());
+			if (PC && PC->IsLocalController())
+			{
+				UQRDialogueWidget* W = CreateWidget<UQRDialogueWidget>(PC, DialogueWidgetClass);
+				if (W)
+				{
+					W->AddToViewport(/*ZOrder*/ 150);
+					W->Bind(Dlg);
+				}
+			}
+		}
+	}
 
 	// Trigger interaction on server if client
 	if (!HasAuthority())
@@ -514,6 +635,22 @@ void AQRCharacter::DoDropHeld()
 	{
 		Build->EnterBuildMode();
 		Build->SelectPiece(Def->ItemId);
+
+		// Pop the piece selector so the player can swap to a different
+		// piece without leaving build mode. Local-only UI.
+		if (BuildPieceSelectorClass)
+		{
+			APlayerController* PC = Cast<APlayerController>(GetController());
+			if (PC && PC->IsLocalController())
+			{
+				UQRBuildPieceSelectorWidget* W = CreateWidget<UQRBuildPieceSelectorWidget>(PC, BuildPieceSelectorClass);
+				if (W)
+				{
+					W->AddToViewport(/*ZOrder*/ 220);
+					W->Bind(Build);
+				}
+			}
+		}
 		return;
 	}
 
@@ -523,6 +660,86 @@ void AQRCharacter::DoDropHeld()
 
 void AQRCharacter::OnUseHeldPressed()  { TryUseHeld(true);  }
 void AQRCharacter::OnUseHeldReleased() { TryUseHeld(false); }
+
+void AQRCharacter::OnInventoryPressed()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController()) return;
+
+	// Toggle behavior: close if already open, otherwise mount.
+	if (InventoryGrid && InventoryGrid->IsInViewport())
+	{
+		InventoryGrid->RemoveFromParent();
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
+		return;
+	}
+
+	if (!InventoryGridClass || !Inventory) return;
+	InventoryGrid = CreateWidget<UQRInventoryGridWidget>(PC, InventoryGridClass);
+	if (!InventoryGrid) return;
+
+	InventoryGrid->AddToViewport(/*ZOrder*/ 300);
+	InventoryGrid->Bind(Inventory);
+
+	PC->bShowMouseCursor = true;
+	FInputModeGameAndUI Mode;
+	Mode.SetWidgetToFocus(InventoryGrid->TakeWidget());
+	PC->SetInputMode(Mode);
+}
+
+void AQRCharacter::QR_OpenSettings()
+{
+	if (!SettingsWidgetClass) return;
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController()) return;
+
+	UQRSettingsWidget* W = CreateWidget<UQRSettingsWidget>(PC, SettingsWidgetClass);
+	if (!W) return;
+	W->AddToViewport(/*ZOrder*/ 600);
+
+	// Keep cursor + UI input while open. If launched from the pause
+	// menu, the game is already paused; otherwise pause now so the
+	// world freezes while the player tweaks knobs.
+	PC->bShowMouseCursor = true;
+	FInputModeGameAndUI Mode;
+	Mode.SetWidgetToFocus(W->TakeWidget());
+	PC->SetInputMode(Mode);
+}
+
+void AQRCharacter::OnPausePressed()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController()) return;
+
+	const bool bCurrentlyPaused = UGameplayStatics::IsGamePaused(this);
+	if (bCurrentlyPaused)
+	{
+		// Resume — pause widget handles its own teardown via Resume button,
+		// but Esc-while-open should also dismiss it.
+		UGameplayStatics::SetGamePaused(this, false);
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
+		if (PauseMenu)
+		{
+			PauseMenu->RemoveFromParent();
+			PauseMenu = nullptr;
+		}
+		return;
+	}
+
+	if (!PauseMenuClass) return;
+	PauseMenu = CreateWidget<UQRPauseMenuWidget>(PC, PauseMenuClass);
+	if (PauseMenu)
+	{
+		PauseMenu->AddToViewport(/*ZOrder*/ 500);
+		UGameplayStatics::SetGamePaused(this, true);
+		PC->bShowMouseCursor = true;
+		FInputModeGameAndUI Mode;
+		Mode.SetWidgetToFocus(PauseMenu->TakeWidget());
+		PC->SetInputMode(Mode);
+	}
+}
 
 void AQRCharacter::TryUseHeld(bool bPressed)
 {
@@ -628,12 +845,35 @@ void AQRCharacter::RefreshHeldItemMesh()
 	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
 }
 
+void AQRCharacter::HandleHealthChanged(float NewHealth)
+{
+	if (NewHealth < LastObservedHealth - KINDA_SMALL_NUMBER)
+	{
+		QRUISound::PlayHitImpact(this, GetActorLocation());
+	}
+	LastObservedHealth = NewHealth;
+}
+
 void AQRCharacter::OnDied_Implementation()
 {
+	// Death cry, then teardown.
+	QRUISound::PlayDeathCry(this, GetActorLocation());
+
 	// Disable input, collapse physics, notify game mode
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 		PC->DisableInput(PC);
 
 	GetMesh()->SetSimulatePhysics(true);
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// Hand off to the game mode to mount the death screen + schedule a
+	// respawn. Server authority only — clients receive the new pawn via
+	// the standard PlayerController possession path.
+	if (HasAuthority())
+	{
+		if (AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr)
+		{
+			GM->HandlePlayerDied(this);
+		}
+	}
 }

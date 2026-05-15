@@ -22,6 +22,12 @@ __pycache__/
 # Re-track individual subdirs explicitly if you need a specific asset
 # from a pack to ship with the project.
 
+# ── Fab plugin local library cache (mutates on every Fab refresh) ──
+QuietRiftEnigma/Content/Fabs/VaultCache/FabLibrary/listings_v1.db
+QuietRiftEnigma/Content/Fabs/VaultCache/FabLibrary/*.db-journal
+QuietRiftEnigma/Content/Fabs/VaultCache/FabLibrary/*.db-shm
+QuietRiftEnigma/Content/Fabs/VaultCache/FabLibrary/*.db-wal
+
 # ── OS junk ──
 .DS_Store
 Thumbs.db

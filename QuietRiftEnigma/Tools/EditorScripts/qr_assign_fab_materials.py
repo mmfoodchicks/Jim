@@ -32,10 +32,14 @@ import unreal
 # Prefix → ordered list of keyword candidates. The first Fab material
 # whose name contains any keyword in the first list wins; if nothing
 # matches we fall back through the next lists.
+#
+# Updated to also surface the May-2026 Fab haul: WeaponSniper (gun
+# materials), Rock_Collection_04 / ROCKY_SAND_PACK (terrain + raw),
+# and the Mannequin material instances bundled with the anim packs.
 PREFIX_KEYWORDS = {
-    # Weapons + attachments — gun metal, scope plastic.
-    "WPN": [["rifle", "gun", "weapon", "firearm"], ["metal", "steel", "gunmetal"], ["industrial"]],
-    "ATT": [["scope", "optic", "rail", "attachment"], ["metal", "steel"], ["plastic"]],
+    # Weapons + attachments — sniper materials first, fallback to Industry metal.
+    "WPN": [["sniper", "weapon", "gun", "rifle", "firearm"], ["metal", "steel", "gunmetal"], ["industrial"]],
+    "ATT": [["sniper", "scope", "optic", "rail", "attachment"], ["metal", "steel"], ["plastic"]],
 
     # Buildings / walls — concrete + panel.
     "BLD": [["wall", "concrete", "panel", "construction"], ["metal", "steel"], ["industrial"]],
@@ -56,16 +60,19 @@ PREFIX_KEYWORDS = {
     # Medicine (clean white plastic / glass).
     "MED": [["plastic", "medical", "white", "bottle"], ["glass", "clean"]],
 
-    # Wildlife / animals — skin / fur / hide / scale.
-    "ANM": [["skin", "flesh", "creature", "fur", "hide", "scale"], ["leather"]],
-    "WLD": [["skin", "flesh", "creature", "fur", "hide"], ["leather"]],
+    # Wildlife / animals — Manny mannequin materials work as humanoid
+    # skin proxy. Real anim packs (German Shepherd, etc.) get their own.
+    "ANM": [["manny", "skin", "flesh", "creature", "fur", "hide", "scale"], ["leather"]],
+    "WLD": [["manny", "skin", "flesh", "creature", "fur", "hide"], ["leather"]],
 
     # Tools / handheld — metal + wood handles.
     "TOL": [["tool", "metal", "handle"], ["wood", "steel"]],
     "HND": [["handle", "metal", "wood"], ["leather"]],
 
-    # Resources / raw materials.
-    "RAW": [["wood", "rock", "stone", "ore"], ["crate"]],
+    # Resources / raw materials — Rock_Collection_04 + ROCKY_SAND_PACK
+    # are perfect here.
+    "RAW": [["rock", "stone", "sand", "ore", "wood"], ["crate"]],
+    "STN_RAW": [["rock", "stone", "sand"], ["ore"]],  # legacy prefix variant
 
     # POI clutter / props.
     "POI": [["crate", "barrel", "box"], ["wood", "metal"]],
@@ -75,9 +82,9 @@ PREFIX_KEYWORDS = {
     "RIG": [["fabric", "cloth", "leather", "pack"], ["metal"]],
     "PCK": [["fabric", "cloth", "leather"], ["pack"]],
 
-    # Cosmetic clothing.
-    "CSM": [["cloth", "fabric", "leather"], ["wool", "linen"]],
-    "CLT": [["cloth", "fabric", "leather"], ["wool"]],
+    # Cosmetic clothing — Mannequin mat as a clean skin fallback.
+    "CSM": [["manny", "cloth", "fabric", "leather"], ["wool", "linen"]],
+    "CLT": [["manny", "cloth", "fabric", "leather"], ["wool"]],
 
     # Remnant / alien artifacts — emissive sci-fi.
     "REM": [["sci", "alien", "glow", "emissive", "energy"], ["console", "tech", "panel"]],

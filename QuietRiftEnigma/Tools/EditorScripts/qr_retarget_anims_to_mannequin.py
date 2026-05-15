@@ -49,14 +49,26 @@ SOURCE_MESH_PATH     = "/Game/Fabs/FuturisticWarrior/Mesh/SK_FuturisticWarrior.S
 SOURCE_ANIMS_PATH    = "/Game/Fabs/FuturisticWarrior/Animation"
 
 # Where to look for the UE5 Mannequin in the user's project. The Third
-# Person template imports under /Game/Characters/Mannequins/Meshes/. We
-# search both Manny and Quinn — either is fine, they share a skeleton.
+# Person template imports under /Game/Characters/Mannequins/Meshes/.
+# Several Fab anim packs (FreeAnimsMixPack, DynamicFalling, etc.) bundle
+# the Mannequin under their Demo folder — we search those paths too so
+# the script works without the user installing the Third Person template
+# separately.
 TARGET_MESH_CANDIDATES = [
+    # Canonical Third Person template locations.
     "/Game/Characters/Mannequins/Meshes/SKM_Manny",
     "/Game/Characters/Mannequins/Meshes/SKM_Quinn",
     "/Game/Characters/Mannequins/Meshes/SK_Mannequin",
     "/Game/ThirdPerson/Characters/Mannequins/Meshes/SKM_Manny",
     "/Game/ThirdPerson/Characters/Mannequins/Meshes/SKM_Quinn",
+    # Bundled inside Fab anim packs.
+    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Manny",
+    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Quinn",
+    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SK_Mannequin",
+    "/Game/Fabs/DynamicFalling/Demo/Characters/Mannequins/Meshes/SKM_Manny_Simple",
+    "/Game/Fabs/DynamicFalling/Demo/Characters/Mannequins/Meshes/SK_Mannequin",
+    "/Game/Fabs/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
+    "/Game/Fabs/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SK_Mannequin",
 ]
 
 # Output locations.
@@ -303,15 +315,16 @@ def run():
     if not target_path:
         print("")
         print("=" * 72)
-        print("UE5 Mannequin (Manny/Quinn) skeletal mesh not found in /Game/.")
+        print("UE5 Mannequin (Manny/Quinn) skeletal mesh not found.")
         print("")
-        print("To install it:")
-        print("  Editor → Add → Add Feature or Content Pack to Project")
-        print("    → choose 'Third Person' template")
-        print("    → click Add to Project")
+        print("The retarget script searched these locations:")
+        for p in TARGET_MESH_CANDIDATES:
+            print("  " + p)
         print("")
-        print("That imports SKM_Manny + SKM_Quinn under")
-        print("  /Game/Characters/Mannequins/Meshes/")
+        print("Easiest fix — install one of these Fab packs (any contains a Mannequin):")
+        print("  • Mannequins Asset Pack (Epic, free)")
+        print("  • Animation Starter Pack (Epic, free)")
+        print("  • FreeAnimsMixPack / DynamicFalling / RamsterZ (already in your Fabs?)")
         print("")
         print("Then re-run this script.")
         print("=" * 72)
