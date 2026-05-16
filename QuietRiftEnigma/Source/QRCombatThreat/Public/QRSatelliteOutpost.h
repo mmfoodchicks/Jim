@@ -3,11 +3,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "QRTypes.h"
+#include "QRRaidScheduler.h"
 #include "QRSatelliteOutpost.generated.h"
 
 class UQRFactionComponent;
 class AQRVanguardColony;
-class AQRRaidScheduler;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOutpostDestroyed, AQRSatelliteOutpost*, Outpost);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOutpostTierChanged, AQRSatelliteOutpost*, Outpost, EQRVanguardHardpointTier, NewTier);

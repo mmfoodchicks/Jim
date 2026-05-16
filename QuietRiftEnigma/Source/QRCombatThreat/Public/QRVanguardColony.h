@@ -3,11 +3,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "QRTypes.h"
+#include "QRRaidScheduler.h"
 #include "QRVanguardColony.generated.h"
 
 class UQRFactionComponent;
 class AQRSatelliteOutpost;
-class AQRRaidScheduler;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConcordatRaidCapacityChanged);
 
