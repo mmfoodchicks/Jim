@@ -53,7 +53,7 @@ public:
 
 	// What kind of remnant this is. Drives mesh + yield + escalation.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Remnant")
-	EQRRemnantKind Kind = EQRRemnantKind::SignalSpire;
+	EQRRemnantStructureType Kind = EQRRemnantStructureType::SignalSpire;
 
 	// Current wake state (replicated so all clients see pulses).
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_WakeState, Category = "QR|Remnant")

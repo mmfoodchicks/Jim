@@ -5,7 +5,7 @@
 #include "QRTypes.h"
 #include "QRRemnantStructure.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRemnantWakeStateChanged,
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRemnantStructureWakeChanged,
 	AQRRemnantStructure*, Structure, EQRRemnantWakeState, NewState);
 
 // Base class for all Progenitor (Remnant) structures on Tharsis IV.
@@ -89,7 +89,7 @@ public:
 
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Remnant|Events")
-	FOnRemnantWakeStateChanged OnWakeStateChanged;
+	FOnRemnantStructureWakeChanged OnWakeStateChanged;
 
 	// ── Interface ────────────────────────────
 	// Called by the GameMode each time Rift research progress changes.
