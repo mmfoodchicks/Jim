@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "QRBiomeProfile.h"
+#include "QRTypes.h"
 #include "QRWorldGenTypes.generated.h"
 
 /**
@@ -101,33 +102,10 @@ struct QUIETRIFTENIGMA_API FQRBiomeBandPool
 };
 
 
-/**
- * Remnant wake state per Master GDD §13 / GAME_OVERVIEW.md.
- * AQRRemnantSite drives this FSM in response to player Rift research.
- */
-UENUM(BlueprintType)
-enum class EQRRemnantWakeState : uint8
-{
-	Dormant   UMETA(DisplayName = "Dormant"),
-	Stirring  UMETA(DisplayName = "Stirring"),
-	Active    UMETA(DisplayName = "Active"),
-	Hostile   UMETA(DisplayName = "Hostile"),
-	Subsiding UMETA(DisplayName = "Subsiding"),
-};
-
-
-/**
- * Remnant structure type (Master GDD §13). Drives mesh selection +
- * research yield + wake-state escalation curve.
- */
-UENUM(BlueprintType)
-enum class EQRRemnantKind : uint8
-{
-	SignalSpire       UMETA(DisplayName = "Signal Spire"),
-	PowerCore         UMETA(DisplayName = "Power Core"),
-	DataArchive       UMETA(DisplayName = "Data Archive"),
-	ResonanceChamber  UMETA(DisplayName = "Resonance Chamber"),
-};
+// Note: EQRRemnantWakeState and EQRRemnantStructureType (the
+// canonical "remnant kind") are defined in QRCore/QRTypes.h. Don't
+// redeclare here — UHT's reflection registry is project-wide and
+// duplicates fail to compile.
 
 
 /**

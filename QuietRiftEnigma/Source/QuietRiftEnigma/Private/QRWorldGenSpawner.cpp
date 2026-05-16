@@ -225,11 +225,11 @@ void AQRWorldGenSpawner::SpawnPOIs()
 	}
 
 	int32 RemnantCycleIdx = 0;
-	const TArray<EQRRemnantKind> RemnantCycle = {
-		EQRRemnantKind::SignalSpire,
-		EQRRemnantKind::PowerCore,
-		EQRRemnantKind::DataArchive,
-		EQRRemnantKind::ResonanceChamber,
+	const TArray<EQRRemnantStructureType> RemnantCycle = {
+		EQRRemnantStructureType::SignalSpire,
+		EQRRemnantStructureType::PowerCore,
+		EQRRemnantStructureType::DataArchive,
+		EQRRemnantStructureType::ResonanceChamber,
 	};
 
 	for (const FQRPOIPlacement& P : Sub->POIPlacements)
