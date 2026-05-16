@@ -373,13 +373,13 @@ private:
 	// between cells with different biomes (or enters/exits an
 	// AQRBiomeZone). Lives on the character so it follows the listener
 	// without needing world placement.
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio|Biome")
+	UPROPERTY(VisibleAnywhere, Category = "Audio|Biome")
 	TObjectPtr<class UAudioComponent> BiomeAmbient = nullptr;
 
 	UFUNCTION(BlueprintCallable, Category = "QR|Biome")
 	void OnBiomeZoneEnter(class UQRBiomeProfile* Profile, int32 Priority);
 
-	UFUNCTION(BlueprintCallable, BlueprintCallable, Category = "QR|Biome")
+	UFUNCTION(BlueprintCallable, Category = "QR|Biome")
 	void OnBiomeZoneExit(class UQRBiomeProfile* Profile, int32 Priority);
 
 	// Last biome name we activated audio for, so we only swap when it
