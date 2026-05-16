@@ -24,7 +24,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VaultbackDray")
 	bool bIsBastionElite = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VaultbackDray")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "VaultbackDray")
 	bool bIsTamed = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VaultbackDray")
