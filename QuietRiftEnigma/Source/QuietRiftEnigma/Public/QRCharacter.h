@@ -93,6 +93,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> ReloadAction;
 
+	// I — toggles full inventory grid overlay.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InventoryAction;
 
@@ -141,10 +142,6 @@ public:
 	// Esc — toggles pause menu overlay.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> PauseAction;
-
-	// I — toggles full inventory grid overlay.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputAction> InventoryAction;
 
 	// K — toggles the Codex (discovery / lore) screen.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")

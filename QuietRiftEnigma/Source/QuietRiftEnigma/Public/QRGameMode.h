@@ -177,11 +177,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Save")
 	void ApplyLoadedDataToPlayer(AQRCharacter* Player);
 
-	// Default slot name used by QuickSave / QuickLoad and the autosave
-	// on EndPlay. Designer can override per-session.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Save")
-	FString AutosaveSlotName = TEXT("QuickSave");
-
 	// ── Death / Respawn ─────────────────────────
 	// Called by AQRCharacter::OnDied. Mounts a death screen on the local
 	// PC, sets a timer for RespawnDelaySeconds, then RestartPlayer-s.
