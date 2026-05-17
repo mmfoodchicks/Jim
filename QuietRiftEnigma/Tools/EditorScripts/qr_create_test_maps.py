@@ -44,7 +44,12 @@ def _ensure_dir(path):
 
 
 def _new_empty_level(map_path):
-    """Creates a fresh empty level at /Game/<path> and opens it."""
+    """Creates a fresh empty level at /Game/<path> and opens it.
+    Deletes any existing asset at that path first so the script is
+    safely re-runnable (otherwise new_level errors out with
+    "An asset already exists at this location")."""
+    if unreal.EditorAssetLibrary.does_asset_exist(map_path):
+        unreal.EditorAssetLibrary.delete_asset(map_path)
     # UE5.7's EditorLevelLibrary.new_level expects "/Game/..." style.
     ok = unreal.EditorLevelLibrary.new_level(map_path)
     if not ok:
