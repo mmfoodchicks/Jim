@@ -253,7 +253,7 @@ void AQRWorldGenSpawner::SpawnPOIs()
 				if (Row->LootTemplate.Entries.Num() > 0) OverrideTemplate = &Row->LootTemplate;
 				if (Row->MeshOptions.Num() > 0)
 				{
-					const int32 PickIdx = FMath::Abs(GetTypeHash(P.WorldLocation.ToString())) % Row->MeshOptions.Num();
+					const int32 PickIdx = static_cast<int32>(GetTypeHash(P.WorldLocation.ToString()) % static_cast<uint32>(Row->MeshOptions.Num()));
 					OverrideMesh = Row->MeshOptions[PickIdx].LoadSynchronous();
 				}
 			}
@@ -291,8 +291,8 @@ void AQRWorldGenSpawner::SpawnPOIs()
 					if (Camp->Sim)
 					{
 						Camp->Sim->CampId = FName(*IdStr);
-						const int32 LeadHash = FMath::Abs(GetTypeHash(P.WorldLocation.ToString()) ^ Sub->WorldSeed);
-						Camp->Sim->FallbackLeadership = (LeadHash % 100) / 10.0f;
+						const uint32 LeadHash = GetTypeHash(P.WorldLocation.ToString()) ^ static_cast<uint32>(Sub->WorldSeed);
+						Camp->Sim->FallbackLeadership = (LeadHash % 100u) / 10.0f;
 					}
 				}
 				// Optional mesh override — assigns to the first
@@ -341,8 +341,8 @@ void AQRWorldGenSpawner::SpawnPOIs()
 						// Spread leadership across the camps so some are
 						// dangerous strategists, others rush blindly.
 						// Seeded by world+position so it's deterministic.
-						const int32 LeadHash = FMath::Abs(GetTypeHash(P.WorldLocation.ToString()) ^ Sub->WorldSeed);
-						const float Leadership = (LeadHash % 100) / 10.0f;  // 0..10
+						const uint32 LeadHash = GetTypeHash(P.WorldLocation.ToString()) ^ static_cast<uint32>(Sub->WorldSeed);
+						const float Leadership = (LeadHash % 100u) / 10.0f;  // 0..10
 						Camp->Sim->FallbackLeadership = Leadership;
 					}
 				}
