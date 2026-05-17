@@ -123,20 +123,44 @@ def _spawn_atmosphere_lighting():
 
 
 def _set_game_mode(class_path):
-    """Sets the world settings' DefaultGameMode to the given class."""
+    """Sets the current level's DefaultGameMode on AWorldSettings, then
+    verifies + dirties the package so save_current_level actually
+    persists it. Silent failures here were costing us PIE sessions:
+    without QRGameMode the level loads with a default empty pawn and
+    the world bootstrap never runs."""
     cls = unreal.load_object(None, class_path)
     if not cls:
-        print("[maps] couldn't load game-mode class " + class_path)
+        print("[maps]   couldn't load game-mode class " + class_path)
         return
-    # Set DefaultGameMode directly on the AWorldSettings actor. The old
-    # EditorLevelLibrary.get_game_mode_settings_for_current_level() helper
-    # was removed in UE 5.7; this path is what's left and is sufficient.
-    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
-    if settings:
-        try:
-            settings.set_editor_property("default_game_mode", cls)
-        except Exception as e:
-            print("[maps] world settings game mode set failed: " + str(e))
+
+    world = unreal.EditorLevelLibrary.get_editor_world()
+    if not world:
+        print("[maps]   no editor world — game mode NOT set")
+        return
+    settings = world.get_world_settings()
+    if not settings:
+        print("[maps]   world has no WorldSettings — game mode NOT set")
+        return
+
+    try:
+        settings.set_editor_property("default_game_mode", cls)
+    except Exception as e:
+        print("[maps]   set_editor_property('default_game_mode') failed: " + str(e))
+        return
+
+    # Read back to make sure it took.
+    actual = settings.get_editor_property("default_game_mode")
+    if actual != cls:
+        print("[maps]   game mode read-back MISMATCH: got {} expected {}"
+              .format(actual, class_path))
+        return
+
+    # Mark the level package dirty so save_current_level writes the change.
+    pkg = settings.get_outer().get_package() if settings.get_outer() else None
+    if pkg:
+        pkg.set_dirty_flag(True)
+
+    print("[maps]   game mode = " + class_path)
 
 
 def _save():
