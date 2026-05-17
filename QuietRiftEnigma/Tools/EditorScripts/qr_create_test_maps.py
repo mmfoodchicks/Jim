@@ -213,7 +213,7 @@ def _spawn_floor():
     candidate_materials = [
         "/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
         "/Game/Fabs/ScifiJungle/Materials/M_Ground_Forest",
-        "/Engine/EditorMaterials/EditorSky.EditorSky",  # last-resort visible default
+        "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial",  # always available
     ]
     for path in candidate_materials:
         mat = unreal.load_object(None, path)
@@ -223,21 +223,15 @@ def _spawn_floor():
 
 
 def _spawn_starter_hills():
-    """Drop a few large rock meshes near spawn so the dev-test world
-    isn't a featureless plane. Pure cosmetic — a placeholder until a
-    proper Landscape with sculpted/noise heightmap replaces the flat
-    floor. Uses the same Fab rocks the biome palette references."""
-    candidates = [
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01",
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02",
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03",
-    ]
-    meshes = [m for m in (unreal.load_object(None, p) for p in candidates) if m]
-    if not meshes:
-        print("[maps]   no Rock_Collection_04 meshes — skipping starter hills")
+    """Drop a few cube-mesh "hills" near spawn so the dev-test world
+    isn't a featureless plane. Placeholder visual until a real
+    Landscape replaces the flat 8 km floor. Uses the engine cube so
+    no Fab dependency."""
+    cube_mesh = unreal.load_object(None, "/Engine/BasicShapes/Cube.Cube")
+    if not cube_mesh:
+        print("[maps]   /Engine/BasicShapes/Cube not loadable — no hills")
         return
 
-    # Spread 8 hills in a ring around spawn at varying distance + scale.
     import math
     for i in range(8):
         angle = (i / 8.0) * 2 * math.pi
@@ -248,11 +242,13 @@ def _spawn_starter_hills():
             unreal.Vector(*loc),
             unreal.Rotator(0, (i * 47) % 360, 0))
         if not actor: continue
-        scale = 6.0 + (i % 4) * 4.0    # 6×–18× cube-scale rocks = big hills
-        actor.set_actor_scale3d(unreal.Vector(scale, scale, scale * 0.7))
-        actor.static_mesh_component.set_static_mesh(meshes[i % len(meshes)])
+        # Wide + low boxes so they read as terrain mounds rather than walls.
+        scale_xy = 4.0 + (i % 4) * 2.5
+        scale_z  = 1.5 + (i % 3) * 0.8
+        actor.set_actor_scale3d(unreal.Vector(scale_xy, scale_xy, scale_z))
+        actor.static_mesh_component.set_static_mesh(cube_mesh)
         actor.set_actor_label("StarterHill_{}".format(i))
-    print("[maps]   placed 8 starter hills (15–31 m radius)")
+    print("[maps]   placed 8 starter hill cubes (15–31 m radius)")
 
 
 def _spawn_scatter_with_biome():
@@ -280,7 +276,10 @@ def _spawn_scatter_with_biome():
 
     # Cover a 200 m × 200 m area centered on origin — close enough to the
     # PlayerStart that you walk right into the scatter on Play.
-    actor.set_editor_property('volume_extents', unreal.Vector(10000.0, 10000.0, 500.0))
+    # The scatter actor's box footprint is the UBoxComponent named "Bounds".
+    bounds = actor.get_editor_property('bounds')
+    if bounds:
+        bounds.set_box_extent(unreal.Vector(10000.0, 10000.0, 500.0))
     actor.set_editor_property('target_count', 800)
     actor.set_editor_property('seed', 1337)
     print("[maps]   scatter actor placed (200m x 200m, 800 instances)")
