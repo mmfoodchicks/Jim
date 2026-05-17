@@ -139,7 +139,10 @@ def _create_rule(biome_tag, roster):
             continue
         entry = unreal.QRFaunaEntry()
         entry.set_editor_property('species_id', unreal.Name(species_key))
-        entry.set_editor_property('actor_class', unreal.SoftClassPath(cls_path))
+        # TSoftClassPtr UPROPERTY: Python wants the loaded Class directly,
+        # not a SoftClassPath wrapper (raises "Cannot nativize SoftClassPath
+        # as Class"). The TSoftClassPtr stores a soft ref internally.
+        entry.set_editor_property('actor_class', cls)
         entry.set_editor_property('weight', float(weight))
         entry.set_editor_property('min_group_size', int(mn))
         entry.set_editor_property('max_group_size', int(mx))
