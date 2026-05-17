@@ -83,7 +83,6 @@ TSharedRef<SWidget> UQRCraftingWidget::RebuildWidget()
 		CurrentTaskBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass());
 		CurrentTaskBar->SetFillColorAndOpacity(FLinearColor(0.30f, 0.85f, 0.45f, 1.0f));
 		CurrentTaskBar->SetPercent(0.0f);
-		CurrentTaskBar->SetMinimumDesiredSize(FVector2D(640.0f, 14.0f));
 		UVerticalBoxSlot* BarSlot = Column->AddChildToVerticalBox(CurrentTaskBar);
 		if (BarSlot) BarSlot->SetPadding(FMargin(0, 4, 0, 18));
 
@@ -170,7 +169,7 @@ void UQRCraftingWidget::RebuildRecipeList()
 		const FString Display = Row->DisplayName.IsEmpty()
 			? Pair.Key.ToString()
 			: Row->DisplayName.ToString();
-		MakeQueueRow(Row->RecipeId.IsNone() ? Pair.Key : Row->RecipeId, Display);
+		MakeQueueRow(Pair.Key, Display);
 	}
 }
 

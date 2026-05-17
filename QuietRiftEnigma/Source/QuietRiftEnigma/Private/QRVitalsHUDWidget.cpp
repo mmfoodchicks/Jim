@@ -93,10 +93,9 @@ UHorizontalBox* UQRVitalsHUDWidget::MakeRow(int32 Index, const FText& LabelText,
 		BarSlot->SetVerticalAlignment(VAlign_Center);
 		BarSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 	}
-	// HACK: ProgressBar doesn't accept a fixed pixel width via slot.
-	// We rely on the row's auto-size + a fixed numeric column to its
-	// right to keep the bar visually consistent across rows.
-	Bar->SetMinimumDesiredSize(FVector2D(180.0f, 14.0f));
+	// ProgressBar doesn't expose a fixed pixel size on the C++ side;
+	// the parent row's auto-size + a fixed numeric column to its right
+	// keeps bars visually consistent.
 
 	// Numeric readout cell.
 	UTextBlock* Numeric = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());

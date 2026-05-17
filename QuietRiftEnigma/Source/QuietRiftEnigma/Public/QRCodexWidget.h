@@ -2,12 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Button.h"
 #include "QRCodexWidget.generated.h"
 
 class UVerticalBox;
 class UScrollBox;
 class UHorizontalBox;
-class UButton;
 class UTextBlock;
 class UQRCodexSubsystem;
 

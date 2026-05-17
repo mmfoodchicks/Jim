@@ -376,12 +376,15 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Audio|Biome")
 	TObjectPtr<class UAudioComponent> BiomeAmbient = nullptr;
 
+public:
+	// Called by AQRBiomeZone overlap callbacks.
 	UFUNCTION(BlueprintCallable, Category = "QR|Biome")
 	void OnBiomeZoneEnter(class UQRBiomeProfile* Profile, int32 Priority);
 
 	UFUNCTION(BlueprintCallable, Category = "QR|Biome")
 	void OnBiomeZoneExit(class UQRBiomeProfile* Profile, int32 Priority);
 
+private:
 	// Last biome name we activated audio for, so we only swap when it
 	// actually changes.
 	FName ActiveBiomeName;

@@ -2,13 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Button.h"
 #include "QRCraftingWidget.generated.h"
 
 class UVerticalBox;
 class UScrollBox;
 class UProgressBar;
 class UTextBlock;
-class UButton;
 class UQRCraftingComponent;
 class AQRCraftingBench;
 

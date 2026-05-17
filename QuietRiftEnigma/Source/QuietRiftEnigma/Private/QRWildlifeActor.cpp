@@ -142,10 +142,7 @@ void AQRWildlifeActor::ReceiveDamage(float Amount, AActor* Source)
 	if (Health <= 0.0f)
 	{
 		// Report the kill to the mission director before we go dead.
-		const FName SpeciesId = ItemId.IsNone() && Definition
-			? Definition->ItemId
-			: ItemId;
-		UQRMissionDirector::ReportSpeciesKilled(GetWorld(), SpeciesId, 1);
+		UQRMissionDirector::ReportSpeciesKilled(GetWorld(), ItemId, 1);
 
 		SetState(EQRWildlifeState::Dead);
 	}
@@ -172,13 +169,7 @@ void AQRWildlifeActor::Tick(float DeltaTime)
 			{
 				if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
 				{
-					const FName Id = ItemId.IsNone() && Definition
-						? Definition->ItemId
-						: ItemId;
-					const FText DisplayName = (Definition && !Definition->DisplayName.IsEmpty())
-						? Definition->DisplayName
-						: FText::FromName(Id);
-					Codex->Record(Id, TEXT("Fauna"), DisplayName,
+					Codex->Record(ItemId, TEXT("Fauna"), FText::FromName(ItemId),
 						EQRCodexDiscoveryState::Observed);
 				}
 			}

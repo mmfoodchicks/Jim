@@ -93,11 +93,11 @@ UButton* UQRPauseMenuWidget::MakeMenuButton(UVerticalBox* Parent, const FString&
 	}
 	Btn->AddChild(TB);
 
-	UVerticalBoxSlot* Slot = Parent->AddChildToVerticalBox(Btn);
-	if (Slot)
+	UVerticalBoxSlot* BtnSlot = Parent->AddChildToVerticalBox(Btn);
+	if (BtnSlot)
 	{
-		Slot->SetHorizontalAlignment(HAlign_Fill);
-		Slot->SetPadding(FMargin(0, 4));
+		BtnSlot->SetHorizontalAlignment(HAlign_Fill);
+		BtnSlot->SetPadding(FMargin(0, 4));
 	}
 	return Btn;
 }

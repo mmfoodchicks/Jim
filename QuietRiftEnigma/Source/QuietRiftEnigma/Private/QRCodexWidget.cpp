@@ -171,8 +171,8 @@ void UQRCodexWidget::RefreshCategories()
 		Label->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 		Btn->AddChild(Label);
 
-		UVerticalBoxSlot* Slot = CategoryColumn->AddChildToVerticalBox(Btn);
-		if (Slot) Slot->SetPadding(FMargin(0, 4));
+		UVerticalBoxSlot* CatSlot = CategoryColumn->AddChildToVerticalBox(Btn);
+		if (CatSlot) CatSlot->SetPadding(FMargin(0, 4));
 	}
 }
 
@@ -188,7 +188,7 @@ void UQRCodexWidget::RefreshEntryList()
 	const TArray<FQRCodexEntry> Entries = Codex->GetEntriesByCategory(CurrentCategory);
 	if (ProgressText)
 	{
-		const int32 Researched = Codex->CountByCategoryAndState(CurrentCategory, EQRCodexDiscoveryState::Researched);
+		const int32 Researched = Codex->CountByCategoryAndState(CurrentCategory, EQRCodexDiscoveryState::Known);
 		ProgressText->SetText(FText::FromString(FString::Printf(
 			TEXT("%d entries · %d fully researched"), Entries.Num(), Researched)));
 	}
@@ -208,10 +208,12 @@ void UQRCodexWidget::RefreshEntryList()
 		FLinearColor StateColor = FLinearColor::Gray;
 		switch (E.State)
 		{
-		case EQRCodexDiscoveryState::Unknown:    StateStr = TEXT("UNKNOWN");    StateColor = FLinearColor(0.5f, 0.5f, 0.5f); break;
-		case EQRCodexDiscoveryState::Observed:   StateStr = TEXT("OBSERVED");   StateColor = FLinearColor(0.85f, 0.85f, 0.30f); break;
-		case EQRCodexDiscoveryState::Sampled:    StateStr = TEXT("SAMPLED");    StateColor = FLinearColor(0.30f, 0.75f, 0.85f); break;
-		case EQRCodexDiscoveryState::Researched: StateStr = TEXT("RESEARCHED"); StateColor = FLinearColor(0.30f, 0.85f, 0.40f); break;
+		case EQRCodexDiscoveryState::Undiscovered: StateStr = TEXT("UNKNOWN");    StateColor = FLinearColor(0.5f, 0.5f, 0.5f); break;
+		case EQRCodexDiscoveryState::Observed:     StateStr = TEXT("OBSERVED");   StateColor = FLinearColor(0.85f, 0.85f, 0.30f); break;
+		case EQRCodexDiscoveryState::Sampled:      StateStr = TEXT("SAMPLED");    StateColor = FLinearColor(0.30f, 0.75f, 0.85f); break;
+		case EQRCodexDiscoveryState::Pending:      StateStr = TEXT("PENDING");    StateColor = FLinearColor(0.30f, 0.60f, 0.85f); break;
+		case EQRCodexDiscoveryState::Known:        StateStr = TEXT("RESEARCHED"); StateColor = FLinearColor(0.30f, 0.85f, 0.40f); break;
+		case EQRCodexDiscoveryState::Mastered:     StateStr = TEXT("MASTERED");   StateColor = FLinearColor(0.60f, 0.95f, 0.50f); break;
 		}
 		UTextBlock* Badge = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		Badge->SetText(FText::FromString(StateStr));

@@ -2,12 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Button.h"
 #include "QRBuildPieceSelectorWidget.generated.h"
 
 class UQRBuildModeComponent;
 class UScrollBox;
 class UTextBlock;
-class UButton;
 
 /**
  * Build piece selector. Shown while UQRBuildModeComponent::bBuildModeActive.

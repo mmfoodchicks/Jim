@@ -194,7 +194,7 @@ void UQRMissionDirector::HandleItemAdded(UQRItemInstance* Item, int32 SlotIndex)
 
 void UQRMissionDirector::HandleCodexUpdated(FName EntryId, EQRCodexDiscoveryState NewState)
 {
-	if (NewState != EQRCodexDiscoveryState::Researched) return;
+	if (NewState != EQRCodexDiscoveryState::Known) return;
 	for (FQRActiveMission& M : ActiveMissions)
 	{
 		if (M.Family == EQRMissionFamily::ResearchItem && M.TargetId == EntryId)

@@ -61,5 +61,5 @@ private:
 
 	void MakeSliderRow(UVerticalBox* Parent, const FString& Label,
 		float Min, float Max, float Current,
-		USlider*& OutSlider, UTextBlock*& OutValue);
+		TObjectPtr<USlider>& OutSlider, TObjectPtr<UTextBlock>& OutValue);
 };
