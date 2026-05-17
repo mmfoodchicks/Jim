@@ -1,5 +1,6 @@
 #include "QRMainMenuWidget.h"
 #include "QRSaveGameSystem.h"
+#include "QRSettingsWidget.h"
 #include "QRUISound.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
@@ -16,6 +17,11 @@
 UQRMainMenuWidget::UQRMainMenuWidget(const FObjectInitializer& OI)
 	: Super(OI)
 {
+	// QRMainMenuGameMode sets InputModeUIOnly with this widget as the focus
+	// target; without bIsFocusable=true SetWidgetToFocus silently fails and
+	// no buttons receive input. Setting it here is cheaper than overriding
+	// SupportsKeyboardFocus.
+	bIsFocusable = true;
 }
 
 TSharedRef<SWidget> UQRMainMenuWidget::RebuildWidget()
@@ -138,10 +144,12 @@ void UQRMainMenuWidget::HandleContinue()
 void UQRMainMenuWidget::HandleSettings()
 {
 	QRUISound::PlayClick(this);
-	if (APlayerController* PC = GetOwningPlayer())
-	{
-		PC->ConsoleCommand(TEXT("QR_OpenSettings"));
-	}
+	APlayerController* PC = GetOwningPlayer();
+	if (!PC) return;
+
+	UQRSettingsWidget* W = CreateWidget<UQRSettingsWidget>(PC, UQRSettingsWidget::StaticClass());
+	if (!W) return;
+	W->AddToViewport(/*ZOrder*/ 10);
 }
 
 void UQRMainMenuWidget::HandleQuit()

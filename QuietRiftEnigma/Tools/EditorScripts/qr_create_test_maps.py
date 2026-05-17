@@ -185,6 +185,20 @@ def _spawn_floor():
     actor.set_actor_scale3d(unreal.Vector(8000.0, 8000.0, 1.0))
     actor.set_actor_label("Floor_DevTest")
 
+    # Assign a ground-ish material so the floor isn't an untextured grey
+    # checkerboard. Try a few well-known paths from Fab packs we have;
+    # fall back silently if none are present.
+    candidate_materials = [
+        "/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
+        "/Game/Fabs/ScifiJungle/Materials/M_Ground_Forest",
+        "/Engine/EditorMaterials/EditorSky.EditorSky",  # last-resort visible default
+    ]
+    for path in candidate_materials:
+        mat = unreal.load_object(None, path)
+        if mat:
+            smc.set_material(0, mat)
+            break
+
 
 def build_dev_test():
     print("[maps] building L_DevTest…")
