@@ -315,10 +315,19 @@ def _spawn_worldgen_spawner_with_fauna_rules():
     else:
         print("[maps]   no fauna rules found — run qr_seed_fauna_rules first")
 
-    # Fallback wildlife so cells outside any biome rule still get something.
-    fb = unreal.load_class(None, "/Script/QuietRiftEnigma.QRWildlife_AshbackBoar")
-    if fb:
-        actor.set_editor_property('wildlife_fallback_class', fb)
+    # Fallback wildlife so cells outside any biome rule still get
+    # something. Must use the typed Python class wrapper
+    # (unreal.QRWildlife_AshbackBoar) — unreal.load_class returns a
+    # generic 'Class' that the TSubclassOf<QRWildlifeActor> property
+    # rejects with "Cannot nativize 'Class' as 'Class' (allowed Class
+    # type: 'QRWildlifeActor')". Wrapped in try/except so any future
+    # class-property issue doesn't abort _set_game_mode below.
+    try:
+        fb = getattr(unreal, 'QRWildlife_AshbackBoar', None)
+        if fb is not None:
+            actor.set_editor_property('wildlife_fallback_class', fb)
+    except Exception as e:
+        print("[maps]   wildlife_fallback_class not set: {}".format(e))
 
 
 def build_dev_test():

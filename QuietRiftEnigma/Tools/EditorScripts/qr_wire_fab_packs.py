@@ -98,15 +98,11 @@ def _bucket_pack_assets(content_root):
         'physics_assets', 'blueprints', 'other')}
 
     for ap in unreal.EditorAssetLibrary.list_assets(content_root, recursive=True):
-        # Skip redirectors — listing returns them but loading goes
-        # through to the target which we'll catch separately.
-        klass = unreal.EditorAssetLibrary.get_loaded_asset_redirector_class_path(ap) \
-            if hasattr(unreal.EditorAssetLibrary, 'get_loaded_asset_redirector_class_path') else None
-
+        # load_asset transparently follows redirectors, so we just trust it.
+        # (UE 5.7 doesn't expose unreal.ObjectRedirector at the top level,
+        # so we can't isinstance-check; not needed anyway.)
         asset = unreal.load_asset(ap)
         if not asset:
-            continue
-        if isinstance(asset, unreal.ObjectRedirector):
             continue
 
         if isinstance(asset, unreal.StaticMesh):
