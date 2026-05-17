@@ -347,6 +347,13 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	// UE calls SetupPlayerInputComponent BEFORE BeginPlay, so any input
+	// actions that BeginPlay would fill in via UQRInputDefaults::Apply
+	// don't exist yet — every if (MoveAction) BindAction below would
+	// no-op. Apply here so the action UPROPERTYs are populated before
+	// we bind to them. Apply is idempotent (BeginPlay calls it too).
+	UQRInputDefaults::Apply(this);
+
 	if (UEnhancedInputComponent* EI = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		if (MoveAction)      EI->BindAction(MoveAction,      ETriggerEvent::Triggered, this, &AQRCharacter::Move);
