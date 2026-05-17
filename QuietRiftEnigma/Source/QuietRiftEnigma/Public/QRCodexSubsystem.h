@@ -27,7 +27,7 @@ struct QUIETRIFTENIGMA_API FQRCodexEntry
 
 	UPROPERTY(BlueprintReadOnly) FName Id;
 	UPROPERTY(BlueprintReadOnly) FName Category;    // Flora / Fauna / Item / POI / Biome / Remnant
-	UPROPERTY(BlueprintReadOnly) EQRCodexDiscoveryState State = EQRCodexDiscoveryState::Unknown;
+	UPROPERTY(BlueprintReadOnly) EQRCodexDiscoveryState State = EQRCodexDiscoveryState::Undiscovered;
 	UPROPERTY(BlueprintReadOnly) FText DisplayName;
 	UPROPERTY(BlueprintReadOnly) FText Description;
 	UPROPERTY(BlueprintReadOnly) int32 SeenCount = 0;

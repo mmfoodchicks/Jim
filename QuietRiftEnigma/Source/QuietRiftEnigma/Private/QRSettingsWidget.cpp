@@ -108,7 +108,7 @@ TSharedRef<SWidget> UQRSettingsWidget::RebuildWidget()
 }
 
 void UQRSettingsWidget::MakeSliderRow(UVerticalBox* Parent, const FString& Label,
-	float Min, float Max, float Current, USlider*& OutSlider, UTextBlock*& OutValue)
+	float Min, float Max, float Current, TObjectPtr<USlider>& OutSlider, TObjectPtr<UTextBlock>& OutValue)
 {
 	if (!Parent || !WidgetTree) return;
 

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Button.h"
 #include "QRTypes.h"
 #include "QRInventoryGridWidget.generated.h"
 
@@ -10,7 +11,6 @@ class UCanvasPanelSlot;
 class UHorizontalBox;
 class UVerticalBox;
 class UBorder;
-class UButton;
 class UTextBlock;
 class UQRInventoryComponent;
 class UQRItemInstance;
@@ -80,9 +80,13 @@ private:
 	bool bGrabbedRotation = false;
 
 	UFUNCTION() void HandleInventoryChanged();
-	UFUNCTION() void HandleCellClicked(int32 PackedKey);
-	void HandleItemClicked(UQRItemInstance* Item);  // non-UFUNCTION; called from item-button click
 
+public:
+	// Called from sub-button click handlers (UQRInventoryCellButton / UQRInventoryItemButton).
+	UFUNCTION() void HandleCellClicked(int32 PackedKey);
+	void HandleItemClicked(UQRItemInstance* Item);
+
+private:
 	void Rebuild();
 	void RebuildKind(UCanvasPanel* Panel, EQRContainerKind Kind);
 	void AddCellGrid(UCanvasPanel* Panel, EQRContainerKind Kind);

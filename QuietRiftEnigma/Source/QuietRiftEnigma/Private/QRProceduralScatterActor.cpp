@@ -178,8 +178,8 @@ bool AQRProceduralScatterActor::TryPlaceOne(
 	// Mesh path: HISM instance.
 	if (UStaticMesh* Mesh = Entry.Mesh.LoadSynchronous())
 	{
-		UHierarchicalInstancedStaticMeshComponent** Found = MeshInstances.Find(Mesh);
-		UHierarchicalInstancedStaticMeshComponent* HISM = Found ? *Found : nullptr;
+		TObjectPtr<UHierarchicalInstancedStaticMeshComponent>* Found = MeshInstances.Find(Mesh);
+		UHierarchicalInstancedStaticMeshComponent* HISM = Found ? Found->Get() : nullptr;
 		if (!HISM)
 		{
 			HISM = NewObject<UHierarchicalInstancedStaticMeshComponent>(this);

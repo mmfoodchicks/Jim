@@ -1,5 +1,6 @@
 #include "QRWorldGenSpawner.h"
 #include "QRWorldGenSubsystem.h"
+#include "QRFaunaSpawnRule.h"
 #include "QRRemnantSite.h"
 #include "QRCrashSiteActor.h"
 #include "QRCaveEntrance.h"

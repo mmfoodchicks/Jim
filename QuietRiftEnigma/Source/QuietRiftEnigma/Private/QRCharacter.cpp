@@ -787,7 +787,7 @@ void AQRCharacter::QR_StudyItem(FName Id)
 			const FName Category = Existing.Category.IsNone()
 				? FName(TEXT("Item"))
 				: Existing.Category;
-			Codex->Record(Id, Category, DisplayName, EQRCodexDiscoveryState::Researched);
+			Codex->Record(Id, Category, DisplayName, EQRCodexDiscoveryState::Known);
 		}
 	}
 }

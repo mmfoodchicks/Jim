@@ -178,9 +178,6 @@ FVector UQRCampSimComponent::FindRaidTargetLocation() const
 	//    actor + different camp id" heuristic — any other AQRFactionCamp
 	//    is a potential rival.
 	{
-		// Forward-declared iterator avoid: include EngineUtils only in
-		// the cpp so we don't pollute the header.
-		extern UWorld* GWorld;
 		// Walk actors via the world's actor list.
 		for (TActorIterator<AActor> It(W); It; ++It)
 		{

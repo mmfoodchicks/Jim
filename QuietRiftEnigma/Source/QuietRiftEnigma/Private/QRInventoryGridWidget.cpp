@@ -97,7 +97,7 @@ TSharedRef<SWidget> UQRInventoryGridWidget::RebuildWidget()
 		WeightText->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.7f, 0.7f, 1.0f)));
 		Column->AddChildToVerticalBox(WeightText);
 
-		auto AddLabeledGrid = [&](const FString& Label, UCanvasPanel*& OutGrid)
+		auto AddLabeledGrid = [&](const FString& Label, TObjectPtr<UCanvasPanel>& OutGrid)
 		{
 			UTextBlock* L = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 			L->SetText(FText::FromString(Label));
