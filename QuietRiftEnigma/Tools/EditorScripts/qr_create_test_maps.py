@@ -72,6 +72,51 @@ def _spawn(cls_path, loc=(0,0,0), rot=(0,0,0)):
     return actor
 
 
+def _spawn_atmosphere_lighting():
+    """Spawn the standard UE5 sky/lighting stack: DirectionalLight as
+    atmosphere sun, SkyAtmosphere, real-time-capture SkyLight, and an
+    ExponentialHeightFog. Returns nothing — actors are placed in the
+    currently-open level."""
+
+    # DirectionalLight wired as atmosphere sun so SkyAtmosphere knows
+    # which light to scatter. Pitch -45 puts the sun at a flattering
+    # mid-morning angle.
+    dl = _spawn("/Script/Engine.DirectionalLight", loc=(0, 0, 800), rot=(-45, 30, 0))
+    if dl:
+        for c in dl.get_components_by_class(unreal.DirectionalLightComponent):
+            c.set_editor_property('atmosphere_sun_light', True)
+            c.set_intensity(10.0)  # lux equivalent; SkyAtmosphere expects realistic values
+
+    # SkyAtmosphere — the actual blue sky / sunset gradient.
+    _spawn("/Script/Engine.SkyAtmosphere", loc=(0, 0, 0))
+
+    # SkyLight with real-time capture so bounced light updates with the
+    # rotating sun. SourceType = captured scene means the SkyAtmosphere
+    # drives the ambient term, no HDRI needed.
+    sl = _spawn("/Script/Engine.SkyLight", loc=(0, 0, 200))
+    if sl:
+        for c in sl.get_components_by_class(unreal.SkyLightComponent):
+            c.set_editor_property('real_time_capture', True)
+            c.set_editor_property('source_type',
+                unreal.SkyLightSourceType.SLS_CAPTURED_SCENE)
+
+    # ExponentialHeightFog (UE5 replacement for the old AtmosphericFog).
+    _spawn("/Script/Engine.ExponentialHeightFog", loc=(0, 0, 0))
+
+    # PostProcessVolume so auto-exposure doesn't blow the scene to black
+    # while it figures itself out. Infinite extent = applies everywhere.
+    ppv = _spawn("/Script/Engine.PostProcessVolume", loc=(0, 0, 0))
+    if ppv:
+        ppv.set_editor_property('unbound', True)
+        settings = ppv.settings
+        settings.auto_exposure_method = unreal.AutoExposureMethod.AEM_HISTOGRAM
+        settings.override_auto_exposure_min_brightness = True
+        settings.auto_exposure_min_brightness = 1.0
+        settings.override_auto_exposure_max_brightness = True
+        settings.auto_exposure_max_brightness = 3.0
+        ppv.settings = settings
+
+
 def _set_game_mode(class_path):
     """Sets the world settings' DefaultGameMode to the given class."""
     cls = unreal.load_object(None, class_path)
@@ -100,11 +145,9 @@ def build_main_menu():
     if not _new_empty_level(MAIN_MENU_PATH):
         return
 
-    # Standard atmosphere setup — just enough to render gracefully
-    # behind the menu widget. Sky color is dark by intent.
-    _spawn("/Script/Engine.DirectionalLight",   loc=(0, 0, 800),  rot=(-45, 0, 0))
-    _spawn("/Script/Engine.SkyLight",           loc=(0, 0, 400))
-    _spawn("/Script/Engine.AtmosphericFog",     loc=(0, 0, 0))
+    # Full UE5 sky stack so the scene behind the menu widget renders as
+    # an actual sky instead of a black void.
+    _spawn_atmosphere_lighting()
     _spawn("/Script/Engine.PlayerStart",        loc=(0, 0, 100))
 
     _set_game_mode("/Script/QuietRiftEnigma.QRMainMenuGameMode")
@@ -144,9 +187,7 @@ def build_dev_test():
         return
 
     _spawn_floor()
-    _spawn("/Script/Engine.DirectionalLight",   loc=(0, 0, 1500), rot=(-50, 30, 0))
-    _spawn("/Script/Engine.SkyLight",           loc=(0, 0, 800))
-    _spawn("/Script/Engine.AtmosphericFog",     loc=(0, 0, 0))
+    _spawn_atmosphere_lighting()
     _spawn("/Script/Engine.PlayerStart",        loc=(0, 0, 200))
 
     # Pre-place a crafting bench, NPC spawner, and one wildlife actor
