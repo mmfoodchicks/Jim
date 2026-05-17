@@ -67,22 +67,20 @@ AQRCharacter::AQRCharacter()
 	ArmsMesh->SetCastShadow(false);
 	ArmsMesh->SetRelativeLocation(FVector(-30.0f, 0.0f, -150.0f));
 
-	// Held-item mesh: attached to the arms (so it inherits FP-only visibility
-	// and follows the camera). The actual mesh is set at runtime from the
-	// equipped item's WorldMesh. SOCKET_GripPoint can be added to the arms
-	// skeleton to control where the item sits; otherwise it pivots from the
-	// arms root and you can nudge it with the relative offset below.
+	// Held-item mesh: attached directly to the first-person camera so it's
+	// visible without needing an authored arms skeletal mesh. Offsets place
+	// it in classic first-person held-weapon position (forward, slightly
+	// right and down). Once you author a proper arms skeleton with a
+	// SOCKET_GripPoint, reattach this to ArmsMesh in a Blueprint subclass.
 	HeldItemMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeldItemMesh"));
-	HeldItemMesh->SetupAttachment(ArmsMesh, FName("SOCKET_GripPoint"));
+	HeldItemMesh->SetupAttachment(FirstPersonCamera);
 	HeldItemMesh->SetOnlyOwnerSee(true);
 	HeldItemMesh->SetCastShadow(false);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetVisibility(false);
-	// No socket on the default arms skeleton — nudge the held item forward
-	// and slightly right + down so it sits roughly where a held weapon
-	// would. Override with a proper SOCKET_GripPoint on the authored arms.
-	HeldItemMesh->SetRelativeLocation(FVector(20.0f, 8.0f, -4.0f));
-	HeldItemMesh->SetRelativeRotation(FRotator(0.0f, -10.0f, 0.0f));
+	HeldItemMesh->SetRelativeLocation(FVector(35.0f, 12.0f, -12.0f));
+	HeldItemMesh->SetRelativeRotation(FRotator(-5.0f, -8.0f, 0.0f));
+	HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
 
 	// UI defaults — local C++ widgets unless overridden in BP.
 	HotbarHUDClass        = UQRHotbarHUDWidget::StaticClass();
