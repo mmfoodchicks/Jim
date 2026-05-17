@@ -59,10 +59,17 @@ def _spawn(cls_path, loc=(0,0,0), rot=(0,0,0)):
     if not cls:
         print("[maps] couldn't load class " + cls_path)
         return None
-    return unreal.EditorLevelLibrary.spawn_actor_from_class(
+    actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
         cls,
         unreal.Vector(*loc),
         unreal.Rotator(*rot))
+    # AQRGameMode runs a day/night cycle that rotates the sun each tick;
+    # a static light component refuses to move and spams warnings. Force
+    # Movable on every freshly-spawned light so the cycle works.
+    if actor and 'Light' in cls_path:
+        for comp in actor.get_components_by_class(unreal.LightComponent):
+            comp.set_mobility(unreal.ComponentMobility.MOVABLE)
+    return actor
 
 
 def _set_game_mode(class_path):
