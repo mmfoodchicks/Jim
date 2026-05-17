@@ -316,16 +316,16 @@ def _spawn_worldgen_spawner_with_fauna_rules():
         print("[maps]   no fauna rules found — run qr_seed_fauna_rules first")
 
     # Fallback wildlife so cells outside any biome rule still get
-    # something. Must use the typed Python class wrapper
-    # (unreal.QRWildlife_AshbackBoar) — unreal.load_class returns a
-    # generic 'Class' that the TSubclassOf<QRWildlifeActor> property
-    # rejects with "Cannot nativize 'Class' as 'Class' (allowed Class
-    # type: 'QRWildlifeActor')". Wrapped in try/except so any future
-    # class-property issue doesn't abort _set_game_mode below.
+    # something. The property is TSubclassOf<AQRWildlifeActor>; UE
+    # Python's typed class wrapper (unreal.QRWildlife_AshbackBoar) is
+    # the *instance* type, not the UClass — call static_class() to get
+    # the UClass the property actually wants. Wrapped in try/except so
+    # any version-skew on the binding doesn't abort _set_game_mode.
     try:
-        fb = getattr(unreal, 'QRWildlife_AshbackBoar', None)
-        if fb is not None:
-            actor.set_editor_property('wildlife_fallback_class', fb)
+        wrapper = getattr(unreal, 'QRWildlife_AshbackBoar', None)
+        if wrapper is not None and hasattr(wrapper, 'static_class'):
+            actor.set_editor_property('wildlife_fallback_class',
+                                       wrapper.static_class())
     except Exception as e:
         print("[maps]   wildlife_fallback_class not set: {}".format(e))
 
