@@ -200,6 +200,106 @@ def _spawn_floor():
             break
 
 
+def _spawn_starter_hills():
+    """Drop a few large rock meshes near spawn so the dev-test world
+    isn't a featureless plane. Pure cosmetic — a placeholder until a
+    proper Landscape with sculpted/noise heightmap replaces the flat
+    floor. Uses the same Fab rocks the biome palette references."""
+    candidates = [
+        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01",
+        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02",
+        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03",
+    ]
+    meshes = [m for m in (unreal.load_object(None, p) for p in candidates) if m]
+    if not meshes:
+        print("[maps]   no Rock_Collection_04 meshes — skipping starter hills")
+        return
+
+    # Spread 8 hills in a ring around spawn at varying distance + scale.
+    import math
+    for i in range(8):
+        angle = (i / 8.0) * 2 * math.pi
+        dist  = 1500 + (i % 3) * 800   # 1500–3100 cm = 15–31 m
+        loc   = (math.cos(angle) * dist, math.sin(angle) * dist, -50)
+        actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+            unreal.StaticMeshActor,
+            unreal.Vector(*loc),
+            unreal.Rotator(0, (i * 47) % 360, 0))
+        if not actor: continue
+        scale = 6.0 + (i % 4) * 4.0    # 6×–18× cube-scale rocks = big hills
+        actor.set_actor_scale3d(unreal.Vector(scale, scale, scale * 0.7))
+        actor.static_mesh_component.set_static_mesh(meshes[i % len(meshes)])
+        actor.set_actor_label("StarterHill_{}".format(i))
+    print("[maps]   placed 8 starter hills (15–31 m radius)")
+
+
+def _spawn_scatter_with_biome():
+    """Drop one AQRProceduralScatterActor in front of the player spawn
+    so trees / rocks / plants from a biome profile actually appear in
+    the dev-test world. Without this the spawner alone leaves the floor
+    empty (it only places POIs + wildlife, no foliage)."""
+    cls = unreal.load_object(None, "/Script/QuietRiftEnigma.QRProceduralScatterActor")
+    if not cls:
+        print("[maps] no QRProceduralScatterActor class — skipping scatter")
+        return
+    actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        cls, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    if not actor:
+        return
+    actor.set_actor_label("Scatter_DevTest")
+
+    # Use BP_BasaltShelf (Surface-tier starter biome with rocks + plants + tree)
+    profile_path = "/Game/QuietRift/Data/Biomes/BP_BasaltShelf"
+    profile = unreal.load_object(None, profile_path)
+    if profile:
+        actor.set_editor_property('biome_profile', profile)
+    else:
+        print("[maps]   biome profile not found at {} — scatter has no palette".format(profile_path))
+
+    # Cover a 200 m × 200 m area centered on origin — close enough to the
+    # PlayerStart that you walk right into the scatter on Play.
+    actor.set_editor_property('volume_extents', unreal.Vector(10000.0, 10000.0, 500.0))
+    actor.set_editor_property('target_count', 800)
+    actor.set_editor_property('seed', 1337)
+    print("[maps]   scatter actor placed (200m x 200m, 800 instances)")
+
+
+def _spawn_worldgen_spawner_with_fauna_rules():
+    """Place an AQRWorldGenSpawner and wire its FaunaRulesPerBiome map
+    from the /Game/QuietRift/Data/FaunaRules/ assets seeded by
+    qr_seed_fauna_rules.py. Without this the spawner falls through to
+    a ~5% sparse fallback (~25 fauna in 8 km) — what you saw before."""
+    cls = unreal.load_object(None, "/Script/QuietRiftEnigma.QRWorldGenSpawner")
+    if not cls:
+        print("[maps] no QRWorldGenSpawner class — skipping spawner wire-up")
+        return
+    actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+        cls, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    if not actor:
+        return
+    actor.set_actor_label("WorldGenSpawner_DevTest")
+
+    rules = {}
+    rules_dir = "/Game/QuietRift/Data/FaunaRules"
+    if unreal.EditorAssetLibrary.does_directory_exist(rules_dir):
+        for asset_path in unreal.EditorAssetLibrary.list_assets(rules_dir, recursive=False):
+            rule = unreal.load_object(None, asset_path)
+            if not rule: continue
+            tag = rule.get_editor_property('biome_tag')
+            if not tag.is_none():
+                rules[tag] = rule
+    if rules:
+        actor.set_editor_property('fauna_rules_per_biome', rules)
+        print("[maps]   spawner wired with {} fauna rules".format(len(rules)))
+    else:
+        print("[maps]   no fauna rules found — run qr_seed_fauna_rules first")
+
+    # Fallback wildlife so cells outside any biome rule still get something.
+    fb = unreal.load_class(None, "/Script/QuietRiftEnigma.QRWildlife_AshbackBoar")
+    if fb:
+        actor.set_editor_property('wildlife_fallback_class', fb)
+
+
 def build_dev_test():
     print("[maps] building L_DevTest…")
     if not _new_empty_level(DEV_TEST_PATH):
@@ -219,6 +319,10 @@ def build_dev_test():
         _spawn("/Script/QuietRiftEnigma.QRWildlifeActor",  loc=(-300, 0, 50))
     except Exception as e:
         print("[maps] pre-placement skipped: " + str(e))
+
+    _spawn_starter_hills()
+    _spawn_scatter_with_biome()
+    _spawn_worldgen_spawner_with_fauna_rules()
 
     _set_game_mode("/Script/QuietRiftEnigma.QRGameMode")
     _save()
