@@ -71,11 +71,9 @@ def _set_game_mode(class_path):
     if not cls:
         print("[maps] couldn't load game-mode class " + class_path)
         return
-    ws = unreal.EditorLevelLibrary.get_game_mode_settings_for_current_level()
-    if ws:
-        ws.set_editor_property("default_game_mode", cls)
-    # The setter above is the documented path; fall back to setting on
-    # the AWorldSettings actor directly if the helper isn't available.
+    # Set DefaultGameMode directly on the AWorldSettings actor. The old
+    # EditorLevelLibrary.get_game_mode_settings_for_current_level() helper
+    # was removed in UE 5.7; this path is what's left and is sufficient.
     settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
     if settings:
         try:

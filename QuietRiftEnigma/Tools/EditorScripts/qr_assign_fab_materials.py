@@ -122,7 +122,7 @@ def _get_fab_materials():
     )
     out = []
     for ad in ar.get_assets(f):
-        out.append((str(ad.object_path), str(ad.asset_name).lower()))
+        out.append((f"{ad.package_name}.{ad.asset_name}", str(ad.asset_name).lower()))
     return out
 
 
@@ -138,7 +138,7 @@ def _get_game_meshes():
     for ad in ar.get_assets(f):
         name = str(ad.asset_name)
         if name.startswith("SM_"):
-            out.append((str(ad.object_path), name))
+            out.append((f"{ad.package_name}.{ad.asset_name}", name))
     return out
 
 

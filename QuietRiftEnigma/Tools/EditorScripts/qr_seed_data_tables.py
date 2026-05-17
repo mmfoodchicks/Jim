@@ -149,7 +149,7 @@ def seed_build_catalog(overwrite=False):
 
         category = _build_category(name)
         pretty   = _build_pretty_name(name)
-        mesh_obj = unreal.load_asset(str(ad.object_path))
+        mesh_obj = unreal.load_asset(f"{ad.package_name}.{ad.asset_name}")
 
         # We populate the row via the editor scripting library.
         # PropertyAsString writes through reflection so any USTRUCT field

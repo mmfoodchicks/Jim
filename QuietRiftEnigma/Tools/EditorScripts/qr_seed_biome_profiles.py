@@ -275,7 +275,7 @@ def _make_or_load(name):
         return None
 
     factory = unreal.DataAssetFactory()
-    factory.data_asset_class = cls
+    factory.set_editor_property('data_asset_class', cls)
 
     tools = unreal.AssetToolsHelpers.get_asset_tools()
     return tools.create_asset(
