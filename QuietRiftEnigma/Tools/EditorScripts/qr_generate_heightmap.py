@@ -107,7 +107,26 @@ def run(resolution_key="medium", noise_scale=0.012, noise_amp=0.18,
     if not W:
         print("[heightmap] no world")
         return
-    Sub = W.get_subsystem(unreal.QRWorldGenSubsystem)
+    # UE 5.7 Python doesn't expose World.get_subsystem() directly; try a
+    # couple of known entry points so this works across minor versions.
+    Sub = None
+    for attr in ('get_subsystem', 'get_subsystem_base'):
+        m = getattr(W, attr, None)
+        if not m: continue
+        try:
+            Sub = m(unreal.QRWorldGenSubsystem)
+            if Sub: break
+        except Exception:
+            pass
+    if not Sub:
+        helper = getattr(unreal, 'WorldSubsystemBlueprintLibrary', None)
+        if helper:
+            getter = getattr(helper, 'get_world_subsystem', None)
+            if getter:
+                try:
+                    Sub = getter(W, unreal.QRWorldGenSubsystem)
+                except Exception:
+                    pass
     if not Sub or not Sub.b_generated:
         print("[heightmap] worldgen subsystem hasn't run yet")
         print("           run AQRWorldGenSeedActor::Generate first")

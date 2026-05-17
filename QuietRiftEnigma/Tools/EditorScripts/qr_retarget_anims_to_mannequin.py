@@ -270,7 +270,7 @@ def _batch_retarget(retargeter, source_anims):
     skipped = 0
 
     for ad in source_anims:
-        src_path = str(ad.object_path)
+        src_path = f"{ad.package_name}.{ad.asset_name}"
         src_name = str(ad.asset_name)
         out_name = "A_QR_{}".format(src_name)
         out_path = "{}/{}.{}".format(OUTPUT_ANIM_DIR, out_name, out_name)

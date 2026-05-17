@@ -88,7 +88,7 @@ def run():
             skel = ""
         skel = skel or "<unknown>"
 
-        path = str(ad.object_path)
+        path = f"{ad.package_name}.{ad.asset_name}"
         name = str(ad.asset_name)
         role = _role_of(name)
 

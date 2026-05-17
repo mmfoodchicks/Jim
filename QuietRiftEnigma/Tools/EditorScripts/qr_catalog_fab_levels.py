@@ -73,7 +73,7 @@ def run(load_each=False):
 
     rows = []
     for ad in assets:
-        path = str(ad.object_path)
+        path = f"{ad.package_name}.{ad.asset_name}"
         role = _classify(path)
         rec = {"path": path, "role": role}
         if load_each:

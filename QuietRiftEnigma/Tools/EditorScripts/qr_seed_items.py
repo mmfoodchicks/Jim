@@ -580,7 +580,14 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
 
     if with_icons:
         unreal.log("qr_seed_items: rendering icons via SceneCapture2D…")
-        generate_icons(force=overwrite, size=icon_size, max_items=max_items)
+        try:
+            generate_icons(force=overwrite, size=icon_size, max_items=max_items)
+        except AttributeError as e:
+            unreal.log_warning(
+                f"qr_seed_items: icon generation skipped — UE Python API drift "
+                f"({e}). Items themselves were created successfully. "
+                f"Re-run with run(with_icons=False) to silence this."
+            )
 
 
 if __name__ == '__main__':
