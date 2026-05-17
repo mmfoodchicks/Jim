@@ -157,6 +157,15 @@ void AQRCharacter::BeginPlay()
 			if (DefaultMappingContext)
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
+
+		// Force input back to GameOnly. AQRMainMenuGameMode leaves the PC
+		// in InputModeUIOnly with the cursor visible; non-seamless OpenLevel
+		// is *supposed* to give us a fresh PC but in PIE the state often
+		// leaks through, leaving WASD/Tab/etc. routed to nothing.
+		PC->SetInputMode(FInputModeGameOnly());
+		PC->bShowMouseCursor       = false;
+		PC->SetIgnoreLookInput(false);
+		PC->SetIgnoreMoveInput(false);
 	}
 
 	// Initialize faction as player faction
@@ -942,13 +951,27 @@ void AQRCharacter::RefreshHeldItemMesh()
 	if (!HeldItemMesh) return;
 
 	UStaticMesh* TargetMesh = nullptr;
+	const UQRItemDefinition* HandDef = nullptr;
 	if (Inventory && Inventory->HandSlot)
 	{
-		if (const UQRItemDefinition* Def = Inventory->HandSlot->Definition)
+		HandDef = Inventory->HandSlot->Definition;
+		if (HandDef)
 		{
-			TargetMesh = Def->WorldMesh.LoadSynchronous();
+			TargetMesh = HandDef->WorldMesh.LoadSynchronous();
 		}
 	}
+
+	// Diagnostic — fires every time a hotbar slot becomes active or the
+	// inventory changes. Tells you why the held mesh might be invisible:
+	//   no HandSlot      = hotbar didn't equip anything
+	//   HandSlot, no Def = item instance exists but has no definition
+	//   Def, no WorldMesh= definition exists but mesh slot is empty / soft-ptr unresolved
+	UE_LOG(LogTemp, Log,
+		TEXT("[QRCharacter] RefreshHeldItemMesh — handSlot=%s def=%s mesh=%s visible=%d"),
+		(Inventory && Inventory->HandSlot) ? TEXT("yes") : TEXT("null"),
+		HandDef ? *HandDef->ItemId.ToString() : TEXT("null"),
+		TargetMesh ? *TargetMesh->GetName() : TEXT("null"),
+		TargetMesh != nullptr ? 1 : 0);
 
 	HeldItemMesh->SetStaticMesh(TargetMesh);
 	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
