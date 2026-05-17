@@ -155,11 +155,9 @@ def _set_game_mode(class_path):
               .format(actual, class_path))
         return
 
-    # Mark the level package dirty so save_current_level writes the change.
-    pkg = settings.get_outer().get_package() if settings.get_outer() else None
-    if pkg:
-        pkg.set_dirty_flag(True)
-
+    # set_editor_property already dirties the actor; save_current_level
+    # picks up the change. (Old code called pkg.set_dirty_flag here, but
+    # UE 5.7's Python binding doesn't expose that method on Package.)
     print("[maps]   game mode = " + class_path)
 
 
