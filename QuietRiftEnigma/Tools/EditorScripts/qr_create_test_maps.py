@@ -235,21 +235,19 @@ def _spawn_starter_hills():
     import math
     for i in range(8):
         angle = (i / 8.0) * 2 * math.pi
-        dist  = 5000 + (i % 3) * 1500   # 50–80 m out — far enough not to block view
+        dist  = 1500 + (i % 3) * 800   # 15–31 m
         loc   = (math.cos(angle) * dist, math.sin(angle) * dist, -50)
         actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
             unreal.StaticMeshActor,
             unreal.Vector(*loc),
             unreal.Rotator(0, (i * 47) % 360, 0))
         if not actor: continue
-        # Smaller mounds: scale 2-4× wide, 0.8-2× tall. The 6-18× values
-        # we had before turned the spawn area into a box-walled prison.
-        scale_xy = 2.0 + (i % 4) * 0.8
-        scale_z  = 0.8 + (i % 3) * 0.5
+        scale_xy = 4.0 + (i % 4) * 2.5
+        scale_z  = 1.5 + (i % 3) * 0.8
         actor.set_actor_scale3d(unreal.Vector(scale_xy, scale_xy, scale_z))
         actor.static_mesh_component.set_static_mesh(cube_mesh)
         actor.set_actor_label("StarterHill_{}".format(i))
-    print("[maps]   placed 8 starter hill cubes (50-80 m radius)")
+    print("[maps]   placed 8 starter hill cubes (15-31 m radius)")
 
 
 def _spawn_scatter_with_biome():

@@ -725,6 +725,9 @@ void AQRCharacter::DoDropHeld()
 				WildlifeActorClass, SpawnLoc, GetActorRotation(), Params))
 		{
 			Animal->InitializeFrom(Def, 1);
+			// Drops are creative-mode: don't make the animal flee the
+			// player or you get the marching-mirror effect.
+			Animal->bIgnorePlayer = true;
 			Inventory->TryRemoveItem(Def->ItemId, 1);
 		}
 		return;

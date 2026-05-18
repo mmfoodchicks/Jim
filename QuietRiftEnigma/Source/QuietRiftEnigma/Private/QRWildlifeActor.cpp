@@ -104,6 +104,12 @@ void AQRWildlifeActor::PickNewTarget()
 
 AActor* AQRWildlifeActor::ScanForPlayerInRange(float Range) const
 {
+	// Creative-mode-dropped wildlife sets bIgnorePlayer so it can wander
+	// without going into Flee (which mirrors the player's movement vector
+	// frame-to-frame and creates a marching-conga effect when you drop
+	// several and walk away).
+	if (bIgnorePlayer) return nullptr;
+
 	UWorld* W = GetWorld();
 	if (!W) return nullptr;
 	APlayerController* PC = W->GetFirstPlayerController();
