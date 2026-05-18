@@ -28,13 +28,22 @@
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "UObject/ConstructorHelpers.h"
 
 AQRGameMode::AQRGameMode()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 1.0f;
 
-	DefaultPawnClass = AQRCharacter::StaticClass();
+	// Prefer the editor-side Blueprint child (BP_QRCharacter) when it's
+	// present — that's where the SkeletalMesh + AnimBP get wired by
+	// qr_create_player_blueprint.py. Fall back to the bare C++ class
+	// (invisible body) when the BP hasn't been created yet.
+	static ConstructorHelpers::FClassFinder<APawn> BPCharacter(
+		TEXT("/Game/QuietRift/Characters/BP_QRCharacter"));
+	DefaultPawnClass = BPCharacter.Class
+		? BPCharacter.Class
+		: AQRCharacter::StaticClass();
 
 	SaveSystem      = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
 	MissionDirector = CreateDefaultSubobject<UQRMissionDirector>(TEXT("MissionDirector"));
