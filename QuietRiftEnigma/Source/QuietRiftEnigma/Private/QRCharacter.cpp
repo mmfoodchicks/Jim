@@ -565,8 +565,8 @@ void AQRCharacter::TryFireWeapon()
 	}
 
 	const FQRFireResult Result = Weapon->TryFireFromTrace(Start, Forward, bAimed, bMoving, /*AmmoInstance*/ nullptr);
-	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon result: bDidFire=%d bHit=%d"),
-		Result.bDidFire ? 1 : 0, Result.bHit ? 1 : 0);
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon result: bFired=%d bHit=%d dmg=%.1f"),
+		Result.bFired ? 1 : 0, Result.bHitSomething ? 1 : 0, Result.Damage);
 	if (Result.bFired)
 	{
 		// Apply kick on the firing controller. Pitch is up (negative
