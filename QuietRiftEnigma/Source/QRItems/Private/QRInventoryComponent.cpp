@@ -174,12 +174,28 @@ bool UQRInventoryComponent::TryEquipToHandSlot(UQRItemInstance* Item)
 	if (Item->Definition && Item->Definition->bIsBulkItem && HandsSlotState == EQRHandsSlotState::Occupied)
 		return false;
 
-	// Verify the item actually belongs to this inventory (prevents equipping a fake pointer)
-	const int32 SlotIdx = Items.IndexOfByKey(Item);
-	if (SlotIdx == INDEX_NONE) return false;
+	// Already holding this exact instance — nothing to do.
+	if (HandSlot == Item) return true;
 
-	// Move from grid to hand slot so it isn't double-counted
-	Items.RemoveAt(SlotIdx);
+	// Return the previously-held item to the grid before we overwrite it.
+	// Without this, switching hotbar slot 1 (weapon) -> 2 (animal) -> 1
+	// fails on the re-equip because the weapon instance was orphaned out
+	// of Items[] the first time and IndexOfByKey can't find it for the
+	// re-equip.
+	if (HandSlot && HandSlot->IsValid())
+	{
+		Items.Add(HandSlot);
+	}
+
+	// Take the new instance out of the grid if it's there. Tolerates the
+	// case where Item already came from outside Items (e.g. a hotbar slot
+	// pointing at an instance that was previously held).
+	const int32 SlotIdx = Items.IndexOfByKey(Item);
+	if (SlotIdx != INDEX_NONE)
+	{
+		Items.RemoveAt(SlotIdx);
+	}
+
 	HandSlot = Item;
 	HandsSlotState = EQRHandsSlotState::Occupied;
 	OnInventoryChanged.Broadcast();
