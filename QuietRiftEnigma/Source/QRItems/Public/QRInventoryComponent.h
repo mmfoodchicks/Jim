@@ -117,6 +117,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	EQRInventoryResult TryAddByDefinition(const UQRItemDefinition* Def, int32 Quantity, int32& OutRemainder);
 
+	// Bypasses weight/volume capacity checks. Used by the creative-mode
+	// hotbar so the user can spawn any item (including heavy wildlife)
+	// regardless of carry limits. Returns the freshly-created instance,
+	// or nullptr on failure.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	UQRItemInstance* ForceAddByDefinition(const UQRItemDefinition* Def, int32 Quantity);
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	bool TryRemoveItem(FName ItemId, int32 Quantity);
 

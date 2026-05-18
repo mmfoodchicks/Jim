@@ -45,22 +45,23 @@ def _list_all_cue_paths():
     return paths
 
 
-def _cue_has_missing_dep(cue_package_path):
+def _cue_has_missing_dep(cue_package_path, asset_registry):
     """Return list of missing dependency package names, or [] if all are
-    present on disk. cue_package_path is the /Game/.../Asset path (no
-    .Asset suffix needed by EditorAssetLibrary calls)."""
+    present on disk. cue_package_path is the /Game/.../Asset path."""
     # Strip the .Asset suffix if present
     pkg = cue_package_path.split('.', 1)[0] if '.' in cue_package_path else cue_package_path
 
-    deps = unreal.EditorAssetLibrary.get_package_dependencies(pkg, False) or []
+    # UE 5.7 Python doesn't expose EditorAssetLibrary.get_package_dependencies;
+    # the correct path is the asset registry's get_dependencies.
+    deps = asset_registry.get_dependencies(unreal.Name(pkg)) or []
     missing = []
     for dep in deps:
-        # Engine and CoreUObject deps live at /Engine/, /Script/, etc.
+        dep_str = str(dep)
         # Only check /Game/ deps — those are the ones that can vanish.
-        if not dep.startswith('/Game/'):
+        if not dep_str.startswith('/Game/'):
             continue
-        if not unreal.EditorAssetLibrary.does_asset_exist(dep):
-            missing.append(dep)
+        if not unreal.EditorAssetLibrary.does_asset_exist(dep_str):
+            missing.append(dep_str)
     return missing
 
 
@@ -70,9 +71,10 @@ def run(dry_run=True):
     all_cues = _list_all_cue_paths()
     print("[purge-cues] scanning {} SoundCue assets...".format(len(all_cues)))
 
+    asset_registry = unreal.AssetRegistryHelpers.get_asset_registry()
     broken = []   # list of (cue_path, [missing_deps...])
     for cp in all_cues:
-        missing = _cue_has_missing_dep(cp)
+        missing = _cue_has_missing_dep(cp, asset_registry)
         if missing:
             broken.append((cp, missing))
 

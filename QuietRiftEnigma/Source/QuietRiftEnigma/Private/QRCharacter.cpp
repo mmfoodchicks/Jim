@@ -976,6 +976,26 @@ void AQRCharacter::RefreshHeldItemMesh()
 	HeldItemMesh->SetStaticMesh(TargetMesh);
 	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
 
+	// Uniform held-item scale: drive every weapon / prop down to a
+	// consistent ~25 cm visible footprint regardless of how the source
+	// FBX was authored. SM_WPN_LONGRANGE_SNIPER imports at real-world
+	// metres (~150 cm) and at scale 1.0 it fills the whole screen;
+	// the pistol mesh is ~20 cm so a fixed scale wouldn't suit both.
+	// Compute from the mesh's bounds so every item lands at the same
+	// visible size.
+	if (TargetMesh)
+	{
+		const FBoxSphereBounds B = TargetMesh->GetBounds();
+		const float MaxExtent = FMath::Max3(B.BoxExtent.X, B.BoxExtent.Y, B.BoxExtent.Z);
+		const float TargetHalfExtentCm = 12.0f;   // 12 cm half-extent ≈ 24 cm long
+		const float S = (MaxExtent > 0.01f) ? (TargetHalfExtentCm / MaxExtent) : 1.0f;
+		HeldItemMesh->SetRelativeScale3D(FVector(S));
+	}
+	else
+	{
+		HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
+	}
+
 	// Scope detection — long-range sniper or any weapon with ItemId
 	// containing SNIPER or with a scope attachment in tags. Designer
 	// can override via per-weapon tags later. For now: name-based.
