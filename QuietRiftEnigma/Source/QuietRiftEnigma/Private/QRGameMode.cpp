@@ -41,9 +41,14 @@ AQRGameMode::AQRGameMode()
 	// (invisible body) when the BP hasn't been created yet.
 	static ConstructorHelpers::FClassFinder<APawn> BPCharacter(
 		TEXT("/Game/QuietRift/Characters/BP_QRCharacter"));
-	DefaultPawnClass = BPCharacter.Class
-		? BPCharacter.Class
-		: AQRCharacter::StaticClass();
+	if (BPCharacter.Class)
+	{
+		DefaultPawnClass = BPCharacter.Class;
+	}
+	else
+	{
+		DefaultPawnClass = AQRCharacter::StaticClass();
+	}
 
 	SaveSystem      = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
 	MissionDirector = CreateDefaultSubobject<UQRMissionDirector>(TEXT("MissionDirector"));
