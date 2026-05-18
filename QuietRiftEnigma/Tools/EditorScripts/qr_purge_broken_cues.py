@@ -45,19 +45,42 @@ def _list_all_cue_paths():
     return paths
 
 
+def _safe_get_dependencies(asset_registry, pkg_name):
+    """Wrapper around asset_registry.get_dependencies that handles the
+    multiple signatures UE 5.x Python has shipped:
+      5.4: get_dependencies(Name, AssetRegistryDependencyOptions)
+      5.7: get_dependencies(Name, DependencyCategory, DependencyQuery)
+    Returns [] on failure rather than raising."""
+    name = unreal.Name(pkg_name)
+    # Try 5.7-style first (DependencyCategory enum).
+    try:
+        cat = getattr(unreal, 'DependencyCategory', None)
+        if cat is not None:
+            return list(asset_registry.get_dependencies(name, cat.PACKAGE) or [])
+    except Exception:
+        pass
+    # Fall back to 5.4-style (AssetRegistryDependencyOptions).
+    try:
+        opts_cls = getattr(unreal, 'AssetRegistryDependencyOptions', None)
+        if opts_cls is not None:
+            return list(asset_registry.get_dependencies(name, opts_cls()) or [])
+    except Exception:
+        pass
+    # Last resort: try the single-arg form (some versions).
+    try:
+        return list(asset_registry.get_dependencies(name) or [])
+    except Exception:
+        return []
+
+
 def _cue_has_missing_dep(cue_package_path, asset_registry):
     """Return list of missing dependency package names, or [] if all are
-    present on disk. cue_package_path is the /Game/.../Asset path."""
-    # Strip the .Asset suffix if present
+    present on disk."""
     pkg = cue_package_path.split('.', 1)[0] if '.' in cue_package_path else cue_package_path
-
-    # UE 5.7 Python doesn't expose EditorAssetLibrary.get_package_dependencies;
-    # the correct path is the asset registry's get_dependencies.
-    deps = asset_registry.get_dependencies(unreal.Name(pkg)) or []
+    deps = _safe_get_dependencies(asset_registry, pkg)
     missing = []
     for dep in deps:
         dep_str = str(dep)
-        # Only check /Game/ deps — those are the ones that can vanish.
         if not dep_str.startswith('/Game/'):
             continue
         if not unreal.EditorAssetLibrary.does_asset_exist(dep_str):

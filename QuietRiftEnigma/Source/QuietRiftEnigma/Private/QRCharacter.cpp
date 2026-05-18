@@ -78,8 +78,8 @@ AQRCharacter::AQRCharacter()
 	HeldItemMesh->SetCastShadow(false);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetVisibility(false);
-	HeldItemMesh->SetRelativeLocation(FVector(35.0f, 12.0f, -12.0f));
-	HeldItemMesh->SetRelativeRotation(FRotator(-5.0f, -8.0f, 0.0f));
+	HeldItemMesh->SetRelativeLocation(FVector(45.0f, 18.0f, -16.0f));
+	HeldItemMesh->SetRelativeRotation(FRotator(-3.0f, -6.0f, 0.0f));
 	HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
 
 	// UI defaults — local C++ widgets unless overridden in BP.
@@ -544,6 +544,9 @@ void AQRCharacter::TryInteract()
 
 void AQRCharacter::TryFireWeapon()
 {
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon — Weapon=%s Camera=%s"),
+		Weapon ? TEXT("yes") : TEXT("null"),
+		FirstPersonCamera ? TEXT("yes") : TEXT("null"));
 	if (!Weapon || !FirstPersonCamera) return;
 
 	const FVector  Start   = FirstPersonCamera->GetComponentLocation();
@@ -562,6 +565,8 @@ void AQRCharacter::TryFireWeapon()
 	}
 
 	const FQRFireResult Result = Weapon->TryFireFromTrace(Start, Forward, bAimed, bMoving, /*AmmoInstance*/ nullptr);
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon result: bDidFire=%d bHit=%d"),
+		Result.bDidFire ? 1 : 0, Result.bHit ? 1 : 0);
 	if (Result.bFired)
 	{
 		// Apply kick on the firing controller. Pitch is up (negative
@@ -887,6 +892,10 @@ void AQRCharacter::DoUseHeld(bool bPressed)
 	if (!Hotbar) return;
 	UQRItemInstance* Held = Hotbar->GetActiveItem();
 	const UQRItemDefinition* Def = (Held && Held->IsValid()) ? Held->Definition : nullptr;
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] DoUseHeld(pressed) — held=%s def=%s category=%d"),
+		Held ? TEXT("yes") : TEXT("null"),
+		Def ? *Def->ItemId.ToString() : TEXT("null"),
+		Def ? (int32)Def->Category : -1);
 	if (!Def) return;
 
 	switch (Def->Category)
@@ -987,7 +996,7 @@ void AQRCharacter::RefreshHeldItemMesh()
 	{
 		const FBoxSphereBounds B = TargetMesh->GetBounds();
 		const float MaxExtent = FMath::Max3(B.BoxExtent.X, B.BoxExtent.Y, B.BoxExtent.Z);
-		const float TargetHalfExtentCm = 12.0f;   // 12 cm half-extent ≈ 24 cm long
+		const float TargetHalfExtentCm = 20.0f;   // 20 cm half-extent ≈ 40 cm long — typical FPS weapon footprint
 		const float S = (MaxExtent > 0.01f) ? (TargetHalfExtentCm / MaxExtent) : 1.0f;
 		HeldItemMesh->SetRelativeScale3D(FVector(S));
 	}
