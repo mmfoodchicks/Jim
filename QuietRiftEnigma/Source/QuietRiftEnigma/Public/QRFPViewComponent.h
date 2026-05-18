@@ -50,7 +50,7 @@ public:
 	// FOV while aiming down sights — narrower for zoom feel.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
 		meta = (ClampMin = "20", ClampMax = "90"))
-	float ADSFOV = 65.0f;
+	float ADSFOV = 45.0f;
 
 	// FOV when ADSing with a long-range scope equipped (~4× magnification).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",

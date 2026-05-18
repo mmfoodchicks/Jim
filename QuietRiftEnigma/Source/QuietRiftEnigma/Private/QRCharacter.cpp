@@ -571,8 +571,31 @@ void AQRCharacter::TryFireWeapon()
 	{
 		// Apply kick on the firing controller. Pitch is up (negative
 		// camera pitch input in UE convention), yaw is +/- random.
-		AddControllerPitchInput(-Result.RecoilPitch);
-		AddControllerYawInput(Result.RecoilYaw);
+		// Recoil values are scaled up so the kick reads on-screen — the
+		// weapon's base values are tuned for "feels real with anims";
+		// without the anims they were too subtle to notice.
+		AddControllerPitchInput(-Result.RecoilPitch * 3.0f);
+		AddControllerYawInput(  Result.RecoilYaw   * 3.0f);
+
+		// Visible tracer + hit feedback. The Fab muzzle-flash / impact
+		// Niagara systems are broken on this checkout (compile errors
+		// on missing dependencies), so use UE debug-draw as the
+		// stand-in. Hot pink → cyan so it's impossible to miss.
+		if (UWorld* W = GetWorld())
+		{
+			const FVector Muzzle = Start + Forward * 35.0f;
+			const FVector EndPt  = Result.bHitSomething
+				? Result.HitLocation
+				: (Start + Forward * (Weapon->MaxRangeMeters * 100.0f));
+			DrawDebugLine(W, Muzzle, EndPt, FColor(255, 50, 200),
+				/*bPersistent*/ false, /*lifeTime*/ 0.25f,
+				/*depthPriority*/ 0, /*thickness*/ 2.0f);
+			if (Result.bHitSomething)
+			{
+				DrawDebugSphere(W, Result.HitLocation, 18.0f, 12,
+					FColor::Cyan, false, 1.0f, 0, 2.0f);
+			}
+		}
 	}
 }
 
