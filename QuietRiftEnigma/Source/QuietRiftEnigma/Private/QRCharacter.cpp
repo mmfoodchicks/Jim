@@ -78,8 +78,8 @@ AQRCharacter::AQRCharacter()
 	HeldItemMesh->SetCastShadow(false);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetVisibility(false);
-	HeldItemMesh->SetRelativeLocation(FVector(35.0f, 12.0f, -12.0f));
-	HeldItemMesh->SetRelativeRotation(FRotator(-5.0f, -8.0f, 0.0f));
+	HeldItemMesh->SetRelativeLocation(FVector(45.0f, 18.0f, -16.0f));
+	HeldItemMesh->SetRelativeRotation(FRotator(-3.0f, -6.0f, 0.0f));
 	HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
 
 	// UI defaults — local C++ widgets unless overridden in BP.
@@ -157,6 +157,15 @@ void AQRCharacter::BeginPlay()
 			if (DefaultMappingContext)
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
+
+		// Force input back to GameOnly. AQRMainMenuGameMode leaves the PC
+		// in InputModeUIOnly with the cursor visible; non-seamless OpenLevel
+		// is *supposed* to give us a fresh PC but in PIE the state often
+		// leaks through, leaving WASD/Tab/etc. routed to nothing.
+		PC->SetInputMode(FInputModeGameOnly());
+		PC->bShowMouseCursor       = false;
+		PC->SetIgnoreLookInput(false);
+		PC->SetIgnoreMoveInput(false);
 	}
 
 	// Initialize faction as player faction
@@ -347,6 +356,13 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	// UE calls SetupPlayerInputComponent BEFORE BeginPlay, so any input
+	// actions that BeginPlay would fill in via UQRInputDefaults::Apply
+	// don't exist yet — every if (MoveAction) BindAction below would
+	// no-op. Apply here so the action UPROPERTYs are populated before
+	// we bind to them. Apply is idempotent (BeginPlay calls it too).
+	UQRInputDefaults::Apply(this);
+
 	if (UEnhancedInputComponent* EI = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		if (MoveAction)      EI->BindAction(MoveAction,      ETriggerEvent::Triggered, this, &AQRCharacter::Move);
@@ -528,6 +544,9 @@ void AQRCharacter::TryInteract()
 
 void AQRCharacter::TryFireWeapon()
 {
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon — Weapon=%s Camera=%s"),
+		Weapon ? TEXT("yes") : TEXT("null"),
+		FirstPersonCamera ? TEXT("yes") : TEXT("null"));
 	if (!Weapon || !FirstPersonCamera) return;
 
 	const FVector  Start   = FirstPersonCamera->GetComponentLocation();
@@ -546,6 +565,8 @@ void AQRCharacter::TryFireWeapon()
 	}
 
 	const FQRFireResult Result = Weapon->TryFireFromTrace(Start, Forward, bAimed, bMoving, /*AmmoInstance*/ nullptr);
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon result: bFired=%d bHit=%d dmg=%.1f"),
+		Result.bFired ? 1 : 0, Result.bHitSomething ? 1 : 0, Result.Damage);
 	if (Result.bFired)
 	{
 		// Apply kick on the firing controller. Pitch is up (negative
@@ -871,6 +892,10 @@ void AQRCharacter::DoUseHeld(bool bPressed)
 	if (!Hotbar) return;
 	UQRItemInstance* Held = Hotbar->GetActiveItem();
 	const UQRItemDefinition* Def = (Held && Held->IsValid()) ? Held->Definition : nullptr;
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] DoUseHeld(pressed) — held=%s def=%s category=%d"),
+		Held ? TEXT("yes") : TEXT("null"),
+		Def ? *Def->ItemId.ToString() : TEXT("null"),
+		Def ? (int32)Def->Category : -1);
 	if (!Def) return;
 
 	switch (Def->Category)
@@ -935,16 +960,70 @@ void AQRCharacter::RefreshHeldItemMesh()
 	if (!HeldItemMesh) return;
 
 	UStaticMesh* TargetMesh = nullptr;
+	const UQRItemDefinition* HandDef = nullptr;
 	if (Inventory && Inventory->HandSlot)
 	{
-		if (const UQRItemDefinition* Def = Inventory->HandSlot->Definition)
+		HandDef = Inventory->HandSlot->Definition;
+		if (HandDef)
 		{
-			TargetMesh = Def->WorldMesh.LoadSynchronous();
+			TargetMesh = HandDef->WorldMesh.LoadSynchronous();
 		}
 	}
 
+	// Diagnostic — fires every time a hotbar slot becomes active or the
+	// inventory changes. Tells you why the held mesh might be invisible:
+	//   no HandSlot      = hotbar didn't equip anything
+	//   HandSlot, no Def = item instance exists but has no definition
+	//   Def, no WorldMesh= definition exists but mesh slot is empty / soft-ptr unresolved
+	UE_LOG(LogTemp, Log,
+		TEXT("[QRCharacter] RefreshHeldItemMesh — handSlot=%s def=%s mesh=%s visible=%d"),
+		(Inventory && Inventory->HandSlot) ? TEXT("yes") : TEXT("null"),
+		HandDef ? *HandDef->ItemId.ToString() : TEXT("null"),
+		TargetMesh ? *TargetMesh->GetName() : TEXT("null"),
+		TargetMesh != nullptr ? 1 : 0);
+
 	HeldItemMesh->SetStaticMesh(TargetMesh);
 	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
+
+	// Creative-mode auto-equip for weapons: the QRWeaponComponent
+	// defaults to CurrentAmmo=0 + WeaponState=Holstered, so CanFire()
+	// returns false on every LMB until you "reload" — but there's no
+	// real ammo pipeline yet. Top the mag off here whenever a Weapon-
+	// category item becomes active so LMB actually fires. Clear back
+	// to Holstered when the slot becomes empty so the component isn't
+	// claiming to be ready while you're empty-handed.
+	if (Weapon)
+	{
+		if (HandDef && HandDef->Category == EQRItemCategory::Weapon)
+		{
+			Weapon->CurrentAmmo = Weapon->MagazineCapacity;
+			Weapon->WeaponState = EQRWeaponState::Ready;
+		}
+		else
+		{
+			Weapon->WeaponState = EQRWeaponState::Holstered;
+		}
+	}
+
+	// Uniform held-item scale: drive every weapon / prop down to a
+	// consistent ~25 cm visible footprint regardless of how the source
+	// FBX was authored. SM_WPN_LONGRANGE_SNIPER imports at real-world
+	// metres (~150 cm) and at scale 1.0 it fills the whole screen;
+	// the pistol mesh is ~20 cm so a fixed scale wouldn't suit both.
+	// Compute from the mesh's bounds so every item lands at the same
+	// visible size.
+	if (TargetMesh)
+	{
+		const FBoxSphereBounds B = TargetMesh->GetBounds();
+		const float MaxExtent = FMath::Max3(B.BoxExtent.X, B.BoxExtent.Y, B.BoxExtent.Z);
+		const float TargetHalfExtentCm = 20.0f;   // 20 cm half-extent ≈ 40 cm long — typical FPS weapon footprint
+		const float S = (MaxExtent > 0.01f) ? (TargetHalfExtentCm / MaxExtent) : 1.0f;
+		HeldItemMesh->SetRelativeScale3D(FVector(S));
+	}
+	else
+	{
+		HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
+	}
 
 	// Scope detection — long-range sniper or any weapon with ItemId
 	// containing SNIPER or with a scope attachment in tags. Designer

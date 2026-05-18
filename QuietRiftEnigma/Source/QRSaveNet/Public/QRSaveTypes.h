@@ -142,7 +142,7 @@ struct QRSAVENET_API FQRChunkDelta
 {
 	GENERATED_BODY()
 
-	UPROPERTY() FIntVector ChunkCoord;
+	UPROPERTY() FIntVector ChunkCoord = FIntVector::ZeroValue;
 	UPROPERTY() TArray<FQRHarvestNodeSaveData> HarvestNodes;
 	UPROPERTY() TArray<FQRBuildableSaveData> Buildables;
 	UPROPERTY() TArray<FName> DestroyedActorIds;

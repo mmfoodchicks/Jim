@@ -121,6 +121,27 @@ EQRInventoryResult UQRInventoryComponent::TryAddByDefinition(const UQRItemDefini
 	return TryAddItem(Temp, OutRemainder);
 }
 
+UQRItemInstance* UQRInventoryComponent::ForceAddByDefinition(const UQRItemDefinition* Def, int32 Quantity)
+{
+	if (!Def || Quantity <= 0 || Quantity > 9999) return nullptr;
+
+	// Sidestep the weight/volume check — Wildlife items in particular
+	// weigh 50 kg and bust the player's default carry limit, so the
+	// regular TryAddByDefinition path returns TooHeavy and the creative
+	// hotbar slot stays empty. Here we just construct an instance and
+	// drop it into Items[] directly.
+	UQRItemInstance* Inst = NewObject<UQRItemInstance>(this);
+	Inst->Initialize(Def, Quantity);
+	const int32 SlotIdx = Items.Add(Inst);
+
+	// Try to place into a grid cell for the inventory UI; harmless if
+	// the grid is full.
+	(void)TryAutoPlaceItem(Inst);
+	OnItemAdded.Broadcast(Inst, SlotIdx);
+	OnInventoryChanged.Broadcast();
+	return Inst;
+}
+
 bool UQRInventoryComponent::TryRemoveItem(FName ItemId, int32 Quantity)
 {
 	if (CountItem(ItemId) < Quantity)

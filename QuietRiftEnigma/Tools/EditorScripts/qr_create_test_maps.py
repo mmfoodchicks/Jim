@@ -123,20 +123,42 @@ def _spawn_atmosphere_lighting():
 
 
 def _set_game_mode(class_path):
-    """Sets the world settings' DefaultGameMode to the given class."""
+    """Sets the current level's DefaultGameMode on AWorldSettings, then
+    verifies + dirties the package so save_current_level actually
+    persists it. Silent failures here were costing us PIE sessions:
+    without QRGameMode the level loads with a default empty pawn and
+    the world bootstrap never runs."""
     cls = unreal.load_object(None, class_path)
     if not cls:
-        print("[maps] couldn't load game-mode class " + class_path)
+        print("[maps]   couldn't load game-mode class " + class_path)
         return
-    # Set DefaultGameMode directly on the AWorldSettings actor. The old
-    # EditorLevelLibrary.get_game_mode_settings_for_current_level() helper
-    # was removed in UE 5.7; this path is what's left and is sufficient.
-    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
-    if settings:
-        try:
-            settings.set_editor_property("default_game_mode", cls)
-        except Exception as e:
-            print("[maps] world settings game mode set failed: " + str(e))
+
+    world = unreal.EditorLevelLibrary.get_editor_world()
+    if not world:
+        print("[maps]   no editor world — game mode NOT set")
+        return
+    settings = world.get_world_settings()
+    if not settings:
+        print("[maps]   world has no WorldSettings — game mode NOT set")
+        return
+
+    try:
+        settings.set_editor_property("default_game_mode", cls)
+    except Exception as e:
+        print("[maps]   set_editor_property('default_game_mode') failed: " + str(e))
+        return
+
+    # Read back to make sure it took.
+    actual = settings.get_editor_property("default_game_mode")
+    if actual != cls:
+        print("[maps]   game mode read-back MISMATCH: got {} expected {}"
+              .format(actual, class_path))
+        return
+
+    # set_editor_property already dirties the actor; save_current_level
+    # picks up the change. (Old code called pkg.set_dirty_flag here, but
+    # UE 5.7's Python binding doesn't expose that method on Package.)
+    print("[maps]   game mode = " + class_path)
 
 
 def _save():
@@ -191,7 +213,7 @@ def _spawn_floor():
     candidate_materials = [
         "/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
         "/Game/Fabs/ScifiJungle/Materials/M_Ground_Forest",
-        "/Engine/EditorMaterials/EditorSky.EditorSky",  # last-resort visible default
+        "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial",  # always available
     ]
     for path in candidate_materials:
         mat = unreal.load_object(None, path)
@@ -201,21 +223,15 @@ def _spawn_floor():
 
 
 def _spawn_starter_hills():
-    """Drop a few large rock meshes near spawn so the dev-test world
-    isn't a featureless plane. Pure cosmetic — a placeholder until a
-    proper Landscape with sculpted/noise heightmap replaces the flat
-    floor. Uses the same Fab rocks the biome palette references."""
-    candidates = [
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01",
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02",
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03",
-    ]
-    meshes = [m for m in (unreal.load_object(None, p) for p in candidates) if m]
-    if not meshes:
-        print("[maps]   no Rock_Collection_04 meshes — skipping starter hills")
+    """Drop a few cube-mesh "hills" near spawn so the dev-test world
+    isn't a featureless plane. Placeholder visual until a real
+    Landscape replaces the flat 8 km floor. Uses the engine cube so
+    no Fab dependency."""
+    cube_mesh = unreal.load_object(None, "/Engine/BasicShapes/Cube.Cube")
+    if not cube_mesh:
+        print("[maps]   /Engine/BasicShapes/Cube not loadable — no hills")
         return
 
-    # Spread 8 hills in a ring around spawn at varying distance + scale.
     import math
     for i in range(8):
         angle = (i / 8.0) * 2 * math.pi
@@ -226,11 +242,13 @@ def _spawn_starter_hills():
             unreal.Vector(*loc),
             unreal.Rotator(0, (i * 47) % 360, 0))
         if not actor: continue
-        scale = 6.0 + (i % 4) * 4.0    # 6×–18× cube-scale rocks = big hills
-        actor.set_actor_scale3d(unreal.Vector(scale, scale, scale * 0.7))
-        actor.static_mesh_component.set_static_mesh(meshes[i % len(meshes)])
+        # Wide + low boxes so they read as terrain mounds rather than walls.
+        scale_xy = 4.0 + (i % 4) * 2.5
+        scale_z  = 1.5 + (i % 3) * 0.8
+        actor.set_actor_scale3d(unreal.Vector(scale_xy, scale_xy, scale_z))
+        actor.static_mesh_component.set_static_mesh(cube_mesh)
         actor.set_actor_label("StarterHill_{}".format(i))
-    print("[maps]   placed 8 starter hills (15–31 m radius)")
+    print("[maps]   placed 8 starter hill cubes (15–31 m radius)")
 
 
 def _spawn_scatter_with_biome():
@@ -258,7 +276,10 @@ def _spawn_scatter_with_biome():
 
     # Cover a 200 m × 200 m area centered on origin — close enough to the
     # PlayerStart that you walk right into the scatter on Play.
-    actor.set_editor_property('volume_extents', unreal.Vector(10000.0, 10000.0, 500.0))
+    # The scatter actor's box footprint is the UBoxComponent named "Bounds".
+    bounds = actor.get_editor_property('bounds')
+    if bounds:
+        bounds.set_box_extent(unreal.Vector(10000.0, 10000.0, 500.0))
     actor.set_editor_property('target_count', 800)
     actor.set_editor_property('seed', 1337)
     print("[maps]   scatter actor placed (200m x 200m, 800 instances)")
@@ -294,10 +315,19 @@ def _spawn_worldgen_spawner_with_fauna_rules():
     else:
         print("[maps]   no fauna rules found — run qr_seed_fauna_rules first")
 
-    # Fallback wildlife so cells outside any biome rule still get something.
-    fb = unreal.load_class(None, "/Script/QuietRiftEnigma.QRWildlife_AshbackBoar")
-    if fb:
-        actor.set_editor_property('wildlife_fallback_class', fb)
+    # Fallback wildlife so cells outside any biome rule still get
+    # something. The property is TSubclassOf<AQRWildlifeActor>; UE
+    # Python's typed class wrapper (unreal.QRWildlife_AshbackBoar) is
+    # the *instance* type, not the UClass — call static_class() to get
+    # the UClass the property actually wants. Wrapped in try/except so
+    # any version-skew on the binding doesn't abort _set_game_mode.
+    try:
+        wrapper = getattr(unreal, 'QRWildlife_AshbackBoar', None)
+        if wrapper is not None and hasattr(wrapper, 'static_class'):
+            actor.set_editor_property('wildlife_fallback_class',
+                                       wrapper.static_class())
+    except Exception as e:
+        print("[maps]   wildlife_fallback_class not set: {}".format(e))
 
 
 def build_dev_test():

@@ -56,7 +56,28 @@ void AQRWorldItem::InitializeFrom(const UQRItemDefinition* Definition, int32 InQ
 	if (Mesh)
 	{
 		UStaticMesh* Loaded = Definition->WorldMesh.LoadSynchronous();
-		if (Loaded) Mesh->SetStaticMesh(Loaded);
+		if (Loaded)
+		{
+			Mesh->SetStaticMesh(Loaded);
+
+			// Clamp oversize source meshes so a dropped wildlife / world
+			// item can't dwarf the player. Some Fab / placeholder meshes
+			// import at 3-8 m which makes the dropped actor an unreadable
+			// blue blob. Anything whose largest bounds extent exceeds
+			// MaxAllowedHalfExtentCm gets scaled down uniformly.
+			const FBoxSphereBounds B = Loaded->GetBounds();
+			const float MaxExtent = FMath::Max3(B.BoxExtent.X, B.BoxExtent.Y, B.BoxExtent.Z);
+			const float MaxAllowedHalfExtentCm = 100.0f;   // = 2 m largest dimension
+			if (MaxExtent > MaxAllowedHalfExtentCm)
+			{
+				const float S = MaxAllowedHalfExtentCm / MaxExtent;
+				Mesh->SetRelativeScale3D(FVector(S));
+			}
+			else
+			{
+				Mesh->SetRelativeScale3D(FVector(1.0f));
+			}
+		}
 	}
 }
 

@@ -61,24 +61,11 @@ bool UQRHotbarComponent::AssignDefinitionToSlot(int32 SlotIndex, const UQRItemDe
 	UQRInventoryComponent* Inv = GetOwnerInventory();
 	if (!Inv) return false;
 
-	int32 Remainder = 0;
-	const EQRInventoryResult R = Inv->TryAddByDefinition(Definition, Quantity, Remainder);
-	if (R != EQRInventoryResult::Success) return false;
-
-	// Find the freshly-added instance: scan the inventory back-to-front for
-	// the matching item id with at least one unit. TryAddByDefinition may
-	// have stacked into an existing instance, in which case the slot binds
-	// to that stack — same item, so the user gets what they asked for.
-	UQRItemInstance* Added = nullptr;
-	for (int32 i = Inv->Items.Num() - 1; i >= 0; --i)
-	{
-		UQRItemInstance* It = Inv->Items[i];
-		if (It && It->Definition && It->Definition->ItemId == Definition->ItemId)
-		{
-			Added = It;
-			break;
-		}
-	}
+	// Use the force-add path so creative-mode assignment works even for
+	// heavy items (Wildlife = 50 kg per unit, busts the player's default
+	// carry weight and would silently fail with TooHeavy via the regular
+	// TryAddByDefinition path).
+	UQRItemInstance* Added = Inv->ForceAddByDefinition(Definition, Quantity);
 	if (!Added) return false;
 
 	AssignSlot(SlotIndex, Added);

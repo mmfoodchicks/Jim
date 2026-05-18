@@ -4,12 +4,30 @@
 #include "QRCodexSubsystem.h"
 #include "QRMissionDirector.h"
 #include "QRItemDefinition.h"
+#include "Components/SphereComponent.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
 AQRWildlifeActor::AQRWildlifeActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	// AQRWorldItem (our parent) sets the InteractionVolume to QueryOnly
+	// and ignores every channel except Visibility — fine for an item the
+	// player walks up to and presses F on, but wrong for a wandering
+	// animal that needs to bump into hills instead of phasing through.
+	// Promote the root sphere to QueryAndPhysics and block world geometry
+	// + the Pawn channel so TickMovement's swept SetActorLocation can
+	// actually push back against terrain.
+	if (InteractionVolume)
+	{
+		InteractionVolume->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		InteractionVolume->SetCollisionResponseToAllChannels(ECR_Ignore);
+		InteractionVolume->SetCollisionResponseToChannel(ECC_Visibility,   ECR_Block);
+		InteractionVolume->SetCollisionResponseToChannel(ECC_WorldStatic,  ECR_Block);
+		InteractionVolume->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+		InteractionVolume->SetCollisionResponseToChannel(ECC_Pawn,         ECR_Block);
+	}
 }
 
 void AQRWildlifeActor::BeginPlay()
@@ -109,7 +127,9 @@ void AQRWildlifeActor::TickMovement(float DeltaTime, float Speed,
 	const FVector Dir = ToTarget.GetSafeNormal();
 	FVector NewLoc = Cur + Dir * Speed * DeltaTime;
 	NewLoc.Z = SpawnZ;
-	SetActorLocation(NewLoc);
+	// bSweep=true so the actor's collision shape blocks against world
+	// static geometry (hills, walls) instead of phasing straight through.
+	SetActorLocation(NewLoc, /*bSweep*/ true);
 
 	if (!Dir.IsNearlyZero())
 	{
