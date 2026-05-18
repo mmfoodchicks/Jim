@@ -985,6 +985,26 @@ void AQRCharacter::RefreshHeldItemMesh()
 	HeldItemMesh->SetStaticMesh(TargetMesh);
 	HeldItemMesh->SetVisibility(TargetMesh != nullptr);
 
+	// Creative-mode auto-equip for weapons: the QRWeaponComponent
+	// defaults to CurrentAmmo=0 + WeaponState=Holstered, so CanFire()
+	// returns false on every LMB until you "reload" — but there's no
+	// real ammo pipeline yet. Top the mag off here whenever a Weapon-
+	// category item becomes active so LMB actually fires. Clear back
+	// to Holstered when the slot becomes empty so the component isn't
+	// claiming to be ready while you're empty-handed.
+	if (Weapon)
+	{
+		if (HandDef && HandDef->Category == EQRItemCategory::Weapon)
+		{
+			Weapon->CurrentAmmo = Weapon->MagazineCapacity;
+			Weapon->WeaponState = EQRWeaponState::Ready;
+		}
+		else
+		{
+			Weapon->WeaponState = EQRWeaponState::Holstered;
+		}
+	}
+
 	// Uniform held-item scale: drive every weapon / prop down to a
 	// consistent ~25 cm visible footprint regardless of how the source
 	// FBX was authored. SM_WPN_LONGRANGE_SNIPER imports at real-world
