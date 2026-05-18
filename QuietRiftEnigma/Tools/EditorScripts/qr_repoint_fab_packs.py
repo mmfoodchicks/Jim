@@ -17,10 +17,17 @@ the create-test-maps starter hills, etc.) still resolves.
 After running, the Output Log should stop showing the
   "LoadErrors: ... dependent package /Game/<Pack>/... was not available"
 warnings on PIE start, and the previously-silent gunshot / muzzle flash /
-ambient audio should actually play.
+ambient audio / footstep wavs should actually play.
 
-Safe to re-run: target paths that already have an asset are skipped, so
-nothing gets clobbered.
+Modes:
+  run()                                # live repoint + post-pass verify
+  run(dry_run=True)                    # report only, no disk changes
+  run(packs=['ScifiJungle'])           # narrow to one pack
+  verify()                             # standalone scan: how many broken deps remain
+
+Safe to re-run: target paths that hold a stale redirector get cleared
+and replaced; target paths that hold a real asset get skipped (reported
+as "blocked") so the user can decide manually.
 
 Run from the UE Python console:
   exec(open(r'<Project>/Tools/EditorScripts/qr_repoint_fab_packs.py').read())
@@ -32,16 +39,14 @@ import unreal
 FABS_ROOT = "/Game/Fabs"
 
 
+# ─── Asset-registry helpers ──────────────────────────────────────────
+
 def _list_fab_pack_dirs():
     """Return list of immediate subdirectories under /Game/Fabs (i.e. one
     entry per imported pack)."""
     if not unreal.EditorAssetLibrary.does_directory_exist(FABS_ROOT):
         return []
     out = []
-    # list_assets at root level returns asset paths, not dir paths. Use the
-    # asset-registry directory walker via EditorUtilityLibrary instead.
-    # Simpler: list every asset recursively under /Game/Fabs and extract
-    # the immediate child segment, then dedup.
     asset_paths = unreal.EditorAssetLibrary.list_assets(FABS_ROOT, recursive=True)
     seen = set()
     prefix = FABS_ROOT + "/"
@@ -64,21 +69,77 @@ def _strip_object_suffix(asset_path):
     return asset_path
 
 
-def repoint_pack(pack_name):
+def _is_redirector(package_path):
+    """True if the asset at `package_path` is an ObjectRedirector. We use
+    the asset registry's class metadata rather than load_asset() because
+    redirectors silently follow on load and would give the wrong answer."""
+    ar = unreal.AssetRegistryHelpers.get_asset_registry()
+    asset_name = package_path.rsplit("/", 1)[-1]
+    obj_path = "{}.{}".format(package_path, asset_name)
+    try:
+        ad = ar.get_asset_by_object_path(obj_path)
+    except Exception:
+        return False
+    if not ad or not ad.is_valid():
+        return False
+    # UE 5.7 exposes asset_class_path (TopLevelAssetPath); older versions
+    # have asset_class. Try both rather than tying to one version.
+    try:
+        if str(ad.asset_class_path.asset_name) == "ObjectRedirector":
+            return True
+    except Exception:
+        pass
+    try:
+        return str(ad.asset_class) == "ObjectRedirector"
+    except Exception:
+        return False
+
+
+def _safe_get_dependencies(asset_registry, pkg_name):
+    """Wrapper around asset_registry.get_dependencies that handles the
+    multiple signatures UE 5.x Python has shipped. Returns [] on failure
+    rather than raising. Matches the pattern in qr_purge_broken_cues.py."""
+    name = unreal.Name(pkg_name)
+    try:
+        cat = getattr(unreal, 'DependencyCategory', None)
+        if cat is not None:
+            return list(asset_registry.get_dependencies(name, cat.PACKAGE) or [])
+    except Exception:
+        pass
+    try:
+        opts_cls = getattr(unreal, 'AssetRegistryDependencyOptions', None)
+        if opts_cls is not None:
+            return list(asset_registry.get_dependencies(name, opts_cls()) or [])
+    except Exception:
+        pass
+    try:
+        return list(asset_registry.get_dependencies(name) or [])
+    except Exception:
+        return []
+
+
+# ─── Repoint ─────────────────────────────────────────────────────────
+
+def repoint_pack(pack_name, dry_run=False):
+    """Move every asset under /Game/Fabs/<pack>/ to /Game/<pack>/. Returns
+    a stats dict, or None if the pack directory doesn't exist / is empty."""
     fab_root    = "{}/{}".format(FABS_ROOT, pack_name)
     target_root = "/Game/{}".format(pack_name)
 
     if not unreal.EditorAssetLibrary.does_directory_exist(fab_root):
-        return (0, 0, 0)
+        return None
 
     asset_paths = unreal.EditorAssetLibrary.list_assets(fab_root, recursive=True)
     if not asset_paths:
-        print("[repoint] {} — empty pack, skipping".format(pack_name))
-        return (0, 0, 0)
+        return None
 
-    renamed  = 0
-    skipped  = 0   # target already has an asset there
-    failed   = 0
+    stats = {
+        "renamed":              0,
+        "would_rename":         0,
+        "redirector_replaced":  0,
+        "blocked_real":         0,
+        "failed":               0,
+    }
 
     for path in asset_paths:
         src = _strip_object_suffix(path)
@@ -87,50 +148,154 @@ def repoint_pack(pack_name):
         # /Game/Fabs/Pack/Sub/Asset  ->  /Game/Pack/Sub/Asset
         dst = target_root + src[len(fab_root):]
 
-        # Skip if already at destination (target path occupied).
         if unreal.EditorAssetLibrary.does_asset_exist(dst):
-            skipped += 1
+            if _is_redirector(dst):
+                # Stale redirector from a previous partial run. Clear and
+                # let the rename run, so we don't get stuck on the same
+                # blocker every re-run.
+                if dry_run:
+                    stats["redirector_replaced"] += 1
+                    continue
+                if not unreal.EditorAssetLibrary.delete_asset(dst):
+                    stats["failed"] += 1
+                    unreal.log_warning(
+                        "[repoint]   couldn't clear redirector at {}".format(dst))
+                    continue
+                # fall through to the rename below
+                stats["redirector_replaced"] += 1
+            else:
+                # Real asset already occupies the target. Skip and report
+                # so the user can resolve manually.
+                stats["blocked_real"] += 1
+                continue
+
+        if dry_run:
+            stats["would_rename"] += 1
             continue
 
-        ok = unreal.EditorAssetLibrary.rename_asset(src, dst)
-        if ok:
-            renamed += 1
+        if unreal.EditorAssetLibrary.rename_asset(src, dst):
+            stats["renamed"] += 1
         else:
-            failed += 1
-            unreal.log_warning("[repoint]   rename failed: {} -> {}".format(src, dst))
+            stats["failed"] += 1
+            unreal.log_warning(
+                "[repoint]   rename failed: {} -> {}".format(src, dst))
 
-    print("[repoint] {:<32s}  renamed={:<5d}  skipped={:<5d}  failed={:<5d}".format(
-        pack_name, renamed, skipped, failed))
-    return (renamed, skipped, failed)
+    return stats
 
 
-def run(packs=None):
-    """packs: optional list of pack names to repoint. Default = every pack
-    under /Game/Fabs/ that has any assets."""
+# ─── Verify (post-pass dep scan) ────────────────────────────────────
+
+def verify():
+    """Walk every asset under /Game/ and tally per-pack broken-dependency
+    counts. Pure read-only — safe any time. Useful before/after a repoint
+    pass to see the delta. Takes a minute or two on a fat project."""
+    print("[verify] scanning /Game/ for assets with missing dependencies...")
+    ar = unreal.AssetRegistryHelpers.get_asset_registry()
+    f = unreal.ARFilter(package_paths=["/Game"], recursive_paths=True)
+
+    per_pack = {}
+    total_broken = 0
+    total_assets = 0
+
+    for ad in ar.get_assets(f):
+        total_assets += 1
+        pkg = str(ad.package_name)
+        # First path segment after /Game/ (or /Game/Fabs/) is the pack.
+        rest = pkg[len("/Game/"):] if pkg.startswith("/Game/") else pkg
+        if rest.startswith("Fabs/"):
+            rest = rest[len("Fabs/"):]
+        pack = rest.split("/", 1)[0] if "/" in rest else rest
+
+        deps = _safe_get_dependencies(ar, pkg)
+        broken = 0
+        for dep in deps:
+            dep_str = str(dep)
+            if not dep_str.startswith("/Game/"):
+                continue
+            if not unreal.EditorAssetLibrary.does_asset_exist(dep_str):
+                broken += 1
+        if broken > 0:
+            per_pack[pack] = per_pack.get(pack, 0) + broken
+            total_broken += broken
+
+    print("[verify] scanned {} assets, found {} broken refs across {} packs"
+          .format(total_assets, total_broken, len(per_pack)))
+
+    if per_pack:
+        for pack in sorted(per_pack.keys(), key=lambda k: -per_pack[k]):
+            print("[verify]   {:<32s} {}".format(pack, per_pack[pack]))
+
+    return total_broken
+
+
+# ─── Entry point ─────────────────────────────────────────────────────
+
+def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
+    """Repoint every pack under /Game/Fabs/ (or the supplied subset).
+
+    Args:
+      packs:         Optional list of pack names to limit the pass to.
+      dry_run:       If True, report what would happen without renaming.
+      verify_before: If True, scan /Game/ for broken deps before repointing.
+      verify_after:  If True (default), scan again after — shows the delta.
+    """
     if packs is None:
         packs = _list_fab_pack_dirs()
     if not packs:
         print("[repoint] no Fab packs found under {} — nothing to do".format(FABS_ROOT))
         return
 
-    print("[repoint] processing {} packs:".format(len(packs)))
+    mode = "DRY-RUN" if dry_run else "LIVE"
+    print("[repoint] {} mode — {} packs".format(mode, len(packs)))
     for p in packs:
         print("[repoint]   - {}".format(p))
-    print("[repoint]")
+    print("")
 
-    total_renamed = total_skipped = total_failed = 0
+    if verify_before:
+        print("[repoint] === pre-pass verify ===")
+        verify()
+        print("")
+
+    grand = {"renamed": 0, "would_rename": 0, "redirector_replaced": 0,
+             "blocked_real": 0, "failed": 0}
+
+    fmt = ("{:<32s}  renamed={:<4d} would={:<4d} "
+           "redir-replace={:<3d} blocked={:<3d} failed={:<3d}")
     for pack in packs:
-        r, s, f = repoint_pack(pack)
-        total_renamed += r
-        total_skipped += s
-        total_failed  += f
+        s = repoint_pack(pack, dry_run=dry_run)
+        if s is None:
+            print("[repoint] {:<32s}  empty / not found".format(pack))
+            continue
+        print("[repoint] " + fmt.format(
+            pack, s["renamed"], s["would_rename"],
+            s["redirector_replaced"], s["blocked_real"], s["failed"]))
+        for k in grand:
+            grand[k] += s.get(k, 0)
 
-    print("[repoint]")
-    print("[repoint] done — renamed={}, skipped (target occupied)={}, failed={}"
-          .format(total_renamed, total_skipped, total_failed))
-    if total_renamed > 0:
-        print("[repoint] tip: right-click /Game/Fabs in content browser -> "
-              "Fix Up Redirectors In Folder to collapse the redirector trail")
+    print("")
+    print("[repoint] " + fmt.format(
+        "TOTAL", grand["renamed"], grand["would_rename"],
+        grand["redirector_replaced"], grand["blocked_real"], grand["failed"]))
+
+    if grand["blocked_real"] > 0:
+        print("[repoint]")
+        print("[repoint] {} assets were BLOCKED because the target path "
+              "already holds a real (non-redirector) asset.".format(
+                  grand["blocked_real"]))
+        print("[repoint] Likely cause: a previous import populated /Game/<Pack>/")
+        print("[repoint] directly. Decide per-asset whether to keep the existing")
+        print("[repoint] one or delete it and re-run this script.")
+
+    if not dry_run and grand["renamed"] > 0:
+        print("[repoint]")
+        print("[repoint] tip: right-click /Game/Fabs in Content Browser -> "
+              "Fix Up Redirectors In Folder")
+        print("[repoint] to collapse the redirector trail before committing.")
+
+    if verify_after:
+        print("")
+        print("[repoint] === post-pass verify ===")
+        verify()
 
 
 if __name__ == "__main__":
