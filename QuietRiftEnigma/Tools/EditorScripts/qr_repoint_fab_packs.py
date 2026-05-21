@@ -122,7 +122,13 @@ def _safe_get_dependencies(asset_registry, pkg_name):
 
 def repoint_pack(pack_name, dry_run=False):
     """Move every asset under /Game/Fabs/<pack>/ to /Game/<pack>/. Returns
-    a stats dict, or None if the pack directory doesn't exist / is empty."""
+    a stats dict, or None if the pack directory doesn't exist / is empty.
+
+    Every per-asset operation is wrapped in try/except: a broken asset
+    (e.g. an AnimSequence whose skeleton was deleted) makes rename_asset
+    raise a RuntimeError rather than return False. That must NOT abort
+    the whole 35-pack run — the asset is counted as a failure and the
+    pass continues."""
     fab_root    = "{}/{}".format(FABS_ROOT, pack_name)
     target_root = "/Game/{}".format(pack_name)
 
@@ -135,6 +141,7 @@ def repoint_pack(pack_name, dry_run=False):
 
     stats = {
         "renamed":              0,
+        "already_done":         0,
         "would_rename":         0,
         "redirector_replaced":  0,
         "blocked_real":         0,
@@ -142,43 +149,60 @@ def repoint_pack(pack_name, dry_run=False):
     }
 
     for path in asset_paths:
-        src = _strip_object_suffix(path)
-        if not src.startswith(fab_root + "/"):
-            continue
-        # /Game/Fabs/Pack/Sub/Asset  ->  /Game/Pack/Sub/Asset
-        dst = target_root + src[len(fab_root):]
+        try:
+            src = _strip_object_suffix(path)
+            if not src.startswith(fab_root + "/"):
+                continue
+            # /Game/Fabs/Pack/Sub/Asset  ->  /Game/Pack/Sub/Asset
+            dst = target_root + src[len(fab_root):]
 
-        if unreal.EditorAssetLibrary.does_asset_exist(dst):
-            if _is_redirector(dst):
-                # Stale redirector from a previous partial run. Clear and
-                # let the rename run, so we don't get stuck on the same
-                # blocker every re-run.
-                if dry_run:
-                    stats["redirector_replaced"] += 1
-                    continue
-                if not unreal.EditorAssetLibrary.delete_asset(dst):
-                    stats["failed"] += 1
-                    unreal.log_warning(
-                        "[repoint]   couldn't clear redirector at {}".format(dst))
-                    continue
-                # fall through to the rename below
-                stats["redirector_replaced"] += 1
-            else:
-                # Real asset already occupies the target. Skip and report
-                # so the user can resolve manually.
-                stats["blocked_real"] += 1
+            # If the SOURCE is already a redirector, a previous run
+            # migrated this asset. Nothing to do — the redirector itself
+            # gets collapsed by "Fix Up Redirectors In Folder" later.
+            if _is_redirector(src):
+                stats["already_done"] += 1
                 continue
 
-        if dry_run:
-            stats["would_rename"] += 1
-            continue
+            if unreal.EditorAssetLibrary.does_asset_exist(dst):
+                if _is_redirector(dst):
+                    # Stale redirector from a previous partial run. Clear
+                    # it so the rename can proceed instead of getting
+                    # stuck on the same blocker every re-run.
+                    if dry_run:
+                        stats["redirector_replaced"] += 1
+                        continue
+                    if not unreal.EditorAssetLibrary.delete_asset(dst):
+                        stats["failed"] += 1
+                        unreal.log_warning(
+                            "[repoint]   couldn't clear redirector at {}".format(dst))
+                        continue
+                    stats["redirector_replaced"] += 1
+                    # fall through to the rename below
+                else:
+                    # Real asset already occupies the target. Skip and
+                    # report so the user can resolve manually.
+                    stats["blocked_real"] += 1
+                    continue
 
-        if unreal.EditorAssetLibrary.rename_asset(src, dst):
-            stats["renamed"] += 1
-        else:
+            if dry_run:
+                stats["would_rename"] += 1
+                continue
+
+            if unreal.EditorAssetLibrary.rename_asset(src, dst):
+                stats["renamed"] += 1
+            else:
+                stats["failed"] += 1
+                unreal.log_warning(
+                    "[repoint]   rename failed: {} -> {}".format(src, dst))
+
+        except Exception as e:
+            # Broken asset (missing skeleton, corrupt data model, etc.).
+            # Count it and move on — never abort the whole pass. These
+            # cluster in the packs FAB_PRUNE_LIST.md marks for deletion.
             stats["failed"] += 1
             unreal.log_warning(
-                "[repoint]   rename failed: {} -> {}".format(src, dst))
+                "[repoint]   skipped (exception) {}: {}".format(path, e))
+            continue
 
     return stats
 
@@ -256,25 +280,25 @@ def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
         verify()
         print("")
 
-    grand = {"renamed": 0, "would_rename": 0, "redirector_replaced": 0,
-             "blocked_real": 0, "failed": 0}
+    grand = {"renamed": 0, "already_done": 0, "would_rename": 0,
+             "redirector_replaced": 0, "blocked_real": 0, "failed": 0}
 
-    fmt = ("{:<32s}  renamed={:<4d} would={:<4d} "
-           "redir-replace={:<3d} blocked={:<3d} failed={:<3d}")
+    fmt = ("{:<28s}  renamed={:<4d} done={:<4d} would={:<4d} "
+           "redir={:<3d} blocked={:<3d} failed={:<4d}")
     for pack in packs:
         s = repoint_pack(pack, dry_run=dry_run)
         if s is None:
-            print("[repoint] {:<32s}  empty / not found".format(pack))
+            print("[repoint] {:<28s}  empty / not found".format(pack))
             continue
         print("[repoint] " + fmt.format(
-            pack, s["renamed"], s["would_rename"],
+            pack, s["renamed"], s["already_done"], s["would_rename"],
             s["redirector_replaced"], s["blocked_real"], s["failed"]))
         for k in grand:
             grand[k] += s.get(k, 0)
 
     print("")
     print("[repoint] " + fmt.format(
-        "TOTAL", grand["renamed"], grand["would_rename"],
+        "TOTAL", grand["renamed"], grand["already_done"], grand["would_rename"],
         grand["redirector_replaced"], grand["blocked_real"], grand["failed"]))
 
     if grand["blocked_real"] > 0:
@@ -285,6 +309,13 @@ def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
         print("[repoint] Likely cause: a previous import populated /Game/<Pack>/")
         print("[repoint] directly. Decide per-asset whether to keep the existing")
         print("[repoint] one or delete it and re-run this script.")
+
+    if grand["failed"] > 0:
+        print("[repoint]")
+        print("[repoint] {} assets failed to move — usually broken assets "
+              "(missing skeleton, corrupt data model).".format(grand["failed"]))
+        print("[repoint] If they cluster in packs from FAB_PRUNE_LIST.md's "
+              "DELETE list, just delete those packs — the failures are expected.")
 
     if not dry_run and grand["renamed"] > 0:
         print("[repoint]")
