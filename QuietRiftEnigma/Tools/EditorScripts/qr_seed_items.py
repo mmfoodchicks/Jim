@@ -99,7 +99,21 @@ PREFIX_RULES = {
     'TEC':  ('Component',  {'mass': 0.3,  'vol': 0.2,  'stack': 20}),
     'CON':  ('Resource',   {'mass': 0.4,  'vol': 0.3,  'stack': 50}),
     'MAT':  ('Resource',   {'mass': 0.2,  'vol': 0.1,  'stack': 100}),
+    # Equipment / kits / leadership tokens. EQP_ spans hand tools AND
+    # worn armor — _resolve_rule() refines worn items to Clothing by
+    # keyword. KIT_ and LDR_ categories are best-guess (a supply bundle
+    # and a leadership token) — adjust here if the design intends otherwise.
+    'EQP':  ('Tool',       {'mass': 1.5,  'vol': 1.0,  'stack': 1,  'durability': 250.0, 'footprint': (3, 1)}),
+    'KIT':  ('Resource',   {'mass': 3.0,  'vol': 2.5,  'stack': 1,  'footprint': (3, 2)}),
+    'LDR':  ('Component',  {'mass': 0.1,  'vol': 0.1,  'stack': 1}),
 }
+
+# EQP_ items that are worn armor rather than hand tools — routed to the
+# Clothing category by _resolve_rule(), since the bare EQP_ prefix can't
+# tell a hatchet from a vest.
+_EQP_WORN_KEYWORDS = ('VEST', 'JACKET', 'BARDING', 'ARMOR', 'UNDERLAYER')
+_EQP_WORN_RULE = ('Clothing', {'mass': 2.0, 'vol': 1.2, 'stack': 1,
+                               'durability': 150.0, 'footprint': (3, 2)})
 
 # Source folder → bucket name we use under /Game/Meshes and /Game/.../Items.
 FOLDER_TO_BUCKET = {
@@ -156,6 +170,23 @@ def _set(obj, prop_name, value):
 def _prefix_of(item_id):
     m = re.match(r'^([A-Z]+)_', item_id)
     return m.group(1) if m else ''
+
+
+def _resolve_rule(item_id):
+    """Return (category, defaults) for an item id.
+
+    Handles the EQP_ prefix specially: equipment is a mixed bag — a
+    hatchet is a Tool, a leather vest is Clothing — and the bare prefix
+    can't tell them apart, so worn-armor keywords route to Clothing."""
+    prefix = _prefix_of(item_id)
+    rule = PREFIX_RULES.get(prefix)
+    if rule is None:
+        unreal.log_warning(
+            f"  no prefix rule for {item_id} — defaulting to Resource")
+        return ('Resource', {'mass': 0.5, 'vol': 0.3, 'stack': 10})
+    if prefix == 'EQP' and any(k in item_id for k in _EQP_WORN_KEYWORDS):
+        return _EQP_WORN_RULE
+    return rule
 
 
 # ── FBX import ─────────────────────────────────────────────────
@@ -528,11 +559,7 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
     unreal.log(f"qr_seed_items: discovered {total} FBX files")
 
     for idx, (bucket, folder, mesh_name, item_id, fbx_path) in enumerate(discovered):
-        prefix = _prefix_of(item_id)
-        rule   = PREFIX_RULES.get(prefix)
-        if rule is None:
-            unreal.log_warning(f"  no prefix rule for {item_id} — defaulting to Resource")
-            rule = ('Resource', {'mass': 0.5, 'vol': 0.3, 'stack': 10})
+        rule = _resolve_rule(item_id)
 
         dest_pkg = f'{MESH_PKG_ROOT}/{bucket}'
         mesh_pkg_path = f'{dest_pkg}/{mesh_name}'
