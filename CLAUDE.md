@@ -19,6 +19,19 @@ not switch branches without the user explicitly saying so.
 The harness may put new sessions on a fresh `claude/*` branch — switch back
 to the dev branch unless the user says otherwise.
 
+### Pulling the latest work to your local machine
+
+After Claude pushes commits, pull them into your local UE project with:
+
+```
+git checkout claude/unreal-cpp-blueprint-project-0F07i
+git pull origin claude/unreal-cpp-blueprint-project-0F07i
+```
+
+If git refuses because of local editor-generated changes, `git stash`
+before the pull and `git stash pop` after. The SessionStart hook prints
+these same two lines at the top of every session.
+
 ---
 
 ## Read-first docs (project state lives in these, not in your head)
