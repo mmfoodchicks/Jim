@@ -118,9 +118,26 @@ def _safe_get_dependencies(asset_registry, pkg_name):
         return []
 
 
+def _force_gc():
+    """Force a garbage-collection pass to release loaded assets.
+
+    A long blocking Python script never yields back to the editor tick,
+    so the editor's own periodic GC never runs. Memory from every asset
+    rename_asset() loads then accumulates across thousands of assets
+    until the GPU runs dry — the "Out of video memory" fatal error.
+    Calling this every N assets keeps the working set bounded.
+
+    UE 5.7 API drift: collect_garbage lives on SystemLibrary. Wrapped
+    so a missing symbol degrades to a no-op instead of aborting."""
+    try:
+        unreal.SystemLibrary.collect_garbage()
+    except Exception as e:
+        unreal.log_warning("[repoint]   GC call failed (non-fatal): {}".format(e))
+
+
 # ─── Repoint ─────────────────────────────────────────────────────────
 
-def repoint_pack(pack_name, dry_run=False):
+def repoint_pack(pack_name, dry_run=False, gc_every=80):
     """Move every asset under /Game/Fabs/<pack>/ to /Game/<pack>/. Returns
     a stats dict, or None if the pack directory doesn't exist / is empty.
 
@@ -128,7 +145,10 @@ def repoint_pack(pack_name, dry_run=False):
     (e.g. an AnimSequence whose skeleton was deleted) makes rename_asset
     raise a RuntimeError rather than return False. That must NOT abort
     the whole 35-pack run — the asset is counted as a failure and the
-    pass continues."""
+    pass continues.
+
+    gc_every: force a garbage-collection pass every N assets to keep
+    memory bounded (0 disables). Without it a big pack exhausts VRAM."""
     fab_root    = "{}/{}".format(FABS_ROOT, pack_name)
     target_root = "/Game/{}".format(pack_name)
 
@@ -148,6 +168,8 @@ def repoint_pack(pack_name, dry_run=False):
         "failed":               0,
     }
 
+    processed = 0
+    total = len(asset_paths)
     for path in asset_paths:
         try:
             src = _strip_object_suffix(path)
@@ -202,7 +224,15 @@ def repoint_pack(pack_name, dry_run=False):
             stats["failed"] += 1
             unreal.log_warning(
                 "[repoint]   skipped (exception) {}: {}".format(path, e))
-            continue
+
+        finally:
+            # Periodic GC + progress line: a long pack neither exhausts
+            # memory ("Out of video memory" crash) nor looks frozen.
+            processed += 1
+            if gc_every > 0 and processed % gc_every == 0:
+                _force_gc()
+                print("[repoint]   {} ... {}/{} processed".format(
+                    pack_name, processed, total))
 
     return stats
 
@@ -254,7 +284,8 @@ def verify():
 
 # ─── Entry point ─────────────────────────────────────────────────────
 
-def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
+def run(packs=None, dry_run=False, verify_before=False, verify_after=True,
+        gc_every=80):
     """Repoint every pack under /Game/Fabs/ (or the supplied subset).
 
     Args:
@@ -262,6 +293,9 @@ def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
       dry_run:       If True, report what would happen without renaming.
       verify_before: If True, scan /Game/ for broken deps before repointing.
       verify_after:  If True (default), scan again after — shows the delta.
+      gc_every:      Force a GC pass every N assets (0 disables). Default
+                     80 keeps VRAM bounded on big packs. Lower it (e.g.
+                     30) if the editor still runs out of video memory.
     """
     if packs is None:
         packs = _list_fab_pack_dirs()
@@ -286,7 +320,7 @@ def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
     fmt = ("{:<28s}  renamed={:<4d} done={:<4d} would={:<4d} "
            "redir={:<3d} blocked={:<3d} failed={:<4d}")
     for pack in packs:
-        s = repoint_pack(pack, dry_run=dry_run)
+        s = repoint_pack(pack, dry_run=dry_run, gc_every=gc_every)
         if s is None:
             print("[repoint] {:<28s}  empty / not found".format(pack))
             continue
@@ -295,6 +329,9 @@ def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
             s["redirector_replaced"], s["blocked_real"], s["failed"]))
         for k in grand:
             grand[k] += s.get(k, 0)
+        # Release this pack's working set before starting the next one.
+        if not dry_run:
+            _force_gc()
 
     print("")
     print("[repoint] " + fmt.format(
@@ -325,6 +362,7 @@ def run(packs=None, dry_run=False, verify_before=False, verify_after=True):
 
     if verify_after:
         print("")
+        _force_gc()
         print("[repoint] === post-pass verify ===")
         verify()
 
