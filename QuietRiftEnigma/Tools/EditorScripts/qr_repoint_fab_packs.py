@@ -25,6 +25,12 @@ Modes:
   run(packs=['ScifiJungle'])           # narrow to one pack
   verify()                             # standalone scan: how many broken deps remain
 
+Batch mode (split the job across editor restarts so the machine doesn't
+run out of memory on a 6,800-asset full pass) — set a console variable
+before exec()'ing this file:
+  QR_REPOINT_PACKS = ['ScifiJungle', 'WeaponSniper']  # do only these
+  QR_VERIFY_ONLY   = True                             # just scan, don't move
+
 Safe to re-run: target paths that hold a stale redirector get cleared
 and replaced; target paths that hold a real asset get skipped (reported
 as "blocked") so the user can decide manually.
@@ -368,4 +374,25 @@ def run(packs=None, dry_run=False, verify_before=False, verify_after=True,
 
 
 if __name__ == "__main__":
-    run()
+    # ── Batch / verify control ──────────────────────────────────────
+    # Set these in the Python console BEFORE exec()'ing this file:
+    #
+    #   QR_REPOINT_PACKS = ['ScifiJungle', 'WeaponSniper']
+    #       Repoint only those packs and skip the verify scan. Use this
+    #       to split the job across editor restarts — each restart fully
+    #       resets memory, so a low-RAM machine can't run dry mid-pass.
+    #
+    #   QR_VERIFY_ONLY = True
+    #       Skip repointing entirely, just run the broken-dep scan.
+    #
+    # Set neither for a full pass over every pack.
+    if globals().get("QR_VERIFY_ONLY"):
+        verify()
+    else:
+        _qr_packs = globals().get("QR_REPOINT_PACKS", None)
+        if _qr_packs:
+            print("[repoint] BATCH MODE — {} pack(s): {}".format(
+                len(_qr_packs), ", ".join(_qr_packs)))
+            run(packs=_qr_packs, verify_after=False)
+        else:
+            run()
