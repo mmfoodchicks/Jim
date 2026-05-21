@@ -618,4 +618,10 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
 
 
 if __name__ == '__main__':
-    run()
+    # Console-variable controls — set any of these before exec()'ing
+    # this file to override the defaults without editing code:
+    #   QR_SEED_OVERWRITE = True    recreate item defs even if they exist
+    #                               (needed after a prefix-rule change)
+    #   QR_SEED_ICONS     = False   skip the SceneCapture2D icon pass
+    run(overwrite=globals().get("QR_SEED_OVERWRITE", False),
+        with_icons=globals().get("QR_SEED_ICONS", True))
