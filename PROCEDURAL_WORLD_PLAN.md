@@ -28,6 +28,9 @@ How to build a generative world out of the 40 Fab packs already in
 
 We have **all five layers** covered by the existing packs.
 
+`UQRWorldGenSubsystem` now drives this pipeline end to end from a single
+WorldSeed — see §5 for the build status.
+
 ---
 
 ## 2. Per-pack proc-gen evaluation
@@ -112,12 +115,12 @@ After pulling the latest commits and running the full Phase 1 of
 ### 3a. Create the biome profiles
 - [ ] In UE → Output Log → Python:
       `exec(open(r'<Project>/Tools/EditorScripts/qr_seed_biome_profiles.py').read())`
-- [ ] Verify three assets created under
-      `/Game/QuietRift/Data/Biomes/`:
-      `BP_AlienJungle`, `BP_PolarTundra`, `BP_DesertSand`.
-- [ ] Open each, scroll the Palette array, fix any rows that the
-      script logged as missing (the source path may have shifted
-      inside the Fab pack).
+- [ ] Verify all 14 canonical assets created under
+      `/Game/QuietRift/Data/Biomes/` (`BP_BasaltShelf`, `BP_WindPlains`,
+      … `BP_RidgeShadows`).
+- [ ] Open a few, scroll the Palette array. Trees + plants point at the
+      real `SM_TRE_*` / `SM_PLT_*` meshes; rocks are still Fab
+      stand-ins. The script logs any path that didn't resolve.
 
 ### 3b. Create a procedural test map
 - [ ] In UE → Output Log → Python:
@@ -129,17 +132,22 @@ After pulling the latest commits and running the full Phase 1 of
       You should see 500ish scattered plants + rocks on the floor.
 - [ ] Change Seed → re-Generate → confirm world changes deterministically.
 
-### 3c. Use a real landscape (optional but recommended)
-- [ ] Create a new Landscape actor in the level (Modes → Landscape).
-- [ ] Sculpt or import a heightmap.
-- [ ] In its Material slot, drop **MWLandscapeAutoMaterial's master
-      material** (`/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_MWAM_Landscape`).
-- [ ] Apply the 5 `LGT_MWAM_*` Landscape Grass Types to its
-      foliage list (Project Settings → Landscape Grass).
-- [ ] Delete the ProcGround floor — the scatter actor traces against
+### 3c. Generate the landscape from the worldgen seed
+- [ ] With `AQRWorldGenSeedActor::Generate` already run, bake the
+      terrain: Output Log → Python →
+      `exec(open(r'<Project>/Tools/EditorScripts/qr_generate_heightmap.py').read())`.
+- [ ] The script writes to `Saved/QRWorldGen/`: a 16-bit heightmap
+      (`.r16` + `.png`) and one 8-bit weightmap PNG per ground layer
+      (Basalt / Slate / Moss / Mud / Glass / Ice / Hazard). It prints
+      the exact Resolution + Scale to use.
+- [ ] Modes → Landscape → New → **Import from File**. Feed it the
+      `.r16` heightmap at the printed Resolution + Scale.
+- [ ] Build a landscape **Layer Blend** master material with one layer
+      per ground type, then import each `Weight_*` PNG to its paint
+      layer. (`MWLandscapeAutoMaterial`'s `M_MWAM_Landscape` works as a
+      single-material fallback if you skip per-biome texturing.)
+- [ ] Delete any flat ProcGround floor — scatter actors trace against
       the landscape now.
-- [ ] Drag the BiomeProfile-bound scatter actor's bounds to cover the
-      landscape. Generate.
 
 ### 3d. Multiple biomes in one map
 - [ ] Drop a second `AQRProceduralScatterActor`. Set its
@@ -173,43 +181,45 @@ After pulling the latest commits and running the full Phase 1 of
 
 ---
 
-## 4. Pre-built biomes (current + planned)
+## 4. Canonical biomes
 
-| Biome | Profile asset | Status |
-|---|---|---|
-| Alien Jungle (default Tharsis IV) | `BP_AlienJungle` | ✅ ready (run the seeder) |
-| Polar Tundra | `BP_PolarTundra` | ✅ ready |
-| Desert Sand | `BP_DesertSand` | ✅ ready |
-| Crashed Ship Interior | `BP_CrashSite` | TODO — DeepWaterStation interior + Ruined_Modern_Buildings debris |
-| Industrial Ruin | `BP_IndustrialRuin` | TODO — IndustryPropsPack6 + Ruined_Modern_Buildings |
-| Vanguard Outpost | `BP_VanguardOutpost` | TODO — Construction_VOL1 + WinterTown |
-| Underground Cavern | `BP_Cavern` | TODO — Polar/Meshes + Rock_Collection_04 |
+The 14 GDD §4 biomes all ship as `UQRBiomeProfile` assets (run the
+seeder in §3a). The worldgen subsystem assigns them per depth band:
 
-Add more by copying any existing biome profile and swapping its
-Palette entries for the relevant Fab pack's meshes.
+| Depth band | Biomes |
+|---|---|
+| Surface (Tier 1) | BasaltShelf, WindPlains, MeltlineEdges, CraterFloors |
+| Mid (Tier 2) | WetBasins, ShallowFens, ThermalCracks, GlassDunes, MossFields |
+| Deep (Tier 3) | MagneticRidges, HighRims, ColdBasins, CanyonWebs, RidgeShadows |
+
+The Remnant ring reuses the Deep biome pool. POI archetypes (crash
+wrecks, faction outposts, caverns) are placed by `AQRWorldGenSpawner`,
+not biome profiles — see `MANUAL_EDITOR_TASKS.md` Phase 7.
 
 ---
 
-## 5. Things still to build (next passes)
+## 5. Worldgen pipeline status
 
-In rough priority:
+Phase 1 + 2 are built:
 
-- [ ] **`AQRBiomeZone` actor** — tag-based region detector that
-      switches active sky / fog / ambient sound when player enters,
-      bound to a `UQRBiomeProfile`.
-- [ ] **`UQRWorldGenSubsystem`** — game-instance subsystem that
-      streams biome zones + scatter regen as the player moves
-      (only one at a time loaded).
-- [ ] **Heightmap generator** — Python that creates a noise-driven
-      landscape heightmap and imports it (so even the terrain shape
-      is procedural). UE has `unreal.LandscapeProxy.import_landscape_heightmap`.
-- [ ] **POI placer** — Python that scans biome zones for flat
-      enough spots and drops a random POI prefab there (crash
-      site, outpost, wreck). Shareable seed → same POI layout.
-- [ ] **Wildlife population script** — biome-aware density
-      (jungle = dense / desert = sparse / polar = predator-only).
+- ✅ **`UQRWorldGenSubsystem`** — seed → 14-biome cell grid, depth
+      bands, POI placement plan, minimap texture.
+- ✅ **`AQRWorldGenSeedActor`** — editor-button driver (Generate +
+      ExportMinimap).
+- ✅ **`AQRWorldGenSpawner`** — places POIs / wrecks / caves / fauna.
+- ✅ **`AQRBiomeZone`** — designer-placed biome override zone.
+- ✅ **`qr_generate_heightmap.py`** — bakes a heightmap + per-biome
+      ground weightmaps from the cell grid.
 
-Each is its own commit; pick whichever you want next.
+Open gaps:
+
+- [ ] **Programmatic Landscape import** — the heightmap + weightmaps
+      bake to disk; importing them into a Landscape actor is still a
+      manual editor step (Modes → Landscape → Import from File).
+- [ ] **Landscape layer-blend material** — a master material that
+      blends the 7 ground layers driven by the weightmaps.
+- [ ] **Traversal validation** — confirm a path PlayerStart → each
+      depth band exists.
 
 ---
 
@@ -217,10 +227,12 @@ Each is its own commit; pick whichever you want next.
 
 Stuff that needs human eyeballs, no matter how much we automate:
 
-- **Sculpt or source the heightmap** for any landscape that's not
-  generated procedurally. World Creator / Gaea / hand sculpt.
-- **Paint biome layer weights** on the landscape — designer decides
-  where the jungle ends and the tundra begins.
+- **Build the landscape layer-blend material** — a master material
+  that blends the 7 ground layers (Basalt / Slate / Moss / Mud /
+  Glass / Ice / Hazard) the weightmap bake produces.
+- **Run the Landscape Import** — feed the baked heightmap + weightmaps
+  into Modes → Landscape → Import from File. The bake script prints
+  the exact resolution + scale; no script does the import itself yet.
 - **Author the master scenario** — where's the crash site, where's
   the Vanguard outpost, where's the player base location.
 - **Tune scatter density / spacing** per scene until it looks right.

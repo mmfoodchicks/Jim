@@ -134,17 +134,15 @@ missing-include or signature mismatches fixable in one edit each.
 
 ## Active priorities (snapshot — update as work lands)
 
-From `GDD_IMPLEMENTATION_STATUS.md` §N, biggest open gaps in priority order:
+From `GDD_IMPLEMENTATION_STATUS.md` §N, biggest open gaps in priority order.
+Worldgen, biome catalog and POI placement are now built (Phase 1+2).
 
-1. Worldgen pipeline (GDD §4) — data tunables exist, no actor generates
-   a 64km biome-tagged world.
-2. Biome catalog rename — code uses 3 placeholders, GDD defines 14
-   canonical biomes (BasaltShelf, WindPlains, MeltlineEdges, etc.).
-3. POI placement system — 16 archetypes in DT_POIArchetypes, no placer.
-4. AI behavior trees — NPCs + wildlife + predators have no BT.
-5. Hauler / depot pull logic — central economic loop.
-6. Civilian raid response + emergency armory.
-7. Long-range scope / optics (patch v8) not in code.
-8. Codex aggregator + UI.
-9. Mission generator from DT_ProceduralMissionTemplates.
-10. Remnant wake-state FSM (Dormant→Stirring→Active→Hostile→Subsiding).
+1. AI behavior trees — NPCs + wildlife + predators have no BT.
+2. Hauler / depot pull logic — central economic loop.
+3. Civilian raid response + emergency armory.
+4. Long-range scope / optics (patch v8) not in code.
+5. Codex aggregator + UI.
+6. Mission generator from DT_ProceduralMissionTemplates.
+7. Remnant wake-state FSM (Dormant→Stirring→Active→Hostile→Subsiding).
+8. Programmatic Landscape import — heightmap/weightmap bake is done,
+   import into a Landscape actor is still editor-assisted.
