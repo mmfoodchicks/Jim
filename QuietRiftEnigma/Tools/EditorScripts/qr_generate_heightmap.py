@@ -358,7 +358,7 @@ def run(resolution_key="medium", noise_scale=0.012, noise_amp=0.18,
         return
 
     Sub = _get_worldgen_subsystem(W)
-    if not Sub or not Sub.b_generated:
+    if not Sub or not Sub.generated:
         print("[landscape] worldgen subsystem hasn't run yet —")
         print("            run AQRWorldGenSeedActor::Generate first")
         return

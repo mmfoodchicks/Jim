@@ -296,8 +296,8 @@ def _build_palette(specs):
         e.set_editor_property("min_scale",          mn)
         e.set_editor_property("max_scale",          mx)
         e.set_editor_property("z_offset",           z)
-        e.set_editor_property("b_random_yaw",       True)
-        e.set_editor_property("b_align_to_surface", align)
+        e.set_editor_property("random_yaw",         True)
+        e.set_editor_property("align_to_surface",   align)
         out.append(e)
     return out
 

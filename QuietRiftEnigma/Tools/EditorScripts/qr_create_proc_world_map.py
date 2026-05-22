@@ -96,8 +96,8 @@ def _spawn_scatter(extent_m=100.0):
         entry.set_editor_property("min_scale",         min_s)
         entry.set_editor_property("max_scale",         max_s)
         entry.set_editor_property("z_offset",          z_off)
-        entry.set_editor_property("b_random_yaw",      True)
-        entry.set_editor_property("b_align_to_surface",align)
+        entry.set_editor_property("random_yaw",        True)
+        entry.set_editor_property("align_to_surface",  align)
         palette.append(entry)
 
     actor.set_editor_property("palette",      palette)
