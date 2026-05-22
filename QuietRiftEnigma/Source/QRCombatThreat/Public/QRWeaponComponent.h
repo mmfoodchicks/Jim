@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Engine/EngineTypes.h"
 #include "QRTypes.h"
 #include "QRWeaponComponent.generated.h"
 
@@ -272,4 +273,10 @@ public:
 	void Multicast_PlayFireFX(FVector MuzzleLoc, FVector HitLoc, FVector HitNormal, bool bHit);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+private:
+	// Drives FinishReload after ReloadTimeSeconds so a reload completes
+	// even when no reload-animation notify is wired up.
+	FTimerHandle ReloadTimerHandle;
+	void HandleReloadTimerElapsed();
 };

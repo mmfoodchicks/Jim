@@ -5,6 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
+#include "TimerManager.h"
 #include "Engine/HitResult.h"
 #include "CollisionQueryParams.h"
 #include "GameFramework/Actor.h"
@@ -122,6 +123,28 @@ void UQRWeaponComponent::BeginReload()
 	if (bIsJammed) return;
 	if (WeaponState == EQRWeaponState::Firing || WeaponState == EQRWeaponState::Reloading) return;
 	WeaponState = EQRWeaponState::Reloading;
+
+	// Complete the reload after ReloadTimeSeconds. A reload-animation
+	// notify may call FinishReload sooner; if so this timer fires into a
+	// no-op, since FinishReload only acts while the state is Reloading.
+	if (UWorld* W = GetWorld())
+	{
+		W->GetTimerManager().SetTimer(ReloadTimerHandle, this,
+			&UQRWeaponComponent::HandleReloadTimerElapsed,
+			FMath::Max(0.05f, ReloadTimeSeconds), false);
+	}
+	else
+	{
+		HandleReloadTimerElapsed();
+	}
+}
+
+void UQRWeaponComponent::HandleReloadTimerElapsed()
+{
+	// Refill the magazine to capacity. Pulling rounds from the player's
+	// inventory and enforcing per-magazine ammo types is the upcoming
+	// magazine system — for now the reload simply tops the mag off.
+	FinishReload(MagazineCapacity);
 }
 
 void UQRWeaponComponent::FinishReload(int32 NewAmmoCount)
