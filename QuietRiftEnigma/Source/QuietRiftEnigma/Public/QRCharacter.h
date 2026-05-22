@@ -166,6 +166,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	float InteractDistance = 250.0f;
 
+	// ── Weapon recoil ─────────────────────────
+	// Recoil kicks the held weapon mesh, not the camera, so firing reads
+	// on the gun without yanking the whole view around.
+
+	// Degrees of held-mesh pitch per unit of the weapon's RecoilPitch.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+	float WeaponRecoilPitchScale = 2.5f;
+
+	// Centimetres the held mesh jolts back toward the camera per shot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+	float WeaponRecoilKickback = 4.0f;
+
+	// How fast the kick settles back to the resting pose.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil",
+		meta = (ClampMin = "1", ClampMax = "30"))
+	float WeaponRecoilRecoverySpeed = 9.0f;
+
 	// ── State ────────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Character")
 	bool bIsSprinting = false;
@@ -289,6 +306,13 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<class UQRScopeOverlayWidget> ScopeOverlay = nullptr;
+
+	// Bottom-right ammo readout — held-weapon icon + magazine / reserve.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRAmmoHUDWidget> AmmoHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRAmmoHUDWidget> AmmoHUD = nullptr;
 
 	// Opens the settings overlay. Routed through ConsoleCommand from
 	// the pause / main menu widgets so they don't take a direct C++
@@ -426,4 +450,15 @@ private:
 	bool bLeanLeftHeld = false;
 	bool bLeanRightHeld = false;
 	void UpdateLeanInput();
+
+	// ── Weapon recoil runtime state ───────────
+	// Resting transform of HeldItemMesh, captured in the constructor.
+	// Recoil offsets are added on top and decayed back to zero each Tick.
+	FRotator HeldItemBaseRotation = FRotator::ZeroRotator;
+	FVector  HeldItemBaseLocation = FVector::ZeroVector;
+	FRotator WeaponRecoilRot = FRotator::ZeroRotator;
+	FVector  WeaponRecoilLoc = FVector::ZeroVector;
+
+	// Kick the held weapon mesh on fire — local cosmetic only.
+	void ApplyWeaponRecoilKick(float PitchUnits, float YawUnits);
 };

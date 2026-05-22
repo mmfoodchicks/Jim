@@ -78,8 +78,10 @@ AQRCharacter::AQRCharacter()
 	HeldItemMesh->SetCastShadow(false);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetVisibility(false);
-	HeldItemMesh->SetRelativeLocation(FVector(45.0f, 18.0f, -16.0f));
-	HeldItemMesh->SetRelativeRotation(FRotator(-3.0f, -6.0f, 0.0f));
+	HeldItemBaseLocation = FVector(45.0f, 18.0f, -16.0f);
+	HeldItemBaseRotation = FRotator(-3.0f, -6.0f, 0.0f);
+	HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation);
+	HeldItemMesh->SetRelativeRotation(HeldItemBaseRotation);
 	HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
 
 	// UI defaults — local C++ widgets unless overridden in BP.
@@ -243,6 +245,18 @@ void AQRCharacter::BeginPlay()
 void AQRCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Weapon recoil — decay the held-mesh kick back to its resting pose.
+	if (IsLocallyControlled() && HeldItemMesh &&
+		(!WeaponRecoilRot.IsNearlyZero(0.02f) || !WeaponRecoilLoc.IsNearlyZero(0.02f)))
+	{
+		WeaponRecoilRot = FMath::RInterpTo(WeaponRecoilRot, FRotator::ZeroRotator,
+			DeltaTime, WeaponRecoilRecoverySpeed);
+		WeaponRecoilLoc = FMath::VInterpTo(WeaponRecoilLoc, FVector::ZeroVector,
+			DeltaTime, WeaponRecoilRecoverySpeed);
+		HeldItemMesh->SetRelativeRotation(HeldItemBaseRotation + WeaponRecoilRot);
+		HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation + WeaponRecoilLoc);
+	}
 
 	// Update encumbrance state
 	if (Inventory)
@@ -558,6 +572,17 @@ void AQRCharacter::TryFireWeapon()
 		bAimed = View->IsADS();
 	}
 
+	// Local cosmetic recoil — kick the held weapon mesh the instant we
+	// fire so it reads without waiting for the server round-trip. Gated
+	// on CanFire (replicated state) so an empty / jammed gun doesn't kick.
+	if (IsLocallyControlled() && Weapon->CanFire())
+	{
+		const float AimMult = bAimed ? 0.5f : 1.0f;
+		ApplyWeaponRecoilKick(
+			Weapon->RecoilPitch * AimMult,
+			FMath::FRandRange(-Weapon->RecoilYawRandomRange, Weapon->RecoilYawRandomRange) * AimMult);
+	}
+
 	if (!HasAuthority())
 	{
 		Server_Fire(Start, Forward, bAimed, bMoving);
@@ -569,13 +594,9 @@ void AQRCharacter::TryFireWeapon()
 		Result.bFired ? 1 : 0, Result.bHitSomething ? 1 : 0, Result.Damage);
 	if (Result.bFired)
 	{
-		// Apply kick on the firing controller. Pitch is up (negative
-		// camera pitch input in UE convention), yaw is +/- random.
-		// Recoil values are scaled up so the kick reads on-screen — the
-		// weapon's base values are tuned for "feels real with anims";
-		// without the anims they were too subtle to notice.
-		AddControllerPitchInput(-Result.RecoilPitch * 3.0f);
-		AddControllerYawInput(  Result.RecoilYaw   * 3.0f);
+		// Recoil is a local kick on the held weapon mesh — applied in
+		// TryFireWeapon above via ApplyWeaponRecoilKick. The camera is
+		// deliberately left untouched.
 
 		// Visible tracer + hit feedback. The Fab muzzle-flash / impact
 		// Niagara systems are broken on this checkout (compile errors
@@ -603,12 +624,20 @@ void AQRCharacter::Server_Fire_Implementation(FVector TraceStart, FVector TraceF
 	bool bIsAimed, bool bIsMoving)
 {
 	if (!Weapon) return;
-	const FQRFireResult Result = Weapon->TryFireFromTrace(TraceStart, TraceForward, bIsAimed, bIsMoving, nullptr);
-	if (Result.bFired)
-	{
-		AddControllerPitchInput(-Result.RecoilPitch);
-		AddControllerYawInput(Result.RecoilYaw);
-	}
+	// Authoritative shot — damage / ammo / FX. Recoil is a local cosmetic
+	// kick on the firer's weapon mesh (see TryFireWeapon), not applied here.
+	Weapon->TryFireFromTrace(TraceStart, TraceForward, bIsAimed, bIsMoving, nullptr);
+}
+
+void AQRCharacter::ApplyWeaponRecoilKick(float PitchUnits, float YawUnits)
+{
+	// Pitch the muzzle up, add a little random yaw + roll for life, and
+	// jolt the mesh back toward the camera. Tick decays it all to zero.
+	WeaponRecoilRot.Pitch += PitchUnits * WeaponRecoilPitchScale;
+	WeaponRecoilRot.Yaw   += YawUnits   * WeaponRecoilPitchScale;
+	WeaponRecoilRot.Roll  += YawUnits   * WeaponRecoilPitchScale * 0.5f;
+	// -X on the camera-relative held mesh = toward the player.
+	WeaponRecoilLoc.X     -= WeaponRecoilKickback;
 }
 
 void AQRCharacter::TryReload()
