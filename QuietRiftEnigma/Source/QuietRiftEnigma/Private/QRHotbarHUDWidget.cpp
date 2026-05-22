@@ -10,6 +10,10 @@
 #include "Components/Border.h"
 #include "Components/TextBlock.h"
 #include "Components/SizeBox.h"
+#include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Engine/Texture2D.h"
 
 UQRHotbarHUDWidget::UQRHotbarHUDWidget(const FObjectInitializer& OI)
 	: Super(OI)
@@ -27,26 +31,52 @@ TSharedRef<SWidget> UQRHotbarHUDWidget::RebuildWidget()
 
 		SlotBorders.Reset();
 		SlotLabels.Reset();
+		SlotIcons.Reset();
 		for (int32 i = 0; i < 9; ++i)
 		{
 			USizeBox* SizeBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),
 				*FString::Printf(TEXT("SlotSize_%d"), i));
-			SizeBox->SetWidthOverride(96.0f);
-			SizeBox->SetHeightOverride(64.0f);
+			SizeBox->SetWidthOverride(74.0f);
+			SizeBox->SetHeightOverride(74.0f);
 
+			// Slot tile — dark translucent slate; the active slot is
+			// re-tinted amber in RefreshSlot.
 			UBorder* Border = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),
 				*FString::Printf(TEXT("SlotBorder_%d"), i));
-			Border->SetBrushColor(FLinearColor(0.05f, 0.05f, 0.05f, 0.85f));
-			Border->SetPadding(FMargin(6.0f));
-			Border->SetHorizontalAlignment(HAlign_Center);
-			Border->SetVerticalAlignment(VAlign_Center);
+			Border->SetBrushColor(FLinearColor(0.04f, 0.05f, 0.07f, 0.82f));
+			Border->SetPadding(FMargin(3.0f));
+			Border->SetHorizontalAlignment(HAlign_Fill);
+			Border->SetVerticalAlignment(VAlign_Fill);
+
+			// Overlay stacks the item icon (fill) under the text label.
+			UOverlay* Cell = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(),
+				*FString::Printf(TEXT("SlotCell_%d"), i));
+
+			UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
+				*FString::Printf(TEXT("SlotIcon_%d"), i));
+			Icon->SetVisibility(ESlateVisibility::Collapsed);
+			if (UOverlaySlot* IconSlot = Cell->AddChildToOverlay(Icon))
+			{
+				IconSlot->SetHorizontalAlignment(HAlign_Fill);
+				IconSlot->SetVerticalAlignment(VAlign_Fill);
+			}
 
 			UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
 				*FString::Printf(TEXT("SlotLabel_%d"), i));
-			Label->SetText(FText::FromString(FString::Printf(TEXT("%d\n—"), i + 1)));
+			Label->SetText(FText::FromString(FString::Printf(TEXT("%d"), i + 1)));
 			Label->SetJustification(ETextJustify::Center);
+			{
+				FSlateFontInfo Font = Label->GetFont();
+				Font.Size = 11;
+				Label->SetFont(Font);
+			}
+			if (UOverlaySlot* LabelSlot = Cell->AddChildToOverlay(Label))
+			{
+				LabelSlot->SetHorizontalAlignment(HAlign_Fill);
+				LabelSlot->SetVerticalAlignment(VAlign_Bottom);
+			}
 
-			Border->SetContent(Label);
+			Border->SetContent(Cell);
 			SizeBox->SetContent(Border);
 
 			UHorizontalBoxSlot* HSlot = Row->AddChildToHorizontalBox(SizeBox);
@@ -54,6 +84,7 @@ TSharedRef<SWidget> UQRHotbarHUDWidget::RebuildWidget()
 
 			SlotBorders.Add(Border);
 			SlotLabels.Add(Label);
+			SlotIcons.Add(Icon);
 		}
 
 		UCanvasPanelSlot* RowSlot = Root->AddChildToCanvas(Row);
@@ -111,21 +142,51 @@ void UQRHotbarHUDWidget::RefreshAll()
 
 void UQRHotbarHUDWidget::RefreshSlot(int32 SlotIndex)
 {
-	if (!SlotBorders.IsValidIndex(SlotIndex) || !SlotLabels.IsValidIndex(SlotIndex)) return;
+	if (!SlotBorders.IsValidIndex(SlotIndex) || !SlotLabels.IsValidIndex(SlotIndex)
+		|| !SlotIcons.IsValidIndex(SlotIndex)) return;
 
 	const UQRItemInstance* Item = Hotbar ? Hotbar->GetSlot(SlotIndex) : nullptr;
-	FString DisplayText = FString::Printf(TEXT("%d\n—"), SlotIndex + 1);
-	if (Item && Item->Definition)
+	const UQRItemDefinition* Def = Item ? Item->Definition : nullptr;
+
+	// Resolve the item's icon. Many auto-seeded items have no icon yet,
+	// so fall back to the item name as text when the texture is missing.
+	UTexture2D* IconTex = Def ? Def->InventoryIcon.LoadSynchronous() : nullptr;
+
+	if (UImage* Icon = SlotIcons[SlotIndex])
 	{
-		const FString Name = Item->Definition->DisplayName.IsEmpty()
-			? Item->Definition->ItemId.ToString()
-			: Item->Definition->DisplayName.ToString();
-		DisplayText = FString::Printf(TEXT("%d\n%s\nx%d"), SlotIndex + 1, *Name, Item->Quantity);
+		if (IconTex)
+		{
+			Icon->SetBrushFromTexture(IconTex);
+			Icon->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
+		else
+		{
+			Icon->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+
+	// Label: slot number alone when empty or icon-backed; the item name
+	// is shown only as a fallback for icon-less items.
+	FString DisplayText = FString::Printf(TEXT("%d"), SlotIndex + 1);
+	if (Def)
+	{
+		if (IconTex)
+		{
+			if (Item->Quantity > 1)
+				DisplayText = FString::Printf(TEXT("%d   x%d"), SlotIndex + 1, Item->Quantity);
+		}
+		else
+		{
+			const FString Name = Def->DisplayName.IsEmpty()
+				? Def->ItemId.ToString()
+				: Def->DisplayName.ToString();
+			DisplayText = FString::Printf(TEXT("%d\n%s\nx%d"), SlotIndex + 1, *Name, Item->Quantity);
+		}
 	}
 	SlotLabels[SlotIndex]->SetText(FText::FromString(DisplayText));
 
 	const bool bActive = Hotbar && Hotbar->ActiveSlotIndex == SlotIndex;
 	SlotBorders[SlotIndex]->SetBrushColor(bActive
-		? FLinearColor(0.85f, 0.65f, 0.10f, 0.95f)
-		: FLinearColor(0.05f, 0.05f, 0.05f, 0.85f));
+		? FLinearColor(0.95f, 0.72f, 0.15f, 0.95f)
+		: FLinearColor(0.04f, 0.05f, 0.07f, 0.82f));
 }

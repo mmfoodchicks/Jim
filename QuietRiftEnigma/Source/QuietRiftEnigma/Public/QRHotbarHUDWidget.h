@@ -7,6 +7,7 @@
 class UHorizontalBox;
 class UBorder;
 class UTextBlock;
+class UImage;
 class UQRHotbarComponent;
 class UQRItemInstance;
 
@@ -46,6 +47,9 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UTextBlock>> SlotLabels;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UImage>> SlotIcons;
 
 	void RefreshAll();
 	void RefreshSlot(int32 SlotIndex);
