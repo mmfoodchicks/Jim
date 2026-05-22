@@ -8,8 +8,11 @@ script stays focused on its generator functions only.
 import bpy
 import os
 
-# 1 blender unit = 100 UE units (cm). Keep matched across all category scripts.
-SCALE = 100.0
+# Blender scripts author geometry in metres (1 unit = 1 m). UE's FBX
+# importer already converts metres -> centimetres on import, so the FBX
+# export global_scale must be 1.0. A value of 100 here multiplied every
+# exported mesh by 100x — that was the giant-asset bug.
+SCALE = 1.0
 
 
 def clear_scene():
