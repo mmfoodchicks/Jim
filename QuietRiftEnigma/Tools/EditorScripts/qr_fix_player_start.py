@@ -59,9 +59,15 @@ def _ground_z(world, x, y, center_z):
     hit = out
     if isinstance(out, (tuple, list)):
         hit = next((h for h in out if isinstance(h, unreal.HitResult)), None)
-    if not isinstance(hit, unreal.HitResult) or not hit.blocking_hit:
+    if not isinstance(hit, unreal.HitResult):
         return None
-    return float(hit.impact_point.z)
+    # FHitResult fields aren't reliably exposed as Python attributes —
+    # break it with the Blueprint helper. Output order is stable:
+    # index 0 is bBlockingHit, index 5 is ImpactPoint.
+    broken = unreal.GameplayStatics.break_hit_result(hit)
+    if not broken[0]:
+        return None
+    return float(broken[5].z)
 
 
 def run():
