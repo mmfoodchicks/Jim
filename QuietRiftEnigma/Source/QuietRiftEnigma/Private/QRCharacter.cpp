@@ -18,6 +18,7 @@
 #include "QRHotbarHUDWidget.h"
 #include "QRCreativeBrowserWidget.h"
 #include "QRVitalsHUDWidget.h"
+#include "QRAmmoHUDWidget.h"
 #include "QRPauseMenuWidget.h"
 #include "QRSettingsWidget.h"
 #include "QRCraftingWidget.h"
@@ -96,6 +97,7 @@ AQRCharacter::AQRCharacter()
 	InventoryGridClass    = UQRInventoryGridWidget::StaticClass();
 	CodexWidgetClass      = UQRCodexWidget::StaticClass();
 	ScopeOverlayClass     = UQRScopeOverlayWidget::StaticClass();
+	AmmoHUDClass          = UQRAmmoHUDWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -216,6 +218,15 @@ void AQRCharacter::BeginPlay()
 			{
 				VitalsHUD->AddToViewport(/*ZOrder*/ 10);
 				VitalsHUD->Bind(Survival);
+			}
+		}
+		if (AmmoHUDClass && Weapon)
+		{
+			AmmoHUD = CreateWidget<UQRAmmoHUDWidget>(LocalPC, AmmoHUDClass);
+			if (AmmoHUD)
+			{
+				AmmoHUD->AddToViewport(/*ZOrder*/ 10);
+				AmmoHUD->Bind(Weapon, Hotbar, Inventory);
 			}
 		}
 		if (ScopeOverlayClass && CachedView)
