@@ -2,22 +2,53 @@
 REM ============================================================================
 REM Regenerate every Quiet Rift FBX via Blender CLI (headless).
 REM
-REM Run from anywhere — the script cd's into its own directory.
+REM Double-click this file, or run it from a cmd / powershell window.
+REM Do NOT run it from inside Blender's Scripting tab -- it shells OUT to
+REM Blender via --background --python for each script.
 REM
-REM If Blender isn't on your PATH, edit BLENDER_EXE below to the full path
+REM Auto-detects Blender at the standard install paths. If it can't find
+REM blender.exe, edit BLENDER_EXE below to the full path
 REM (e.g. "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe").
 REM
-REM To run a single script instead, comment out the others in the list, or
-REM run it directly:
-REM     "%BLENDER_EXE%" --background --python qr_generate_weapons_assets_assets.py
-REM
-REM After this finishes, reimport in UE — Output Log -> Python:
+REM After this finishes, reimport in UE -- Output Log -> Python:
 REM     exec(open(r'<Project>/Tools/EditorScripts/qr_seed_items.py').read())
 REM   then call run(rebuild_meshes=True) to delete + re-import every mesh.
 REM ============================================================================
 
-setlocal
-set BLENDER_EXE=blender
+setlocal EnableDelayedExpansion
+
+REM -- 1. Locate Blender ------------------------------------------------------
+REM Try common install paths in newest-first order. Override here if needed.
+set BLENDER_EXE=
+
+if exist "C:\Program Files\Blender Foundation\Blender 4.4\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.4\blender.exe
+if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.3\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.3\blender.exe
+if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.2\blender.exe
+if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.1\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.1\blender.exe
+if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.0\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.0\blender.exe
+if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 3.6\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 3.6\blender.exe
+
+REM Fall back to PATH lookup if no install path matched.
+if not defined BLENDER_EXE (
+    where blender >nul 2>&1
+    if !errorlevel! equ 0 set BLENDER_EXE=blender
+)
+
+if not defined BLENDER_EXE (
+    echo.
+    echo ERROR: Could not find blender.exe.
+    echo.
+    echo Checked: C:\Program Files\Blender Foundation\Blender 3.6 .. 4.4
+    echo Also checked: 'blender' on PATH.
+    echo.
+    echo Fix: edit this .bat and set BLENDER_EXE to the full path to your
+    echo blender.exe, e.g.:
+    echo     set BLENDER_EXE=D:\Apps\Blender\blender.exe
+    echo.
+    pause
+    endlocal
+    exit /b 1
+)
 
 set SCRIPT_DIR=%~dp0
 cd /d "%SCRIPT_DIR%"
@@ -26,6 +57,8 @@ echo === Regenerating all Quiet Rift FBXs ===
 echo Using Blender : %BLENDER_EXE%
 echo Script dir    : %SCRIPT_DIR%
 echo.
+
+set FAILED_SCRIPT=
 
 for %%S in (
     qr_generate_weapons_assets_assets.py
@@ -45,19 +78,35 @@ for %%S in (
     qr_generate_player_rigged.py
     qr_generate_player_morphs.py
 ) do (
-    echo --- Running %%S ---
-    "%BLENDER_EXE%" --background --python "%%S"
-    if errorlevel 1 (
-        echo.
-        echo FAILED on %%S  ^(check the Blender output above^)
-        endlocal
-        exit /b 1
+    if not defined FAILED_SCRIPT (
+        if not exist "%%S" (
+            echo --- SKIP %%S  ^(file not found^) ---
+        ) else (
+            echo --- Running %%S ---
+            "%BLENDER_EXE%" --background --python "%%S"
+            if errorlevel 1 (
+                echo.
+                echo FAILED on %%S  ^(check the Blender output above^)
+                set FAILED_SCRIPT=%%S
+            )
+            echo.
+        )
     )
-    echo.
+)
+
+echo.
+if defined FAILED_SCRIPT (
+    echo === FAILED on !FAILED_SCRIPT! ===
+    echo Scroll up to see the Blender error output for that script.
+    pause
+    endlocal
+    exit /b 1
 )
 
 echo === All FBXs regenerated successfully ===
-echo Next: open UE, Output Log -> Python, run:
+echo Next: open UE, Output Log -^> Python, run:
 echo   exec(open(r'%SCRIPT_DIR%..\EditorScripts\qr_seed_items.py').read())
 echo and then call run(rebuild_meshes=True) to reimport every mesh.
+echo.
+pause
 endlocal
