@@ -47,7 +47,7 @@ if not defined BLENDER_EXE (
     echo ERROR: Could not find blender.exe.
     echo.
     echo Checked: any "Blender *" folder under %BLENDER_ROOT%
-    echo          C:\Program Files (x86)\Steam\steamapps\common\Blender
+    echo          C:\Program Files ^(x86^)\Steam\steamapps\common\Blender
     echo          'blender' on PATH
     echo.
     echo Fix: edit this .bat and set BLENDER_EXE to the full path to your
