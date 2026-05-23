@@ -18,15 +18,22 @@ REM ============================================================================
 setlocal EnableDelayedExpansion
 
 REM -- 1. Locate Blender ------------------------------------------------------
-REM Try common install paths in newest-first order. Override here if needed.
+REM Enumerates any "Blender X.Y" folder under Program Files (Blender
+REM Foundation), then Steam, then PATH. /o-n sorts newest-first so the
+REM highest version wins.
 set BLENDER_EXE=
 
-if exist "C:\Program Files\Blender Foundation\Blender 4.4\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.4\blender.exe
-if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.3\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.3\blender.exe
-if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.2\blender.exe
-if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.1\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.1\blender.exe
-if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 4.0\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.0\blender.exe
-if not defined BLENDER_EXE if exist "C:\Program Files\Blender Foundation\Blender 3.6\blender.exe" set BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 3.6\blender.exe
+set BLENDER_ROOT=C:\Program Files\Blender Foundation
+if exist "%BLENDER_ROOT%" (
+    for /f "delims=" %%D in ('dir /b /ad /o-n "%BLENDER_ROOT%\Blender *" 2^>nul') do (
+        if not defined BLENDER_EXE if exist "%BLENDER_ROOT%\%%D\blender.exe" (
+            set BLENDER_EXE=%BLENDER_ROOT%\%%D\blender.exe
+        )
+    )
+)
+
+REM Steam install path (separate because it's not under Blender Foundation).
+if not defined BLENDER_EXE if exist "C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe" set BLENDER_EXE=C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe
 
 REM Fall back to PATH lookup if no install path matched.
 if not defined BLENDER_EXE (
@@ -38,8 +45,9 @@ if not defined BLENDER_EXE (
     echo.
     echo ERROR: Could not find blender.exe.
     echo.
-    echo Checked: C:\Program Files\Blender Foundation\Blender 3.6 .. 4.4
-    echo Also checked: 'blender' on PATH.
+    echo Checked: any "Blender *" folder under %BLENDER_ROOT%
+    echo          C:\Program Files (x86)\Steam\steamapps\common\Blender
+    echo          'blender' on PATH
     echo.
     echo Fix: edit this .bat and set BLENDER_EXE to the full path to your
     echo blender.exe, e.g.:
