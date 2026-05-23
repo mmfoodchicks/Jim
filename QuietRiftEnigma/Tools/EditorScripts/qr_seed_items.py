@@ -210,6 +210,18 @@ def _build_fbx_options():
     sm_opts.set_editor_property('generate_lightmap_u_vs',          True)
     sm_opts.set_editor_property('auto_generate_collision',         True)
     sm_opts.set_editor_property('remove_degenerates',              True)
+    # Recompute normals + tangents from scratch on import so the procedural
+    # meshes never trip 'nearly zero tangents / bi-normals' warnings caused
+    # by thin primitives in the source FBX.
+    try:
+        sm_opts.set_editor_property('normal_import_method',
+                                    unreal.FBXNormalImportMethod.FBXNIM_COMPUTE_NORMALS)
+        sm_opts.set_editor_property('normal_generation_method',
+                                    unreal.FBXNormalGenerationMethod.MIKK_T_SPACE)
+    except Exception:
+        # Older UE Python builds may not expose these enums; the importer
+        # will fall back to its defaults, which still produce usable meshes.
+        pass
     return opts
 
 
