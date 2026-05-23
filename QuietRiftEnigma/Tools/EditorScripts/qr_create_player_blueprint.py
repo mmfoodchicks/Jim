@@ -101,21 +101,41 @@ ANIM_BP_CANDIDATES = [
 ]
 
 
+def _skeletal_mesh_has_skeleton(sk_mesh):
+    """SkeletalMeshes shipped without an assigned Skeleton asset can't be
+    bound to an AnimBlueprint -- UE logs 'has no skeleton' and the BP
+    silently loses its anim graph. Filter them out before use."""
+    if sk_mesh is None:
+        return False
+    try:
+        skel = sk_mesh.get_editor_property('skeleton')
+    except Exception:
+        return True  # property not exposed in this UE version -- be permissive
+    return skel is not None
+
+
 def _find_first_loadable(paths, expected_type=None):
     """Walk paths in order; return the first that loads to an asset of
     expected_type (if given), else returns the first that loads to
-    anything at all."""
+    anything at all. For SkeletalMesh candidates, also requires the
+    mesh to have a bound Skeleton so AnimBlueprints can actually attach.
+    """
+    want_sk_mesh = (expected_type is unreal.SkeletalMesh)
     for p in paths:
         asset = unreal.load_asset(p)
         if not asset:
             continue
-        if expected_type is None or isinstance(asset, expected_type):
-            return (p, asset)
+        if expected_type is not None and not isinstance(asset, expected_type):
+            continue
+        if want_sk_mesh and not _skeletal_mesh_has_skeleton(asset):
+            print("[player-bp] skipping {} -- SkeletalMesh has no skeleton".format(p))
+            continue
+        return (p, asset)
     return (None, None)
 
 
 def _scan_for_any_skeletal_mesh():
-    """Fall-back: scan /Game for any SkeletalMesh and return the first."""
+    """Fall-back: scan /Game for any SkeletalMesh with a bound Skeleton."""
     ar = unreal.AssetRegistryHelpers.get_asset_registry()
     f = unreal.ARFilter(
         class_names=['SkeletalMesh'],
@@ -124,7 +144,8 @@ def _scan_for_any_skeletal_mesh():
     for ad in ar.get_assets(f):
         p = "{}.{}".format(ad.package_name, ad.asset_name)
         a = unreal.load_asset(p)
-        if a: return (p, a)
+        if a and _skeletal_mesh_has_skeleton(a):
+            return (p, a)
     return (None, None)
 
 
@@ -160,9 +181,12 @@ def _set_mesh_defaults_on_bp(bp_path, sk_mesh, anim_bp_class):
     if anim_bp_class:
         mesh.set_anim_instance_class(anim_bp_class)
     # Drop the mesh ~90 cm so feet land at capsule base rather than
-    # floating mid-air on top of the capsule.
-    mesh.set_relative_location(unreal.Vector(0.0, 0.0, -90.0))
-    mesh.set_relative_rotation(unreal.Rotator(0.0, 0.0, -90.0))
+    # floating mid-air on top of the capsule. Use set_editor_property for
+    # the CDO defaults rather than the runtime set_relative_* methods --
+    # UE 5.x removed the sweep/teleport defaults from those Python bindings
+    # and they're the wrong semantics for an edit-time CDO mutation anyway.
+    mesh.set_editor_property('relative_location', unreal.Vector(0.0, 0.0, -90.0))
+    mesh.set_editor_property('relative_rotation', unreal.Rotator(0.0, 0.0, -90.0))
 
     # Make sure others see the body even though the local player has
     # SetOwnerNoSee(true) set on the third-person mesh in C++. (Default
