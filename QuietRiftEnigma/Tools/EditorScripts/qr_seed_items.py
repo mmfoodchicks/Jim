@@ -511,7 +511,7 @@ def generate_icons(force=False, size=256, max_items=None):
 # ── Main walker ────────────────────────────────────────────────
 
 def run(overwrite=False, rebuild_meshes=False, with_icons=True,
-        icon_size=256, max_items=None):
+        icon_size=256, max_items=None, only_folder=None):
     """Bulk-import FBXs and create UQRItemDefinitions.
 
     overwrite       — recreate item def assets even if they exist.
@@ -520,6 +520,9 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
                       by capturing each WorldMesh with a SceneCapture2D rig.
     icon_size       — square resolution for rendered icons.
     max_items       — cap how many to process (for dry-run testing).
+    only_folder     — restrict to a single subfolder of Content/Meshes/
+                      (e.g. 'wildlife'). Pass a string to filter, or a
+                      list/tuple of strings to allow several.
     """
     if not os.path.isdir(FBX_DISK_ROOT):
         unreal.log_error(f"FBX root not found: {FBX_DISK_ROOT}")
@@ -534,8 +537,14 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
     skipped_items    = 0
     failed           = 0
 
+    folder_filter = None
+    if only_folder is not None:
+        folder_filter = {only_folder} if isinstance(only_folder, str) else set(only_folder)
+
     discovered = []
     for folder_name in sorted(os.listdir(FBX_DISK_ROOT)):
+        if folder_filter is not None and folder_name not in folder_filter:
+            continue
         bucket = FOLDER_TO_BUCKET.get(folder_name)
         if bucket is None:
             continue
