@@ -34,6 +34,36 @@ these same two lines at the top of every session.
 
 ---
 
+## Local paths on the user's machine
+
+Use these literal paths when handing the user commands — don't reach
+for `<Project>` placeholders, the user has to substitute them by hand
+and it gets old. Repo root:
+
+```
+D:\QuietRiftEnigma\Jim
+```
+
+Common subpaths:
+
+- Editor Python scripts: `D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_*.py`
+- Blender scripts:       `D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\BlenderScripts\qr_*.py`
+- Regenerate-all .bat:   `D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\BlenderScripts\regenerate_all_fbx.bat`
+- Blender install:       `C:\Program Files\Blender Foundation\Blender 5.1\blender.exe`
+
+UE Python console one-liners the user reaches for often (paste verbatim):
+
+```
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_seed_items.py').read())
+run(rebuild_meshes=True)
+```
+
+```
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_setup_sky.py').read())
+```
+
+---
+
 ## Read-first docs (project state lives in these, not in your head)
 
 1. `SYSTEM_COHESION_AUDIT.md` — every system: file paths, integration
