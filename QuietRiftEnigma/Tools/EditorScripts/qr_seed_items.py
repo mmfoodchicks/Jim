@@ -88,6 +88,11 @@ PREFIX_RULES = {
                             'container_carry_kg': 12.0, 'container_volume_l': 25.0}),
     'COS':  ('Clothing',   {'mass': 0.5,  'vol': 0.5,  'stack': 1}),
     'ANM':  ('Wildlife',   {'mass': 50.0, 'vol': 30.0, 'stack': 1}),
+    # v15 canonical species prefixes -- ANI_* prey / herbivores / mounts,
+    # PRD_* predators. Both file under Wildlife; predators get a higher
+    # default mass to reflect their larger / armored frames.
+    'ANI':  ('Wildlife',   {'mass': 50.0, 'vol': 30.0, 'stack': 1}),
+    'PRD':  ('Wildlife',   {'mass': 80.0, 'vol': 40.0, 'stack': 1}),
     'TRE':  ('Flora',      {'mass': 100.0,'vol': 60.0, 'stack': 1}),
     'PLT':  ('Flora',      {'mass': 0.5,  'vol': 0.5,  'stack': 10}),
     'REM':  ('Component',  {'mass': 1.0,  'vol': 0.5,  'stack': 5}),
@@ -351,9 +356,25 @@ def _destroy_icon_rig(rig):
                 pass
 
 
+def _rendering_lib():
+    """Return whichever Python class exposes create_render_target_2d.
+    UE 5.x moved most render-target helpers from RenderingLibrary to
+    KismetRenderingLibrary; older versions had them on RenderingLibrary.
+    """
+    for cls_name in ('KismetRenderingLibrary', 'RenderingLibrary'):
+        cls = getattr(unreal, cls_name, None)
+        if cls is not None and hasattr(cls, 'create_render_target_2d'):
+            return cls
+    return None
+
+
 def _make_icon_render_target(size):
     world = unreal.EditorLevelLibrary.get_editor_world()
-    return unreal.RenderingLibrary.create_render_target_2d(
+    lib = _rendering_lib()
+    if lib is None:
+        raise RuntimeError("No rendering library exposes create_render_target_2d "
+                           "on this UE version. Re-run with with_icons=False.")
+    return lib.create_render_target_2d(
         world, size, size,
         unreal.TextureRenderTargetFormat.RTF_RGBA8,
         unreal.LinearColor(0.0, 0.0, 0.0, 0.0),
@@ -411,8 +432,18 @@ def _render_target_to_texture(rt, full_asset_path):
     # replaces rather than appends a numeric suffix.
     if unreal.EditorAssetLibrary.does_asset_exist(full_asset_path):
         unreal.EditorAssetLibrary.delete_asset(full_asset_path)
+    # Same library drift as create_render_target_2d: prefer KismetRenderingLibrary.
+    lib = None
+    for cls_name in ('KismetRenderingLibrary', 'RenderingLibrary'):
+        cls = getattr(unreal, cls_name, None)
+        if cls is not None and hasattr(cls, 'render_target_create_static_texture2d_editor_only'):
+            lib = cls
+            break
+    if lib is None:
+        unreal.log_warning(f"  RT→Texture2D skipped — no rendering library exposes the API on this UE version.")
+        return None
     try:
-        return unreal.RenderingLibrary.render_target_create_static_texture2d_editor_only(
+        return lib.render_target_create_static_texture2d_editor_only(
             rt, full_asset_path,
             unreal.TextureCompressionSettings.TC_EDITOR_ICON,
             unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS

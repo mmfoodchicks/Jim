@@ -22,7 +22,13 @@ def clear_scene():
 
 
 def export_fbx(name, filepath):
-    """Export everything currently in the scene as a single FBX."""
+    """Export everything currently in the scene as a single FBX.
+
+    mesh_smooth_type='FACE' emits per-face smoothing groups, which UE's
+    Interchange importer asks for explicitly -- without it every imported
+    mesh logs a 'No smoothing group information was found' warning and
+    falls back to flat shading approximations.
+    """
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.export_scene.fbx(
@@ -33,6 +39,7 @@ def export_fbx(name, filepath):
         axis_forward='-Z',
         axis_up='Y',
         bake_space_transform=True,
+        mesh_smooth_type='FACE',
     )
     print(f"  Exported: {filepath}")
 
