@@ -27,13 +27,14 @@ set BLENDER_ROOT=C:\Program Files\Blender Foundation
 if exist "%BLENDER_ROOT%" (
     for /f "delims=" %%D in ('dir /b /ad /o-n "%BLENDER_ROOT%\Blender *" 2^>nul') do (
         if not defined BLENDER_EXE if exist "%BLENDER_ROOT%\%%D\blender.exe" (
-            set BLENDER_EXE=%BLENDER_ROOT%\%%D\blender.exe
+            set "BLENDER_EXE=%BLENDER_ROOT%\%%D\blender.exe"
         )
     )
 )
 
 REM Steam install path (separate because it's not under Blender Foundation).
-if not defined BLENDER_EXE if exist "C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe" set BLENDER_EXE=C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe
+REM Quote the SET assignment because (x86) contains parens that break cmd parsing.
+if not defined BLENDER_EXE if exist "C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe" set "BLENDER_EXE=C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe"
 
 REM Fall back to PATH lookup if no install path matched.
 if not defined BLENDER_EXE (
