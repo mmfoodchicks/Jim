@@ -101,6 +101,26 @@ ANIM_BP_CANDIDATES = [
 ]
 
 
+_AR = None
+def _asset_registry():
+    global _AR
+    if _AR is None:
+        _AR = unreal.AssetRegistryHelpers.get_asset_registry()
+    return _AR
+
+
+def _asset_exists(path):
+    """AssetRegistry existence check that does NOT trigger a load attempt.
+    load_asset() on a missing path logs 'LogStreaming: SkipPackage' warnings,
+    so we filter the candidate list down to real assets before touching them.
+    Accepts both '/Game/X/Y' and '/Game/X/Y.Y' object-path forms.
+    """
+    pkg = path.split('.')[0] if '.' in path else path
+    ar = _asset_registry()
+    asset_data = ar.get_assets_by_package_name(pkg)
+    return len(asset_data) > 0
+
+
 def _skeletal_mesh_has_skeleton(sk_mesh):
     """SkeletalMeshes shipped without an assigned Skeleton asset can't be
     bound to an AnimBlueprint -- UE logs 'has no skeleton' and the BP
@@ -122,6 +142,11 @@ def _find_first_loadable(paths, expected_type=None):
     """
     want_sk_mesh = (expected_type is unreal.SkeletalMesh)
     for p in paths:
+        # Gate every candidate through AssetRegistry first so missing
+        # paths don't spam LogStreaming/LogUObjectGlobals warnings on
+        # every script run.
+        if not _asset_exists(p):
+            continue
         asset = unreal.load_asset(p)
         if not asset:
             continue

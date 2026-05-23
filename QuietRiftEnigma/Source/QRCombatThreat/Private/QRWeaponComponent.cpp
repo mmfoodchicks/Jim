@@ -13,33 +13,24 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Sound/SoundBase.h"
 #include "Kismet/GameplayStatics.h"
-#include "UObject/ConstructorHelpers.h"
 
 UQRWeaponComponent::UQRWeaponComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
 
-	// Try to load default FX from the bundled Fab pack. Missing assets
-	// degrade gracefully — TObjectPtr stays null and FX simply skip.
-	struct FFabFXFinder
-	{
-		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Muzzle;
-		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Impact;
-		ConstructorHelpers::FObjectFinder<UNiagaraSystem> Tracer;
-		ConstructorHelpers::FObjectFinder<USoundBase>     Shot;
-		FFabFXFinder()
-			: Muzzle(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/MuzzleFlashes/NS_MuzzleFlash.NS_MuzzleFlash"))
-			, Impact(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/Impacts/NS_Impact_Metal.NS_Impact_Metal"))
-			, Tracer(TEXT("/Game/Fabs/NiagaraExamples/FX_Weapons/Trails/NS_BulletTracer.NS_BulletTracer"))
-			, Shot  (TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Gunshot_1-1_Cue.Gunshot_1-1_Cue"))
-		{}
-	};
-	static FFabFXFinder Finder;
-	if (Finder.Muzzle.Succeeded()) MuzzleFlashFX = Finder.Muzzle.Object;
-	if (Finder.Impact.Succeeded()) ImpactFX     = Finder.Impact.Object;
-	if (Finder.Tracer.Succeeded()) TracerFX     = Finder.Tracer.Object;
-	if (Finder.Shot.Succeeded())   FireSound    = Finder.Shot.Object;
+	// FX assets (MuzzleFlashFX / ImpactFX / TracerFX / FireSound) intentionally
+	// default to nullptr -- the firing code null-checks every use. Wire them
+	// per-weapon in BP defaults, or set them at runtime via LoadObject.
+	//
+	// Previous behaviour used ConstructorHelpers::FObjectFinder against
+	// /Game/Fabs/NiagaraExamples/... Those Niagara systems have internal
+	// references to /Game/NiagaraExamples/... (without /Fabs/) which don't
+	// exist in this checkout, and FObjectFinder logs LoadErrors warnings
+	// for every missing dependent package at CDO load time. Skipping the
+	// auto-wire silences that wall of noise without losing any function:
+	// when the assets exist the BP can wire them, and when they don't the
+	// firing code already degrades gracefully.
 }
 
 void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

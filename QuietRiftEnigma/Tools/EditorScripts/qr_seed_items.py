@@ -368,30 +368,35 @@ def _destroy_icon_rig(rig):
                 pass
 
 
-def _rendering_lib():
-    """Return whichever Python class exposes create_render_target_2d.
-    UE 5.x moved most render-target helpers from RenderingLibrary to
-    KismetRenderingLibrary; older versions had them on RenderingLibrary.
-    """
-    for cls_name in ('KismetRenderingLibrary', 'RenderingLibrary'):
-        cls = getattr(unreal, cls_name, None)
-        if cls is not None and hasattr(cls, 'create_render_target_2d'):
-            return cls
-    return None
-
-
 def _make_icon_render_target(size):
+    """Create a transparent render target. UE 5.x Python's snake_case
+    generator collapses 'Target2D' to 'target2d' (no underscore before
+    '2d'), so the method is unreal.RenderingLibrary.create_render_target2d
+    -- not the 'create_render_target_2d' my prior fix tried. The
+    KismetRenderingLibrary fallback handles UE installs where the
+    method moved.
+    """
     world = unreal.EditorLevelLibrary.get_editor_world()
-    lib = _rendering_lib()
-    if lib is None:
-        raise RuntimeError("No rendering library exposes create_render_target_2d "
-                           "on this UE version. Re-run with with_icons=False.")
-    return lib.create_render_target_2d(
-        world, size, size,
-        unreal.TextureRenderTargetFormat.RTF_RGBA8,
-        unreal.LinearColor(0.0, 0.0, 0.0, 0.0),
-        False  # auto_generate_mip_maps
-    )
+    method_names = ('create_render_target2d', 'create_render_target_2d')
+    class_names = ('RenderingLibrary', 'KismetRenderingLibrary')
+    for cls_name in class_names:
+        cls = getattr(unreal, cls_name, None)
+        if cls is None:
+            continue
+        for m_name in method_names:
+            fn = getattr(cls, m_name, None)
+            if fn is None:
+                continue
+            try:
+                return fn(
+                    world, size, size,
+                    unreal.TextureRenderTargetFormat.RTF_RGBA8,
+                    unreal.LinearColor(0.0, 0.0, 0.0, 0.0),
+                    False  # auto_generate_mip_maps
+                )
+            except Exception:
+                continue
+    return None
 
 
 def _capture_mesh_to_rt(mesh, rig, rt):
@@ -480,6 +485,14 @@ def generate_icons(force=False, size=256, max_items=None):
 
     rig = _spawn_icon_rig()
     rt  = _make_icon_render_target(size)
+    if rt is None:
+        unreal.log_warning(
+            "qr_seed_items: icon generation skipped -- this UE version "
+            "doesn't expose create_render_target2d on RenderingLibrary "
+            "or KismetRenderingLibrary. Items were created without "
+            "icons; pass run(with_icons=False) to silence this branch.")
+        _destroy_icon_rig(rig)
+        return
 
     rendered = skipped = failed = 0
     total = len(asset_paths)
@@ -553,7 +566,7 @@ def generate_icons(force=False, size=256, max_items=None):
 
 # ── Main walker ────────────────────────────────────────────────
 
-def run(overwrite=False, rebuild_meshes=False, with_icons=True,
+def run(overwrite=False, rebuild_meshes=False, with_icons=False,
         icon_size=256, max_items=None, only_folder=None):
     """Bulk-import FBXs and create UQRItemDefinitions.
 
@@ -617,10 +630,14 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
         mesh_pkg_path = f'{dest_pkg}/{mesh_name}'
 
         # Step 1: import the mesh if needed.
-        if rebuild_meshes and unreal.EditorAssetLibrary.does_asset_exist(mesh_pkg_path):
-            unreal.EditorAssetLibrary.delete_asset(mesh_pkg_path)
-
-        if unreal.EditorAssetLibrary.does_asset_exist(mesh_pkg_path):
+        # With rebuild_meshes=True we go straight to _import_fbx (it sets
+        # replace_existing=True), because EditorAssetLibrary.delete_asset
+        # silently fails when an asset is referenced by an existing item
+        # def, leaving everything "skipped" -- the very bug the user hit.
+        # When rebuild_meshes is False, skip the import only if the mesh
+        # already exists.
+        asset_exists = unreal.EditorAssetLibrary.does_asset_exist(mesh_pkg_path)
+        if asset_exists and not rebuild_meshes:
             skipped_meshes += 1
         else:
             result = _import_fbx(fbx_path, dest_pkg, mesh_name, fbx_opts)
