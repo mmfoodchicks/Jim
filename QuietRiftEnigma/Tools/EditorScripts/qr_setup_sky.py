@@ -81,8 +81,17 @@ def run():
         comp = getattr(sun, "directional_light_component", None)
         if comp:
             _try(lambda: comp.set_mobility(unreal.ComponentMobility.MOVABLE))
-            _try(lambda: comp.set_intensity(4.0))
+            # 10.0 is the UE 5.x DirectionalLight default in lux units --
+            # 4.0 was the prior value and read as 'night' under PIE's
+            # auto-exposure, leaving the scene black even with SkyLight on.
+            _try(lambda: comp.set_intensity(10.0))
             _try(lambda: comp.set_light_color(unreal.LinearColor(1.0, 0.93, 0.82, 1.0)))
+            # Bind this DirectionalLight to the SkyAtmosphere so the sky
+            # actually picks up its colour and disk. Without this flag the
+            # SkyAtmosphere has no sun, the sky renders near-black, and
+            # the SkyLight (which captures the sky in real-time) captures
+            # that blackness as its ambient -- compounding the PIE darkness.
+            _try(lambda: comp.set_editor_property("atmosphere_sun_light", True))
 
     # ── SkyLight — ambient fill; keeps the world from going black ─
     skyl = _find(unreal.SkyLight)
@@ -123,6 +132,31 @@ def run():
             _try(lambda: comp.set_cast_shadow(False))
         _try(lambda: jupiter.set_actor_location(V(90000.0, 45000.0, 70000.0), False, False))
         _try(lambda: jupiter.set_actor_scale3d(V(350.0, 350.0, 350.0)))
+
+    # ── PostProcessVolume — pin manual exposure ───────────────────
+    # PIE's default auto-exposure can drag the scene to near-black on
+    # a Movable-only lighting setup. Pin it to a fixed manual value so
+    # what you see in the editor viewport is what you get in Play.
+    # Unbound=True means the volume applies everywhere, no need to
+    # contain the player inside its bounds.
+    ppv = _find(unreal.PostProcessVolume, "QR_Exposure")
+    if ppv:
+        print("[sky] PostProcessVolume already present — retuning")
+    else:
+        ppv = _spawn(unreal.PostProcessVolume, "QR_Exposure", V(0.0, 0.0, 0.0))
+        print("[sky] PostProcessVolume spawned")
+    if ppv:
+        _try(lambda: ppv.set_editor_property("unbound", True))
+        settings = ppv.get_editor_property("settings")
+        if settings:
+            _try(lambda: setattr(settings, "override_auto_exposure_method", True))
+            _try(lambda: setattr(settings, "auto_exposure_method",
+                                  unreal.AutoExposureMethod.AEM_MANUAL))
+            _try(lambda: setattr(settings, "override_auto_exposure_bias", True))
+            # auto_exposure_bias is logarithmic: 0 = neutral, 1 = 2x brighter.
+            # 1.0 gives a daylit outdoor reading; raise to 2.0 if still dim.
+            _try(lambda: setattr(settings, "auto_exposure_bias", 1.0))
+            _try(lambda: ppv.set_editor_property("settings", settings))
 
     print("[sky] done — re-run any time, it re-tunes instead of duplicating.")
     print("[sky] SAVE THE LEVEL (Ctrl+S). QR_Jupiter is a plain sphere —")
