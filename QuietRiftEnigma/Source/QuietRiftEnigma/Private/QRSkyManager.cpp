@@ -50,24 +50,36 @@ void AQRSkyManager::Tick(float DeltaTime)
 	SunLight->SetActorRotation(Rot);
 
 	// Intensity + color from height above horizon.
-	const float HeightAlpha = FMath::Clamp((SunPitch / 90.0f), 0.0f, 1.0f);
+	//
+	// UE convention: a DirectionalLight's forward vector is the direction
+	// the light SHINES, and the sun disk renders OPPOSITE to it. So
+	// Pitch=-90° means "light shines straight down, sun is overhead at
+	// noon" (visible), and Pitch=+90° means "light shines straight up,
+	// sun is underneath the world at midnight" (invisible). The previous
+	// HeightAlpha = SunPitch/90 had the sign backwards: it lit the world
+	// to DayIntensity when the sun was under the world, and dimmed it to
+	// NightIntensity when the sun was overhead. Flipping the sign makes
+	// overhead = bright as physics expects.
+	const float HeightAlpha = FMath::Clamp((-SunPitch / 90.0f), 0.0f, 1.0f);
 	const float Intensity   = FMath::Lerp(NightIntensity, DayIntensity, HeightAlpha);
 
 	FLinearColor Color;
-	if (SunPitch >= 30.0f)
+	if (SunPitch <= -30.0f)
 	{
-		const float A = FMath::Clamp((SunPitch - 30.0f) / 60.0f, 0.0f, 1.0f);
+		// Sun high overhead — blend from horizon warm to noon white.
+		const float A = FMath::Clamp((-SunPitch - 30.0f) / 60.0f, 0.0f, 1.0f);
 		Color = FMath::Lerp(HorizonColor, NoonColor, A);
 	}
-	else if (SunPitch >= 0.0f)
+	else if (SunPitch <= 0.0f)
 	{
-		const float A = FMath::Clamp(SunPitch / 30.0f, 0.0f, 1.0f);
-		Color = FMath::Lerp(HorizonColor, HorizonColor, A);  // hold horizon color
+		// Sun above horizon but low — hold the warm horizon tint.
+		Color = HorizonColor;
 	}
 	else
 	{
-		const float A = FMath::Clamp((SunPitch + 90.0f) / 90.0f, 0.0f, 1.0f);
-		Color = FMath::Lerp(MidnightColor, HorizonColor, A);
+		// Sun below horizon — blend from horizon warm down into midnight blue.
+		const float A = FMath::Clamp(SunPitch / 90.0f, 0.0f, 1.0f);
+		Color = FMath::Lerp(HorizonColor, MidnightColor, A);
 	}
 
 	if (UDirectionalLightComponent* LC = SunLight->FindComponentByClass<UDirectionalLightComponent>())
