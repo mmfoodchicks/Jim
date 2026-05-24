@@ -10,6 +10,22 @@ AQRSkyManager::AQRSkyManager()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 0.5f;  // 2 Hz is plenty for sky
+
+	// Default Galilean moons. Orbital radii (in cm) preserve the real
+	// ratios to Jupiter's body radius: Io ~6 RJ, Europa ~9.4 RJ, Ganymede
+	// ~15 RJ, Callisto ~26 RJ. Jupiter's game radius is 700,000 cm
+	// (scale 7000 on a 1m sphere -> 7 km radius), so orbits become:
+	//   Io        4.2 Mm,  Europa     6.6 Mm,
+	//   Ganymede 10.5 Mm,  Callisto  18.2 Mm.
+	// Period ratios preserve real Jovian (each ~2x previous, ~2.3x for
+	// Callisto) compressed to seconds so motion is visible during play:
+	// Io ~2 min, Europa ~4 min, Ganymede ~8 min, Callisto ~18 min.
+	// Initial phases stagger them so they don't line up at world start.
+	Moons.Reset();
+	Moons.Add({ TEXT("QR_Moon_Io"),         4200000.f,  120.f,  0.00f });
+	Moons.Add({ TEXT("QR_Moon_Europa"),     6600000.f,  240.f,  0.25f });
+	Moons.Add({ TEXT("QR_Moon_Ganymede"),  10500000.f,  480.f,  0.50f });
+	Moons.Add({ TEXT("QR_Moon_Callisto"),  18200000.f, 1110.f,  0.75f });
 }
 
 
@@ -26,6 +42,43 @@ void AQRSkyManager::BeginPlay()
 			break;
 		}
 	}
+
+	ResolveSkyActors();
+}
+
+
+void AQRSkyManager::ResolveSkyActors()
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	JupiterActor = nullptr;
+	MoonActors.Reset();
+	MoonActors.SetNum(Moons.Num());
+
+#if WITH_EDITOR
+	// Label lookup is editor-only (GetActorLabel doesn't exist in
+	// shipping). For dev work this is enough; in a packaged build we'd
+	// switch to Actor Tags. Wrapped in WITH_EDITOR so the file still
+	// compiles for cooked targets -- moons just won't orbit there.
+	for (TActorIterator<AActor> It(W); It; ++It)
+	{
+		const FString Label = It->GetActorLabel();
+		if (Label == TEXT("QR_Jupiter"))
+		{
+			JupiterActor = *It;
+			continue;
+		}
+		for (int32 i = 0; i < Moons.Num(); ++i)
+		{
+			if (Label == Moons[i].ActorLabel.ToString())
+			{
+				MoonActors[i] = *It;
+				break;
+			}
+		}
+	}
+#endif
 }
 
 
@@ -86,5 +139,28 @@ void AQRSkyManager::Tick(float DeltaTime)
 	{
 		LC->SetIntensity(Intensity);
 		LC->SetLightColor(Color);
+	}
+
+	// Orbit moons around Jupiter. Each moon's world position is
+	// recomputed analytically from current time so missed ticks (we run
+	// at 2 Hz, plus PIE pauses) never accumulate drift. Flat XY-plane
+	// orbit -- the real Galileans are coplanar within a few degrees, so
+	// this reads correctly from any moon's surface.
+	if (JupiterActor)
+	{
+		const FVector JLoc = JupiterActor->GetActorLocation();
+		const double Time = GetWorld()->GetTimeSeconds();
+		for (int32 i = 0; i < Moons.Num() && i < MoonActors.Num(); ++i)
+		{
+			AActor* Moon = MoonActors[i];
+			if (!Moon) continue;
+			const float Period = FMath::Max(Moons[i].PeriodSeconds, 1.0f);
+			const float Angle  = (float)((Time / Period + Moons[i].InitialPhase) * 2.0 * PI);
+			const FVector Offset(
+				FMath::Cos(Angle) * Moons[i].OrbitRadius,
+				FMath::Sin(Angle) * Moons[i].OrbitRadius,
+				0.0f);
+			Moon->SetActorLocation(JLoc + Offset);
+		}
 	}
 }

@@ -59,6 +59,82 @@ def _try(fn):
         print("[sky]   (tune skipped: {})".format(e))
 
 
+def _ensure_material(name, base_color, emissive_color,
+                     package_path="/Game/QuietRift/Materials/Sky"):
+    """Create a flat-color emissive Material asset if it doesn't already
+    exist. Returns the package path of the material for assignment.
+
+    Verified Python API (UE 5.x):
+      - AssetTools.create_asset with MaterialFactoryNew
+      - MaterialEditingLibrary.create_material_expression(material,
+            expression_class, x, y)
+      - Constant3Vector.set_editor_property('constant', LinearColor)
+      - MaterialEditingLibrary.connect_material_property(expr, '',
+            MaterialProperty.MP_BASE_COLOR / MP_EMISSIVE_COLOR)
+    """
+    full_path = "{}/{}".format(package_path, name)
+    if unreal.EditorAssetLibrary.does_asset_exist(full_path):
+        return full_path
+    if not unreal.EditorAssetLibrary.does_directory_exist(package_path):
+        unreal.EditorAssetLibrary.make_directory(package_path)
+
+    asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+    factory = unreal.MaterialFactoryNew()
+    mat = asset_tools.create_asset(name, package_path, unreal.Material, factory)
+    if not mat:
+        print("[sky]   (material create failed: {})".format(full_path))
+        return None
+
+    # Base color expression.
+    color_expr = unreal.MaterialEditingLibrary.create_material_expression(
+        mat, unreal.MaterialExpressionConstant3Vector, -300, 0)
+    if color_expr:
+        color_expr.set_editor_property('constant', base_color)
+        unreal.MaterialEditingLibrary.connect_material_property(
+            color_expr, "", unreal.MaterialProperty.MP_BASE_COLOR)
+
+    # Emissive so the body stays visible when the directional light is
+    # on the wrong side (real moons are lit by Jupiter's reflected light
+    # at "night"; we approximate that with a flat low-intensity emissive).
+    emi_expr = unreal.MaterialEditingLibrary.create_material_expression(
+        mat, unreal.MaterialExpressionConstant3Vector, -300, 200)
+    if emi_expr:
+        emi_expr.set_editor_property('constant', emissive_color)
+        unreal.MaterialEditingLibrary.connect_material_property(
+            emi_expr, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+
+    unreal.MaterialEditingLibrary.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_asset(full_path)
+    print("[sky]   created material: {}".format(full_path))
+    return full_path
+
+
+def _ensure_celestial(label, mesh_path, location, scale, material_path=None):
+    """Spawn-or-retune a StaticMeshActor representing a celestial body
+    (Jupiter, a Galilean moon, etc). Idempotent."""
+    actor = _find(unreal.StaticMeshActor, label)
+    if actor:
+        print("[sky] {} already present -- retuning".format(label))
+    else:
+        actor = _spawn(unreal.StaticMeshActor, label, location)
+        print("[sky] {} spawned".format(label))
+    if not actor:
+        return None
+    comp = getattr(actor, "static_mesh_component", None)
+    mesh = unreal.load_object(None, mesh_path) if mesh_path else None
+    if comp and mesh:
+        _try(lambda: comp.set_mobility(unreal.ComponentMobility.MOVABLE))
+        _try(lambda: comp.set_static_mesh(mesh))
+        _try(lambda: comp.set_cast_shadow(False))
+        if material_path:
+            mat_obj = unreal.load_asset(material_path)
+            if mat_obj:
+                _try(lambda: comp.set_material(0, mat_obj))
+    _try(lambda: actor.set_actor_location(location, False, False))
+    _try(lambda: actor.set_actor_scale3d(unreal.Vector(scale, scale, scale)))
+    return actor
+
+
 def run():
     V = unreal.Vector
 
@@ -116,22 +192,58 @@ def run():
         _spawn(unreal.ExponentialHeightFog, "QR_HeightFog", V(0.0, 0.0, 0.0))
         print("[sky] ExponentialHeightFog spawned")
 
-    # ── Jupiter — big sphere high in the sky (placeholder) ────────
-    jupiter = _find(unreal.StaticMeshActor, "QR_Jupiter")
-    if jupiter:
-        print("[sky] Jupiter already present — retuning")
-    else:
-        jupiter = _spawn(unreal.StaticMeshActor, "QR_Jupiter", V(90000.0, 45000.0, 70000.0))
-        print("[sky] Jupiter spawned")
-    if jupiter:
-        comp = getattr(jupiter, "static_mesh_component", None)
-        sphere = unreal.load_object(None, "/Engine/BasicShapes/Sphere.Sphere")
-        if comp and sphere:
-            _try(lambda: comp.set_mobility(unreal.ComponentMobility.MOVABLE))
-            _try(lambda: comp.set_static_mesh(sphere))
-            _try(lambda: comp.set_cast_shadow(False))
-        _try(lambda: jupiter.set_actor_location(V(90000.0, 45000.0, 70000.0), False, False))
-        _try(lambda: jupiter.set_actor_scale3d(V(350.0, 350.0, 350.0)))
+    # ── Jupiter + Galilean moons — scaled for a Europa-surface view ─
+    # Real geometry: from Europa (671,100 km from Jupiter), Jupiter
+    # spans ~12° of sky (24x our Moon's 0.5°). The Galileans appear as
+    # small but resolvable disks (Io ~0.3°, Ganymede/Callisto ~0.3°).
+    #
+    # Game values chosen so Jupiter reads at ~12° from the world origin:
+    # placed at ~65 km game distance with scale 7000 (radius ~7 km).
+    # Moon orbital radii preserve real ratios to Jupiter's body radius
+    # (~Io 6 RJ, Europa 9 RJ, Ganymede 15 RJ, Callisto 26 RJ).
+    JUPITER_LOC   = V(5000000.0, 1000000.0, 4000000.0)  # 50km E, 10km N, 40km up
+    JUPITER_SCALE = 7000.0                              # ~12° angular at origin
+
+    _ensure_celestial(
+        label="QR_Jupiter",
+        mesh_path="/Engine/BasicShapes/Sphere.Sphere",
+        location=JUPITER_LOC,
+        scale=JUPITER_SCALE,
+        material_path=_ensure_material(
+            "M_QR_Jupiter",
+            unreal.LinearColor(0.88, 0.78, 0.62, 1.0),   # cream-tan gas-giant bands
+            unreal.LinearColor(0.30, 0.25, 0.18, 1.0)),  # subtle emissive so it's lit at night
+    )
+
+    # Galilean moons. Orbital radii in cm; QRSkyManager Tick keeps them
+    # circling Jupiter. Scales are real-proportion to Jupiter (Io is
+    # ~2.6% of Jupiter's diameter, etc) so the size relationships are
+    # scientifically accurate.
+    galileans = [
+        # label,             scale, base color (RGB),               emissive
+        ("QR_Moon_Io",        200, (0.95, 0.85, 0.55), (0.40, 0.32, 0.18)),  # sulfur-yellow volcanic
+        ("QR_Moon_Europa",    170, (0.95, 0.92, 0.88), (0.40, 0.38, 0.35)),  # icy white-cream
+        ("QR_Moon_Ganymede",  300, (0.62, 0.58, 0.50), (0.24, 0.22, 0.18)),  # grey-brown mottled
+        ("QR_Moon_Callisto",  270, (0.42, 0.40, 0.34), (0.16, 0.14, 0.12)),  # dark cratered
+    ]
+    # Initial positions are arbitrary -- QRSkyManager overwrites them
+    # every tick from the orbit math. Just spawn them near Jupiter so
+    # they're not at world-origin if the manager isn't ticking yet.
+    for i, (label, scale, base_rgb, emi_rgb) in enumerate(galileans):
+        offset = V(800000.0 + i * 600000.0, 0.0, 0.0)
+        init_loc = V(JUPITER_LOC.x + offset.x,
+                     JUPITER_LOC.y + offset.y,
+                     JUPITER_LOC.z + offset.z)
+        _ensure_celestial(
+            label=label,
+            mesh_path="/Engine/BasicShapes/Sphere.Sphere",
+            location=init_loc,
+            scale=float(scale),
+            material_path=_ensure_material(
+                "M_" + label,
+                unreal.LinearColor(base_rgb[0], base_rgb[1], base_rgb[2], 1.0),
+                unreal.LinearColor(emi_rgb[0],  emi_rgb[1],  emi_rgb[2],  1.0)),
+        )
 
     # ── PostProcessVolume — pin manual exposure ───────────────────
     # PIE's default auto-exposure can drag the scene to near-black on

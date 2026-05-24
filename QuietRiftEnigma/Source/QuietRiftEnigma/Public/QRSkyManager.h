@@ -9,6 +9,43 @@ class USkyLightComponent;
 
 
 /**
+ * One Galilean-style moon orbiting QR_Jupiter. The orbital math is
+ * deliberately a flat circular orbit in the XY plane around Jupiter's
+ * world location -- the real Galileans are coplanar within a few
+ * degrees so this reads correctly without a full ecliptic sim. Period
+ * is in seconds (game-scale, not real Jovian months) and InitialPhase
+ * staggers the moons so they don't all line up at t=0.
+ */
+USTRUCT(BlueprintType)
+struct FQRMoonConfig
+{
+	GENERATED_BODY()
+
+	/** Actor label of the placeholder StaticMeshActor in the level
+	 *  (e.g. QR_Moon_Io). Spawn it via qr_setup_sky.py. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
+	FName ActorLabel = NAME_None;
+
+	/** Distance from QR_Jupiter, centimetres. Game-scale, not real. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "1000"))
+	float OrbitRadius = 200000.0f;
+
+	/** Orbital period in seconds. Real Galileans range from Io (1.77
+	 *  days) to Callisto (16.7 days); we keep the same ratio (~2x each
+	 *  step) but compress totals so motion is visible during play. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "1.0"))
+	float PeriodSeconds = 120.0f;
+
+	/** Starting orbital phase, fraction of a full revolution (0..1). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "0", ClampMax = "1"))
+	float InitialPhase = 0.0f;
+};
+
+
+/**
  * Day/night cycle driver. Locates the level's primary
  * ADirectionalLight (sun) and rotates it based on
  * AQRGameMode::GetDayProgress() (0..1 across the game-day).
@@ -52,8 +89,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
 	FLinearColor MidnightColor = FLinearColor(0.10f, 0.18f, 0.45f, 1.0f);
 
+	/** Galilean moons orbiting QR_Jupiter. Spawn the placeholder mesh
+	 *  actors via qr_setup_sky.py; QRSkyManager finds them by ActorLabel
+	 *  at BeginPlay and updates their world positions every tick. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
+	TArray<FQRMoonConfig> Moons;
+
 	virtual void Tick(float DeltaTime) override;
 
 protected:
 	virtual void BeginPlay() override;
+
+	/** Cached Jupiter and moon actor references resolved at BeginPlay. */
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> JupiterActor;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AActor>> MoonActors;
+
+	void ResolveSkyActors();
 };
