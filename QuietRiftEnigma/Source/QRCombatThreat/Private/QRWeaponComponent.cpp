@@ -295,9 +295,28 @@ void UQRWeaponComponent::Multicast_PlayFireFX_Implementation(
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(W, TracerFX, MuzzleLoc, TracerRot);
 	}
 
-	// Weapon fire SFX at the muzzle.
-	if (FireSound)
+	// Weapon fire SFX at the muzzle. If no FireSound is wired on this
+	// weapon, lazy-load the bundled Gunshot cue on first fire and cache
+	// it process-wide. This replaces the prior CDO-time auto-wire
+	// (removed because the Niagara siblings cascaded into LoadErrors)
+	// while keeping the audio default working when the Fab pack is
+	// present. LoadObject simply returns null when the asset is missing
+	// and we play nothing in that case.
+	USoundBase* SoundToPlay = FireSound;
+	if (!SoundToPlay)
 	{
-		UGameplayStatics::PlaySoundAtLocation(W, FireSound, MuzzleLoc, FireSoundVolume);
+		static USoundBase* CachedDefault = nullptr;
+		static bool bTriedLoad = false;
+		if (!bTriedLoad)
+		{
+			bTriedLoad = true;
+			CachedDefault = LoadObject<USoundBase>(nullptr,
+				TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Gunshot_1-1_Cue.Gunshot_1-1_Cue"));
+		}
+		SoundToPlay = CachedDefault;
+	}
+	if (SoundToPlay)
+	{
+		UGameplayStatics::PlaySoundAtLocation(W, SoundToPlay, MuzzleLoc, FireSoundVolume);
 	}
 }
