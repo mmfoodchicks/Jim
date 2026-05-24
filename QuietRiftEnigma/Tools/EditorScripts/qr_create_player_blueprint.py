@@ -213,13 +213,16 @@ def _set_mesh_defaults_on_bp(bp_path, sk_mesh, anim_bp_class):
     mesh.set_editor_property('relative_location', unreal.Vector(0.0, 0.0, -90.0))
     mesh.set_editor_property('relative_rotation', unreal.Rotator(0.0, 0.0, -90.0))
 
-    # Make sure others see the body even though the local player has
-    # SetOwnerNoSee(true) set on the third-person mesh in C++. (Default
-    # SetOwnerNoSee=false on the BP override so the local player can
-    # see their feet looking down too — toggle if you prefer Doom-style
-    # first-person-only.)
+    # Standard FPS visibility: third-person body is hidden from the local
+    # player (otherwise the first-person camera ends up INSIDE the body's
+    # head mesh and the screen goes solid black in PIE), but visible to
+    # other clients. ArmsMesh + HeldItemMesh in QRCharacter.cpp are already
+    # SetOnlyOwnerSee(true) so the local player still sees their hands +
+    # weapon. Set this back to False only if you want a Doom-style
+    # see-your-own-body view AND you've moved the camera forward of the
+    # head bone.
     mesh.set_only_owner_see(False)
-    mesh.set_owner_no_see(False)
+    mesh.set_owner_no_see(True)
 
     unreal.EditorAssetLibrary.save_asset(bp_path)
     return True
