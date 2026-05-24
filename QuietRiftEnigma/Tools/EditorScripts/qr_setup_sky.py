@@ -182,8 +182,53 @@ def run():
             _try(lambda: comp.set_mobility(unreal.ComponentMobility.MOVABLE))
             _try(lambda: comp.set_editor_property("real_time_capture", True))
             _try(lambda: comp.set_editor_property("lower_hemisphere_is_black", False))
-            _try(lambda: comp.set_intensity(3.0))
+            # SkyLight intensity is a multiplier on the captured cubemap.
+            # 5.0 (was 3.0) lifts the ambient floor so the world isn't
+            # coal-black when the sun is on the wrong side of the moon.
+            _try(lambda: comp.set_intensity(5.0))
             _try(lambda: comp.recapture_sky())
+
+    # ── Jovianlight — second DirectionalLight that represents Jupiter
+    # reflecting sunlight onto the moon's surface. Per CLAUDE.md canon,
+    # this is ~500x brighter than our full moon (real moon = 0.25 lux,
+    # so Jovianlight ~= 125 lux). It's CONSTANT -- it doesn't cycle with
+    # the sun -- because from a tidally-locked Jovian moon, Jupiter is
+    # always in the same fixed direction. This is what stops the night
+    # side from going pitch black.
+    #
+    # Pointed FROM the QR_Jupiter actor TOWARD world origin so the lit
+    # side of the moon faces where Jupiter is in the sky.
+    jovianlight = _find(unreal.DirectionalLight, "QR_Jovianlight")
+    if jovianlight:
+        print("[sky] Jovianlight already present -- retuning")
+    else:
+        jovianlight = _spawn(unreal.DirectionalLight, "QR_Jovianlight",
+                              V(0.0, 0.0, 32000.0))
+        print("[sky] Jovianlight spawned")
+    if jovianlight:
+        # Aim it from where Jupiter is (5,000,000 / 1,000,000 / 4,000,000)
+        # toward the origin. UE's DirectionalLight forward vector is the
+        # direction the light SHINES, so we want the vector
+        # (origin - jupiter) normalized as the forward.
+        # That's roughly (-50, -10, -40) in km. Pitch ~= atan2(-40,
+        # sqrt(50^2+10^2)) ~= -38 deg; Yaw ~= atan2(-10, -50) ~= -169 deg
+        # (pointing back toward origin from Jupiter's quadrant).
+        _try(lambda: jovianlight.set_actor_rotation(
+            unreal.Rotator(0.0, -38.0, -169.0), False))
+        comp = getattr(jovianlight, "directional_light_component", None)
+        if comp:
+            _try(lambda: comp.set_mobility(unreal.ComponentMobility.MOVABLE))
+            # 125 lux = canon Jovianlight (full-moon * 500). Cream-tan
+            # to match Jupiter's reflected colour.
+            _try(lambda: comp.set_intensity(125.0))
+            _try(lambda: comp.set_light_color(
+                unreal.LinearColor(0.95, 0.85, 0.65, 1.0)))
+            # Do NOT bind to atmosphere -- there's only one sun. The
+            # SkyAtmosphere actor already has QR_KeyLight as its sun.
+            _try(lambda: comp.set_editor_property("atmosphere_sun_light", False))
+            # Soft shadow falloff so the Jovianlight doesn't carve hard
+            # secondary shadows.
+            _try(lambda: comp.set_editor_property("light_source_angle", 2.0))
 
     # ── ExponentialHeightFog — atmospheric depth ──────────────────
     if _find(unreal.ExponentialHeightFog):
@@ -271,17 +316,20 @@ def run():
             _try(lambda: setattr(settings, "override_auto_exposure_method", True))
             _try(lambda: setattr(settings, "auto_exposure_method",
                                   unreal.AutoExposureMethod.AEM_HISTOGRAM))
-            # Clamp adaptation range: ~ -2 EV (twilight) to +12 EV (noon).
-            # The wide ceiling lets noon read bright; the floor keeps the
-            # scene from going coal-black at night without auto-runaway.
+            # Clamp adaptation range. Tightened after the user reported
+            # daytime blowing out white -- max EV 12 was letting the
+            # camera adapt to extremely bright targets, blowing the
+            # midtones to white when there's any bright pixel on screen.
+            # Range -1 EV (Jovianlight ambient) to +8 EV (dim daylight).
             _try(lambda: setattr(settings, "override_auto_exposure_min_brightness", True))
-            _try(lambda: setattr(settings, "auto_exposure_min_brightness", -2.0))
+            _try(lambda: setattr(settings, "auto_exposure_min_brightness", -1.0))
             _try(lambda: setattr(settings, "override_auto_exposure_max_brightness", True))
-            _try(lambda: setattr(settings, "auto_exposure_max_brightness", 12.0))
-            # Exposure compensation: slight brighten to keep the dim
-            # Jupiter-distance world legible without crushing highlights.
+            _try(lambda: setattr(settings, "auto_exposure_max_brightness", 8.0))
+            # Exposure compensation: 0.0 = neutral. Was 1.5 which
+            # multiplied perceived brightness by ~3x and washed daytime
+            # out completely with the new Jovianlight + SkyLight bumps.
             _try(lambda: setattr(settings, "override_auto_exposure_bias", True))
-            _try(lambda: setattr(settings, "auto_exposure_bias", 1.5))
+            _try(lambda: setattr(settings, "auto_exposure_bias", 0.0))
             # Faster adapt going dark->bright (3 EV/sec), slower going
             # bright->dark (1 EV/sec) -- matches real eye adaptation
             # asymmetry and feels right.
