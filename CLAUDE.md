@@ -193,17 +193,42 @@ missing-include or signature mismatches fixable in one edit each.
 
 ---
 
-## Active priorities (snapshot — update as work lands)
+## Active priorities (reconciled 2026-05-24)
 
-From `GDD_IMPLEMENTATION_STATUS.md` §N, biggest open gaps in priority order.
-Worldgen, biome catalog and POI placement are now built (Phase 1+2).
+**Maintenance rule:** when a big gap closes, update this list AND
+`GDD_IMPLEMENTATION_STATUS.md` §N in the same commit. The previous
+priority list went stale by months because closed gaps stayed listed
+as "missing", which wastes future-session time chasing ghosts. Both
+docs must move together.
 
-1. AI behavior trees — NPCs + wildlife + predators have no BT.
-2. Hauler / depot pull logic — central economic loop.
-3. Civilian raid response + emergency armory.
-4. Long-range scope / optics (patch v8) not in code.
-5. Codex aggregator + UI.
-6. Mission generator from DT_ProceduralMissionTemplates.
-7. Remnant wake-state FSM (Dormant→Stirring→Active→Hostile→Subsiding).
-8. Programmatic Landscape import — heightmap/weightmap bake is done,
-   import into a Landscape actor is still editor-assisted.
+Genuinely-missing gaps, in priority order (see §N of
+`GDD_IMPLEMENTATION_STATUS.md` for the full reconciled audit):
+
+1. **AI behavior trees** — wildlife + NPCs use FSMs; GDD specs full
+   BTs with herd routes, predator pressure, mount panic, taming.
+2. **Mission generator + RewardSourceValidation** — director exists,
+   template-instantiator + No-Pocket-OP law not wired.
+3. **Hauler de-hardcode** — `UQRHaulerComponent` hardcodes
+   `RAW_METAL_SCRAP`; needs real scarcity-driven demand.
+4. **Long-range optics v8** — `ATT_8X_SCOPE`, `ATT_16X_SCOPE`,
+   `WPN_LONGRANGE_SNIPER` not in attachments/weapons code.
+5. **Cross-contamination farming mutation pipeline.**
+6. **Mount husbandry loop** (taming days, stress pool, panic).
+7. **Leader directive chains + Moral Compass vectors.**
+8. **Faction raid leader experience bands.**
+9. **Civilian Fight mode** — faces threat but doesn't fire.
+10. **Codex save persistence.**
+11. **Co-op transaction-ID safety net.**
+12. **Programmatic Landscape import.**
+13. **World partition streaming + chunk delta saves.**
+
+Build-blockers (urgent — gameplay fails without these):
+- NavMesh on `L_DevTest` (now scriptable via `qr_dev_test_dressup.py`).
+- `ABP_QRPlayer` state machine empty (graph authoring is manual).
+- Buildable + looted-container save/load glue.
+- 4 starter DataTables (now bulk-seeded by `qr_seed_starter_datatables.py`).
+
+Already-built — DO NOT add these back to the priority list without
+checking code first: Codex (subsystem + K-key widget), Mission director
+(runtime), Remnant FSM (5-state), Raid scheduler, Faction component,
+Satellite outposts, Civilian reaction component, Hauler component.

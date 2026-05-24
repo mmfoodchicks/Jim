@@ -332,25 +332,91 @@ implementation-only detail:
 
 ---
 
-## N. The biggest missing categories — priority order
+## N. The biggest open gaps — priority order (reconciled 2026-05-24)
 
-Worldgen (was #1), biome-catalog alignment (was #2) and POI placement
-(was #3) are now built — see §B and §L. Remaining gaps, in priority
-order:
+**Doc state warning:** The previous version of this section listed
+8 "missing" items, half of which actually exist in code per
+`SYSTEM_COHESION_AUDIT.md` and a fresh source survey. Items moved
+to "actually built" below; items still genuinely missing are
+re-ranked by impact on shipping.
 
-1. **AI behavior trees** — NPC + wildlife + predator AI is entirely
-   absent. AQRWildlifeActor wanders in 2D; AQRNPCActor stands still.
-2. **Hauler / depot pull logic** — central economic loop of the
-   colony; not implemented.
-3. **Civilian raid response + emergency armory** — Master GDD §12.
-4. **Long-range scope / optics** — added in patch v8; not in code.
-5. **Codex aggregator + UI** — discovery system is half-coded
-   (state tags exist), no central tracker or screen.
-6. **Mission generator** — DT_ProceduralMissionTemplates exists,
-   no generator code.
-7. **Remnant wake-state FSM** — five-state system per remnant site.
-8. **Programmatic Landscape import** — the heightmap + weightmap bake
-   is done; importing them into a Landscape actor is editor-assisted.
+### Genuinely missing (work to do, in priority order)
+
+1. **AI behavior trees** — wildlife/NPCs use FSMs; GDD specs full
+   BTs with herd routes, predator pressure pulls, mount panic, taming
+   flow. **Highest single visible-gameplay win.**
+2. **Mission generator from `DT_ProceduralMissionTemplates`** — the
+   table + `UQRMissionDirector` exist, but the template-instantiator
+   with `MissionLocationFallbackRule` + `RewardSourceValidation` (the
+   GDD's No-Pocket-OP law) isn't wired.
+3. **Hauler / depot pull logic** — `UQRHaulerComponent` ticks, but
+   it hardcodes `RAW_METAL_SCRAP` as the demand item. Needs real
+   `StorageDeficitMod` + `PullPriority` scarcity weighting.
+4. **Long-range optics + sniper (patch v8)** — `ATT_8X_SCOPE`,
+   `ATT_16X_SCOPE`, `WPN_LONGRANGE_SNIPER` not in attachments/weapons
+   code. `DT_ArmoryAttachments.csv` has rows; weapons module doesn't.
+5. **Cross-contamination crop mutation pipeline** — `ToxicSoil +
+   InfectedWater + SporeLoad + FarmerCrossContamScore` → mutated
+   cultivar is a core farming-gameplay loop, not in code.
+6. **Mount husbandry loop** — `BaseTameDays`, `P_tameFailPerDay`,
+   `CurrentStressPool` panic at 85, hazard barding. Wildlife actor
+   exists with mount tags; the taming/stress/panic loop does not.
+7. **Leader directive chains + Moral Compass** — 124 directives × 11
+   condition debuffs × `IssueEscalationScore` → side mission, plus
+   the vector-axis Camp Policy / defection / deserter splinter
+   faction emergence. Components exist; the directive flow doesn't.
+8. **Faction raid leader experience bands** —
+   Inexperienced/Competent/Veteran/Fanatic-Remnant altering raid AI
+   strategy. `DT_RaidExperienceTiers.csv` has rows; raid party AI
+   doesn't branch on them.
+9. **Civilian Fight mode no-op** — `UQRCivilianReactionComponent`
+   Fight state faces threat but doesn't fire. Wire weapon firing
+   when MilitiaKit is equipped.
+10. **Codex save persistence** — `UQRCodexSubsystem` aggregates
+    discoveries but they don't survive a save/load cycle.
+11. **Co-op transaction-ID safety net** — GDD demands server-authored
+    transaction IDs on every inventory mutation to prevent dupes.
+    Standard UE replication is used; no transaction-ID layer yet.
+12. **Programmatic Landscape import** — heightmap/weightmap bake to
+    disk; importing into a Landscape actor is still editor-assisted.
+13. **World partition streaming + chunk delta saves** — chunk save
+    struct defined, no streaming integration.
+
+### Build-blockers (urgent — gameplay fails without these)
+
+- **No NavMesh on any test level** — AI components exist but can't
+  path. Manual editor task: drop `NavMeshBoundsVolume` on
+  `L_DevTest`. Now scriptable via `qr_dev_test_dressup.py`.
+- **AnimBP state machine empty** — `ABP_QRPlayer` exists but its
+  Locomotion graph is empty; player T-poses. Manual graph authoring
+  is required (Python can't fully author UE state-machine node
+  graphs); helper script wires the asset variables and locomotion
+  anims so the manual step is "just plug them in."
+- **Buildable + looted-container persistence has no save/load glue**
+  — `FQRBuildableSaveData` defined, never written. C++ change of
+  ~1-2 days; built bases vanish on reload without it.
+- **DataTable rows seeded but empty** — `DT_BuildCatalog`,
+  `DT_Recipes`, `DT_NPC_Greetings`, `DT_LootTables`. Now bulk-seeded
+  by `qr_seed_starter_datatables.py`.
+
+### Already built (no longer count as gaps — fix the prior priority list)
+
+| Was listed missing | Actually in code |
+|---|---|
+| Codex aggregator + UI | `UQRCodexSubsystem` + `UQRCodexWidget` (K key) |
+| Mission director | `UQRMissionDirector` (template-fed, runtime-active) |
+| Remnant wake-state FSM | `AQRRemnantSite` 5-state FSM (Dormant→Warm→Active→Overclock→Dead) |
+| Raid scheduler | `AQRRaidScheduler` (weather + concordat + opportunity scoring) |
+| Faction component + camps | `UQRFactionComponent`, `AQRFactionCamp`, `UQRCampSimComponent` |
+| Civilian reaction component | `UQRCivilianReactionComponent` (Fight mode no-op flagged separately) |
+| Satellite outposts | `AQRSatelliteOutpost` placed by spawner |
+| Hauler component | `UQRHaulerComponent` (hardcoded-item bug flagged separately) |
+
+### Doc maintenance rule
+
+**When a big gap closes, update this list in the same PR/commit.**
+Stale priority lists are how teams waste time fixing already-done
+things. CLAUDE.md mirrors the top of this list; update both.
 
 ---
 
