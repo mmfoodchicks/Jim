@@ -10,6 +10,37 @@ user re-explain the project.
 
 ---
 
+## World canon (set 2026-05-24, Tyson-defensible)
+
+Player is on a **fictional larger Jovian moon** at roughly Callisto's
+orbital distance (~1.88 million km from Jupiter). Earth-mass, breathable
+N₂/O₂ atmosphere (geological replenishment + retention), **outside
+Jupiter's main radiation belt** so long-term habitation is plausible.
+This is what justifies:
+
+- **Earth-like blue sky** (Rayleigh scattering of N₂/O₂ molecules works
+  the same anywhere). Dimmer than Earth (~1/27 sunlight at 5.2 AU)
+  but still blue.
+- **Jupiter ~4° in sky** (8× our Moon) — dramatic but not a 12° giant
+  like Europa's view. Cream-tan banded.
+- **"Jovianlight"** at night when Jupiter reflects sunlight onto the
+  surface (~500× brighter than our full moon).
+- **Crystalline flora/fauna** — high mineral content, silicate-
+  reinforced organic tissues. Leaves are prismatic cellulose with
+  crystalline light-pipe veins (look like stained glass, function
+  like normal leaves). Don't try to justify the chemistry too hard.
+- **Sun ~2,800 lux peak** in QRSkyManager defaults (1/27 of Earth's
+  ~75,000), bounded auto-exposure in the QR_Exposure PostProcessVolume
+  handles the dynamic range.
+- **O₂ HUD hides when full** — atmosphere is breathable so the meter
+  only appears in caves, underwater, or hazard zones.
+
+Other planets (Saturn, Uranus, etc) would render as bright/faint
+stars in the sky from this distance, not as resolved disks — belongs
+on the SkyAtmosphere's star field if added.
+
+---
+
 ## Working branch
 
 **`claude/unreal-cpp-blueprint-project-0F07i`** — the long-running dev branch.

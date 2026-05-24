@@ -70,11 +70,18 @@ public:
 	TObjectPtr<ADirectionalLight> SunLight;
 
 	// Daylight intensity (lux). Sun goes from this at noon down to
-	// NightIntensity at midnight.
+	// NightIntensity at midnight. Default ~2,800 lux is the physically
+	// accurate solar irradiance at Jupiter's orbit (~5.2 AU) -- roughly
+	// 1/27 of Earth's noon (~75,000 lux). Bounded auto-exposure on the
+	// QR_Exposure PostProcessVolume handles the dynamic range so the
+	// scene reads correctly without going pitch black.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
 		meta = (ClampMin = "0", ClampMax = "200000"))
-	float DayIntensity = 75000.0f;
+	float DayIntensity = 2800.0f;
 
+	// "Jovianlight" floor -- Jupiter reflects substantial sunlight onto
+	// the moon during the moon's nightside, ~500x brighter than our full
+	// moon. 200 lux is a soft-twilight floor that lets you see at night.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
 		meta = (ClampMin = "0", ClampMax = "10000"))
 	float NightIntensity = 200.0f;

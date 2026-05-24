@@ -57,6 +57,7 @@ TSharedRef<SWidget> UQRVitalsHUDWidget::RebuildWidget()
 
 		Bars.SetNum(VI_Count);
 		Labels.SetNum(VI_Count);
+		Rows.SetNum(VI_Count);
 
 		MakeRow(VI_Health,  FText::FromString(TEXT("HP")),  FLinearColor(0.85f, 0.20f, 0.20f, 1.0f));
 		MakeRow(VI_Stamina, FText::FromString(TEXT("STA")), FLinearColor(0.85f, 0.85f, 0.20f, 1.0f));
@@ -130,6 +131,7 @@ UHorizontalBox* UQRVitalsHUDWidget::MakeRow(int32 Index, const FText& LabelText,
 
 	Bars[Index]   = Bar;
 	Labels[Index] = Numeric;
+	if (Rows.IsValidIndex(Index)) Rows[Index] = Row;
 	return Row;
 }
 
@@ -194,4 +196,21 @@ void UQRVitalsHUDWidget::RefreshAll()
 	SetRow(VI_Hunger,  Survival->Hunger,   Survival->MaxHunger);
 	SetRow(VI_Thirst,  Survival->Thirst,   Survival->MaxThirst);
 	SetRow(VI_Oxygen,  Survival->Oxygen,   Survival->MaxOxygen);
+
+	// O2 hide-when-full: per the canon (breathable Earth-like Jovian
+	// moon atmosphere), oxygen is only worth showing when the player is
+	// actually under threat -- caves, underwater, hazard zones. Show the
+	// row when O2 is at or below 95% of max, hide it when full. Survival
+	// component still ticks oxygen normally underneath; this only
+	// affects display.
+	if (Rows.IsValidIndex(VI_Oxygen) && Rows[VI_Oxygen])
+	{
+		const float OxPct = (Survival->MaxOxygen > 0.0f)
+			? Survival->Oxygen / Survival->MaxOxygen
+			: 1.0f;
+		const ESlateVisibility Vis = (OxPct < 0.95f)
+			? ESlateVisibility::Visible
+			: ESlateVisibility::Collapsed;
+		Rows[VI_Oxygen]->SetVisibility(Vis);
+	}
 }

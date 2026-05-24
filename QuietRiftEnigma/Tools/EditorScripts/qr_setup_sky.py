@@ -192,17 +192,19 @@ def run():
         _spawn(unreal.ExponentialHeightFog, "QR_HeightFog", V(0.0, 0.0, 0.0))
         print("[sky] ExponentialHeightFog spawned")
 
-    # ── Jupiter + Galilean moons — scaled for a Europa-surface view ─
-    # Real geometry: from Europa (671,100 km from Jupiter), Jupiter
-    # spans ~12° of sky (24x our Moon's 0.5°). The Galileans appear as
-    # small but resolvable disks (Io ~0.3°, Ganymede/Callisto ~0.3°).
+    # ── Jupiter + Galilean moons — Callisto-orbit fictional moon ───
+    # Per CLAUDE.md / GDD canon (set 2026-05-24), the player is on a
+    # larger fictional Jovian moon at Callisto's orbital distance
+    # (~1.88 Mkm from Jupiter). At that distance Jupiter spans ~4.3°
+    # of sky -- still 8x our Moon's 0.5° but no longer the 12° giant
+    # an Europa surface would see. Outside Jupiter's main radiation
+    # belt, geologically active, Earth-mass: this is what makes a
+    # breathable atmosphere + permanent surface life plausible.
     #
-    # Game values chosen so Jupiter reads at ~12° from the world origin:
-    # placed at ~65 km game distance with scale 7000 (radius ~7 km).
-    # Moon orbital radii preserve real ratios to Jupiter's body radius
-    # (~Io 6 RJ, Europa 9 RJ, Ganymede 15 RJ, Callisto 26 RJ).
+    # Game values: Jupiter at ~65 km game distance, scale 4500 gives
+    # ~4° angular from origin.
     JUPITER_LOC   = V(5000000.0, 1000000.0, 4000000.0)  # 50km E, 10km N, 40km up
-    JUPITER_SCALE = 7000.0                              # ~12° angular at origin
+    JUPITER_SCALE = 4500.0                              # ~4° angular at origin
 
     _ensure_celestial(
         label="QR_Jupiter",
@@ -247,13 +249,17 @@ def run():
 
     # ── PostProcessVolume — pin manual exposure ───────────────────
     # PIE's default auto-exposure can drag the scene to near-black on
-    # a Movable-only lighting setup. Pin it to a fixed manual value so
-    # what you see in the editor viewport is what you get in Play.
-    # Unbound=True means the volume applies everywhere, no need to
-    # contain the player inside its bounds.
+    # a Movable-only lighting setup. With the physically-accurate
+    # Jupiter-distance sun (~2,800 lux peak vs Earth's ~75,000), the
+    # dynamic range across a game-day is too wide for a manual pin to
+    # cover -- noon is dim-overcast, night is Jovianlight. Use bounded
+    # AUTO (histogram) exposure so the camera adapts the way a human
+    # eye in a Jovian-system survival scenario actually would, while
+    # the min/max EV clamps prevent the runaway-to-black behaviour that
+    # caused the prior PIE darkness.
     ppv = _find(unreal.PostProcessVolume, "QR_Exposure")
     if ppv:
-        print("[sky] PostProcessVolume already present — retuning")
+        print("[sky] PostProcessVolume already present -- retuning")
     else:
         ppv = _spawn(unreal.PostProcessVolume, "QR_Exposure", V(0.0, 0.0, 0.0))
         print("[sky] PostProcessVolume spawned")
@@ -261,13 +267,28 @@ def run():
         _try(lambda: ppv.set_editor_property("unbound", True))
         settings = ppv.get_editor_property("settings")
         if settings:
+            # Auto-exposure (histogram is the modern default).
             _try(lambda: setattr(settings, "override_auto_exposure_method", True))
             _try(lambda: setattr(settings, "auto_exposure_method",
-                                  unreal.AutoExposureMethod.AEM_MANUAL))
+                                  unreal.AutoExposureMethod.AEM_HISTOGRAM))
+            # Clamp adaptation range: ~ -2 EV (twilight) to +12 EV (noon).
+            # The wide ceiling lets noon read bright; the floor keeps the
+            # scene from going coal-black at night without auto-runaway.
+            _try(lambda: setattr(settings, "override_auto_exposure_min_brightness", True))
+            _try(lambda: setattr(settings, "auto_exposure_min_brightness", -2.0))
+            _try(lambda: setattr(settings, "override_auto_exposure_max_brightness", True))
+            _try(lambda: setattr(settings, "auto_exposure_max_brightness", 12.0))
+            # Exposure compensation: slight brighten to keep the dim
+            # Jupiter-distance world legible without crushing highlights.
             _try(lambda: setattr(settings, "override_auto_exposure_bias", True))
-            # auto_exposure_bias is logarithmic: 0 = neutral, 1 = 2x brighter.
-            # 1.0 gives a daylit outdoor reading; raise to 2.0 if still dim.
-            _try(lambda: setattr(settings, "auto_exposure_bias", 1.0))
+            _try(lambda: setattr(settings, "auto_exposure_bias", 1.5))
+            # Faster adapt going dark->bright (3 EV/sec), slower going
+            # bright->dark (1 EV/sec) -- matches real eye adaptation
+            # asymmetry and feels right.
+            _try(lambda: setattr(settings, "override_auto_exposure_speed_up", True))
+            _try(lambda: setattr(settings, "auto_exposure_speed_up", 3.0))
+            _try(lambda: setattr(settings, "override_auto_exposure_speed_down", True))
+            _try(lambda: setattr(settings, "auto_exposure_speed_down", 1.0))
             _try(lambda: ppv.set_editor_property("settings", settings))
 
     print("[sky] done — re-run any time, it re-tunes instead of duplicating.")

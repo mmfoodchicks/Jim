@@ -54,6 +54,13 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UTextBlock>> Labels;
 
+	// Per-row containers so we can collapse the whole row (label + bar)
+	// when a vital isn't worth showing -- e.g. O2 on a breathable
+	// atmosphere world is hidden when full and only appears in caves,
+	// underwater, or during a hazard.
+	UPROPERTY()
+	TArray<TObjectPtr<UHorizontalBox>> Rows;
+
 	float RefreshAccum = 0.0f;
 
 	UFUNCTION()
