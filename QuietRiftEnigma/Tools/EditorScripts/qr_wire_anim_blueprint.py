@@ -45,12 +45,17 @@ import unreal
 
 ABP_PATH = "/Game/QuietRift/Animations/ABP_QRPlayer"
 
-# Folders to scan, in priority order. The retargeted folder wins
-# because those anims are already on the Mannequin skeleton with our
-# project naming. Fab folders are fallback in case the retarget step
-# hasn't been run yet.
+# Folders to scan, in priority order. The Third Person Template
+# folders are first because (a) they're guaranteed-clean Mannequin
+# anims that ship with the engine, (b) they include a full locomotion
+# set (Idle/Walk/Run/Jump/Fall/Land/Crouch). Retargeted next because
+# those are FuturisticWarrior anims we re-skinned onto the Mannequin.
+# FAB packs last as fallback -- they're inconsistent (some packs
+# bring partial Mannequin dependencies and break loading).
 ANIM_SEARCH_PATHS = [
-    "/Game/QuietRift/Animations/Retargeted",
+    "/Game/Characters/Mannequins/Animations",          # UE5 Third Person template
+    "/Game/ThirdPerson/Blueprints",                    # UE5 TPS sometimes here too
+    "/Game/QuietRift/Animations/Retargeted",           # our retarget output
     "/Game/Fabs/FreeAnimsMixPack/Animation",
     "/Game/Fabs/RamsterZ_FreeAnims_Volume1/AnimationSequence",
     "/Game/Fabs/FuturisticWarrior/Animation",
