@@ -168,6 +168,13 @@ def run():
             # the SkyLight (which captures the sky in real-time) captures
             # that blackness as its ambient -- compounding the PIE darkness.
             _try(lambda: comp.set_editor_property("atmosphere_sun_light", True))
+            # Forward-shading priority: must be HIGHER than Jovianlight so
+            # this is the "primary" directional light for forward shading,
+            # translucent surfaces, single-layer water and volumetric fog.
+            # UE warns with 'Multiple directional lights are competing'
+            # when priorities tie and brightness alone has to break it.
+            _try(lambda: comp.set_editor_property("forward_shading_priority", 10))
+            _try(lambda: comp.set_editor_property("atmosphere_sun_light_index", 0))
 
     # ── SkyLight — ambient fill; keeps the world from going black ─
     skyl = _find(unreal.SkyLight)
@@ -226,6 +233,12 @@ def run():
             # Do NOT bind to atmosphere -- there's only one sun. The
             # SkyAtmosphere actor already has QR_KeyLight as its sun.
             _try(lambda: comp.set_editor_property("atmosphere_sun_light", False))
+            # Forward-shading priority LOWER than QR_KeyLight (which is
+            # 10). Stops the 'Multiple directional lights are competing
+            # to be the single one used for forward shading' warning by
+            # making the sun the clear winner. Jovianlight still lights
+            # the world via standard deferred shading.
+            _try(lambda: comp.set_editor_property("forward_shading_priority", 0))
             # Soft shadow falloff so the Jovianlight doesn't carve hard
             # secondary shadows.
             _try(lambda: comp.set_editor_property("light_source_angle", 2.0))
