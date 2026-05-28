@@ -53,9 +53,10 @@ ABP_PATH = "/Game/QuietRift/Animations/ABP_QRPlayer"
 # FAB packs last as fallback -- they're inconsistent (some packs
 # bring partial Mannequin dependencies and break loading).
 ANIM_SEARCH_PATHS = [
-    "/Game/Characters/Mannequins/Animations",          # UE5 Third Person template
-    "/Game/ThirdPerson/Blueprints",                    # UE5 TPS sometimes here too
-    "/Game/QuietRift/Animations/Retargeted",           # our retarget output
+    "/Game/ControlRig/Characters/Mannequins/Animations",  # Mannequins Asset Pack (Fab, by Epic)
+    "/Game/Characters/Mannequins/Animations",             # Third Person Template fallback
+    "/Game/ThirdPerson/Blueprints",                       # UE5 TPS sometimes here too
+    "/Game/QuietRift/Animations/Retargeted",              # our retarget output
     "/Game/Fabs/FreeAnimsMixPack/Animation",
     "/Game/Fabs/RamsterZ_FreeAnims_Volume1/AnimationSequence",
     "/Game/Fabs/FuturisticWarrior/Animation",
