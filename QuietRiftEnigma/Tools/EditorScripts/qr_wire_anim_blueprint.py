@@ -69,13 +69,16 @@ ANIM_SEARCH_PATHS = [
 # "backwalk" doesn't accidentally match "Walk" before a real "walk"
 # is found in a different anim).
 LOCOMOTION_SLOTS = [
-    ("Idle",  ["idle1", "standing_idle", "_idle", "idle"]),
-    ("Walk",  ["walk1", "walk_forward", "walk"]),
-    ("Run",   ["run1", "sprint", "jog", "run"]),
-    ("Jump",  ["jump_start", "jump1", "jump"]),
-    ("Fall",  ["fall_loop", "falling", "fall"]),
-    ("Land",  ["land_soft", "landing", "land"]),
-    ("Death", ["death1", "dying", "death", "die_"]),
+    # Token order: prefer the Mannequin-pack naming (MM_Idle, MM_Walk_Fwd
+    # etc) over older naming. Within a single token, the first anim in
+    # ANIM_SEARCH_PATHS order wins, so high-priority folders beat fallbacks.
+    ("Idle",  ["mm_idle", "mf_idle", "idle1", "_idle", "idle"]),
+    ("Walk",  ["mm_walk_fwd", "mf_walk_fwd", "walk1", "walk_forward", "walk"]),
+    ("Run",   ["mm_run_fwd", "mf_run_fwd", "run1", "sprint", "jog", "run"]),
+    ("Jump",  ["mm_jump", "mf_jump", "jump_start", "jump1", "jump"]),
+    ("Fall",  ["mm_fall_loop", "mm_fall", "mf_fall", "fall_loop", "falling", "fall"]),
+    ("Land",  ["mm_land", "mf_land", "land_soft", "landing", "land"]),
+    ("Death", ["mm_death", "mm_die", "death1", "dying", "death", "die_"]),
 ]
 
 # These tokens disqualify an anim even if its name matches a slot
