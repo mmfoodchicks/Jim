@@ -398,7 +398,16 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (InteractAction)  EI->BindAction(InteractAction,  ETriggerEvent::Started,   this, &AQRCharacter::TryInteract);
 		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Started,   this, &AQRCharacter::StartSprint);
 		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Completed, this, &AQRCharacter::StopSprint);
-		if (FireAction)      EI->BindAction(FireAction,      ETriggerEvent::Started,   this, &AQRCharacter::TryFireWeapon);
+		if (FireAction)
+		{
+			// Started = the initial trigger pull (every fire mode fires once).
+			// Triggered = fires each frame the key is held, which drives
+			// full-auto (gated to RPM inside TryFireWeapon). Completed =
+			// release. Semi/bolt ignore the held event.
+			EI->BindAction(FireAction, ETriggerEvent::Started,   this, &AQRCharacter::OnFirePressed);
+			EI->BindAction(FireAction, ETriggerEvent::Triggered, this, &AQRCharacter::OnFireHeld);
+			EI->BindAction(FireAction, ETriggerEvent::Completed, this, &AQRCharacter::OnFireReleased);
+		}
 		if (ReloadAction)    EI->BindAction(ReloadAction,    ETriggerEvent::Started,   this, &AQRCharacter::TryReload);
 		if (LeanLeftAction)  EI->BindAction(LeanLeftAction,  ETriggerEvent::Started,   this, &AQRCharacter::LeanLeftPressed);
 		if (LeanLeftAction)  EI->BindAction(LeanLeftAction,  ETriggerEvent::Completed, this, &AQRCharacter::LeanLeftReleased);
@@ -568,12 +577,40 @@ void AQRCharacter::TryInteract()
 	OnInteract.Broadcast(CurrentInteractable.Get());
 }
 
+void AQRCharacter::OnFirePressed()
+{
+	bFireHeld = true;
+	TryFireWeapon();
+}
+
+void AQRCharacter::OnFireHeld()
+{
+	// Only full-auto keeps firing while the trigger is held. Semi-auto and
+	// bolt/pump require a fresh trigger pull (the Started event) for each
+	// shot, so they no-op here.
+	if (bFireHeld && Weapon && Weapon->IsFullAuto())
+	{
+		TryFireWeapon();
+	}
+}
+
+void AQRCharacter::OnFireReleased()
+{
+	bFireHeld = false;
+}
+
 void AQRCharacter::TryFireWeapon()
 {
-	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon — Weapon=%s Camera=%s"),
-		Weapon ? TEXT("yes") : TEXT("null"),
-		FirstPersonCamera ? TEXT("yes") : TEXT("null"));
 	if (!Weapon || !FirstPersonCamera) return;
+
+	// Client-side rate-of-fire pace gate. Keeps full-auto from spamming a
+	// Server_Fire RPC + recoil kick every frame, and enforces the bolt /
+	// pump cycling delay locally so the feel matches the server cadence.
+	// The server independently re-checks cadence in TryFire (anti-cheat).
+	if (!Weapon->CanFire()) return;
+	const float NowT = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (NowT < NextLocalFireTime) return;
+	NextLocalFireTime = NowT + Weapon->GetFireIntervalSeconds();
 
 	const FVector  Start   = FirstPersonCamera->GetComponentLocation();
 	const FVector  Forward = FirstPersonCamera->GetForwardVector();
@@ -1063,6 +1100,12 @@ void AQRCharacter::RefreshHeldItemMesh()
 	{
 		if (HandDef && HandDef->Category == EQRItemCategory::Weapon)
 		{
+			// Pick the fire mode + rate of fire for this specific gun
+			// (full-auto SMG/carbine, semi pistol/DMR, bolt/pump sniper &
+			// shotgun). Name-based until the armory DataTable is wired in C++.
+			Weapon->ConfigureForWeaponId(HandDef->ItemId);
+			// TESTING: unlimited ammo so every gun is range-ready.
+			Weapon->bUnlimitedAmmo = true;
 			Weapon->CurrentAmmo = Weapon->MagazineCapacity;
 			Weapon->WeaponState = EQRWeaponState::Ready;
 		}

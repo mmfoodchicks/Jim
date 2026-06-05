@@ -41,11 +41,51 @@ void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRWeaponComponent, FoulingFactor);
 	DOREPLIFETIME(UQRWeaponComponent, bIsJammed);
 	DOREPLIFETIME(UQRWeaponComponent, bHasSuppressor);
+	DOREPLIFETIME(UQRWeaponComponent, FireMode);
+	DOREPLIFETIME(UQRWeaponComponent, RoundsPerMinute);
+	DOREPLIFETIME(UQRWeaponComponent, bUnlimitedAmmo);
 }
 
 bool UQRWeaponComponent::CanFire() const
 {
-	return !bIsJammed && WeaponState == EQRWeaponState::Ready && CurrentAmmo > 0;
+	if (bIsJammed) return false;
+	if (WeaponState == EQRWeaponState::Holstered || WeaponState == EQRWeaponState::Reloading)
+		return false;
+	// Unlimited-ammo (testing) ignores the magazine entirely.
+	if (!bUnlimitedAmmo && CurrentAmmo <= 0) return false;
+	return true;
+}
+
+bool UQRWeaponComponent::IsFireCadenceReady() const
+{
+	const UWorld* W = GetWorld();
+	if (!W) return true;
+	return (W->GetTimeSeconds() - LastFireTimeSeconds) >= GetFireIntervalSeconds();
+}
+
+void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
+{
+	WeaponItemId = WeaponId;
+	const FString S = WeaponId.ToString().ToUpper();
+
+	auto Apply = [this](EQRFireMode Mode, float Rpm)
+	{
+		FireMode = Mode;
+		RoundsPerMinute = Rpm;
+	};
+
+	// Name-based, matching DT_ArmoryWeapons RPM values. Order matters:
+	// check the more specific tokens before generic ones.
+	if      (S.Contains(TEXT("SMG")))        Apply(EQRFireMode::FullAuto,   750.0f);
+	else if (S.Contains(TEXT("CARBINE")))    Apply(EQRFireMode::FullAuto,   650.0f);
+	else if (S.Contains(TEXT("LONGRANGE")))  Apply(EQRFireMode::SingleShot,  35.0f);
+	else if (S.Contains(TEXT("BOLT")))       Apply(EQRFireMode::SingleShot,  40.0f);
+	else if (S.Contains(TEXT("PUMP")) || S.Contains(TEXT("SHOTGUN")))
+	                                         Apply(EQRFireMode::SingleShot,  90.0f);
+	else if (S.Contains(TEXT("DMR")))        Apply(EQRFireMode::SemiAuto,   240.0f);
+	else if (S.Contains(TEXT("SNIPER")))     Apply(EQRFireMode::SingleShot,  40.0f);
+	else if (S.Contains(TEXT("PISTOL")))     Apply(EQRFireMode::SemiAuto,   360.0f);
+	else                                     Apply(EQRFireMode::SemiAuto,   360.0f);
 }
 
 float UQRWeaponComponent::GetFoulingIncrement(bool bIsDirtyAmmo, bool bUseSuppressor) const
@@ -59,6 +99,16 @@ float UQRWeaponComponent::GetFoulingIncrement(bool bIsDirtyAmmo, bool bUseSuppre
 bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 {
 	if (!CanFire()) return false;
+
+	// Rate-of-fire gate. Authoritative pacing for every fire mode — a
+	// full-auto weapon held down only lands shots at its RPM, and a
+	// bolt/pump gun is forced to wait out its (slow) cycle delay before
+	// the next round. Blocks spam-clicking past the cyclic rate too.
+	if (!IsFireCadenceReady()) return false;
+	if (const UWorld* W = GetWorld())
+	{
+		LastFireTimeSeconds = W->GetTimeSeconds();
+	}
 
 	// Determine ammo quality for fouling calculation
 	const bool bIsDirtyAmmo = AmmoInstance && AmmoInstance->Definition &&
@@ -100,12 +150,15 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 		}
 	}
 
-	--CurrentAmmo;
 	// v1.17: canonical fouling increment (dirty ammo ×5, suppressor ×1.5)
 	FoulingFactor = FMath::Clamp(FoulingFactor + GetFoulingIncrement(bIsDirtyAmmo, bHasSuppressor), 0.0f, 1.0f);
 
-	if (CurrentAmmo <= 0)
-		WeaponState = EQRWeaponState::Empty;
+	if (!bUnlimitedAmmo)
+	{
+		--CurrentAmmo;
+		if (CurrentAmmo <= 0)
+			WeaponState = EQRWeaponState::Empty;
+	}
 
 	OnWeaponFired.Broadcast(Target, Damage);
 	OnAmmoChanged.Broadcast(CurrentAmmo);

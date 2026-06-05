@@ -374,6 +374,14 @@ private:
 	void Look(const struct FInputActionValue& Value);
 	void StartSprint();
 	void StopSprint();
+	// Fire input: Started = trigger pull, Triggered = held (drives full-auto),
+	// Completed = release.
+	void OnFirePressed();
+	void OnFireHeld();
+	void OnFireReleased();
+	// True while the fire key is held; client-side rate-of-fire pace gate.
+	bool bFireHeld = false;
+	float NextLocalFireTime = 0.0f;
 	void HandleJumpPressed();
 	void HandleJumpReleased();
 	void LeanLeftPressed();

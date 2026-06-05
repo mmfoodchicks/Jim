@@ -30,6 +30,20 @@ enum class EQRWeaponState : uint8
 	Empty       UMETA(DisplayName = "Empty"),
 };
 
+// How the trigger behaves.
+UENUM(BlueprintType)
+enum class EQRFireMode : uint8
+{
+	// One shot per trigger pull AND a slow forced cycle delay between
+	// shots (bolt-action rifle, pump shotgun). Holding the trigger does
+	// nothing until the action cycles.
+	SingleShot  UMETA(DisplayName = "Single Shot (bolt/pump)"),
+	// One shot per trigger pull, limited only by rate of fire.
+	SemiAuto    UMETA(DisplayName = "Semi-Auto"),
+	// Fires continuously while the trigger is held, paced by RPM.
+	FullAuto    UMETA(DisplayName = "Full-Auto"),
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWeaponFired,   AActor*, Target, float, Damage);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWeaponJammed);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWeaponReloaded);
@@ -81,6 +95,25 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float ReloadTimeSeconds = 3.0f;
+
+	// ── Fire mode + rate of fire ─────────────
+	// Replicated so the owning client's hold-to-fire logic and the HUD
+	// agree with the server's authoritative cadence.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire")
+	EQRFireMode FireMode = EQRFireMode::SemiAuto;
+
+	// Cyclic rate. Sets the minimum delay between shots (60 / RPM). Bolt /
+	// pump guns use a low RPM so there's a clear cycling delay; full-auto
+	// weapons use a high RPM.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire",
+		meta = (ClampMin = "1", ClampMax = "1500"))
+	float RoundsPerMinute = 360.0f;
+
+	// TESTING SANDBOX: when true the weapon never depletes its magazine and
+	// never needs reloading. On by default so every gun is range-ready;
+	// flip off per-weapon (or globally) to restore the ammo economy.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire")
+	bool bUnlimitedAmmo = true;
 
 	// Noise radius in meters when fired (affects wildlife flee and enemy detection)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -252,6 +285,25 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	bool CanFire() const;
 
+	// Minimum seconds between shots implied by RoundsPerMinute.
+	UFUNCTION(BlueprintPure, Category = "Weapon|Fire")
+	float GetFireIntervalSeconds() const { return 60.0f / FMath::Max(RoundsPerMinute, 1.0f); }
+
+	UFUNCTION(BlueprintPure, Category = "Weapon|Fire")
+	bool IsFullAuto() const { return FireMode == EQRFireMode::FullAuto; }
+
+	// True once enough time has passed since the last shot for the next one
+	// to be allowed under the current rate of fire.
+	UFUNCTION(BlueprintPure, Category = "Weapon|Fire")
+	bool IsFireCadenceReady() const;
+
+	// Sets FireMode + RoundsPerMinute (and leaves unlimited ammo as-is)
+	// from a weapon item id. Name-based so it works without the armory
+	// DataTable being wired into C++ yet. Safe to call on both server and
+	// the owning client.
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Fire")
+	void ConfigureForWeaponId(FName WeaponId);
+
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	float ComputeEffectiveDamage(float DistanceMeters) const;
 
@@ -279,4 +331,8 @@ private:
 	// even when no reload-animation notify is wired up.
 	FTimerHandle ReloadTimerHandle;
 	void HandleReloadTimerElapsed();
+
+	// World time of the last successful shot, for rate-of-fire pacing.
+	// Authoritative (set inside TryFire on the server).
+	float LastFireTimeSeconds = -1000.0f;
 };
