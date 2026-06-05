@@ -1,4 +1,5 @@
 #include "QRWildlifeBase.h"
+#include "QRWildlifeAIController.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -11,6 +12,7 @@ AQRWildlifeBase::AQRWildlifeBase()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+	AIControllerClass = AQRWildlifeAIController::StaticClass();
 }
 
 void AQRWildlifeBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

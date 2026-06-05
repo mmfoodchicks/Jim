@@ -204,8 +204,15 @@ docs must move together.
 Genuinely-missing gaps, in priority order (see §N of
 `GDD_IMPLEMENTATION_STATUS.md` for the full reconciled audit):
 
-1. **AI behavior trees** — wildlife + NPCs use FSMs; GDD specs full
-   BTs with herd routes, predator pressure, mount panic, taming.
+1. **AI behavior trees** — 🟡 partial (2026-06-05). Wildlife now driven
+   by `AQRWildlifeAIController` — code-only FSM, 4Hz think, NavMesh
+   `MoveToLocation` pathing. Predator/Prey/Scavenger/Ambient/Hazard
+   role branching + herd alert on flee + attack swing cooldowns are
+   in. Still missing: NPC colony/leader BTs, mount taming/stress/
+   panic loop, herd-route data driving (currently random wander),
+   predator pressure-pull weighting between species. Wildlife BT
+   asset can still be authored later — controller no-ops while a
+   designer-assigned BT runs.
 2. **Mission generator + RewardSourceValidation** — director exists,
    template-instantiator + No-Pocket-OP law not wired.
 3. **Hauler de-hardcode** — `UQRHaulerComponent` hardcodes
@@ -225,6 +232,10 @@ Genuinely-missing gaps, in priority order (see §N of
 Build-blockers (urgent — gameplay fails without these):
 - NavMesh on `L_DevTest` (now scriptable via `qr_dev_test_dressup.py`).
 - `ABP_QRPlayer` state machine empty (graph authoring is manual).
+  **Deferred 2026-06-05:** game is first-person and the third-person
+  body is hidden from the owning player (`OwnerNoSee=true`), so the
+  player locomotion state machine is invisible in single-player.
+  Revisit when co-op is being tested.
 - Buildable + looted-container save/load glue.
 - 4 starter DataTables (now bulk-seeded by `qr_seed_starter_datatables.py`).
 

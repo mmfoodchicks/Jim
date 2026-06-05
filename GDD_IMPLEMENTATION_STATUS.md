@@ -342,9 +342,15 @@ re-ranked by impact on shipping.
 
 ### Genuinely missing (work to do, in priority order)
 
-1. **AI behavior trees** — wildlife/NPCs use FSMs; GDD specs full
-   BTs with herd routes, predator pressure pulls, mount panic, taming
-   flow. **Highest single visible-gameplay win.**
+1. **AI behavior trees** — 🟡 partial (2026-06-05). Wildlife now driven
+   by `AQRWildlifeAIController` (code-only FSM, 4Hz think, NavMesh
+   pathing via `MoveToLocation`) — covers Prey/Predator/Scavenger/
+   Ambient/Hazard role branching, herd alert on flee, predator prey
+   selection, attack swing cooldowns. Respects designer-supplied
+   `BehaviorTree` if one is later assigned. **Still missing:** NPC
+   colony/leader BTs, mount panic & taming flow, herd-route data
+   driving (currently random wander around HomeLocation), predator
+   pressure-pull weighting between species.
 2. **Mission generator from `DT_ProceduralMissionTemplates`** — the
    table + `UQRMissionDirector` exist, but the template-instantiator
    with `MissionLocationFallbackRule` + `RewardSourceValidation` (the
