@@ -93,6 +93,14 @@ run(rebuild_meshes=True)
 exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_setup_sky.py').read())
 ```
 
+Add rolling jungle hills to the currently-open dev map (so wildlife
+gravity / slope-conformance actually has something to climb):
+
+```
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_terrain_devtest.py').read())
+run()
+```
+
 ---
 
 ## Read-first docs (project state lives in these, not in your head)
