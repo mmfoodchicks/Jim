@@ -212,7 +212,12 @@ Genuinely-missing gaps, in priority order (see §N of
    panic loop, herd-route data driving (currently random wander),
    predator pressure-pull weighting between species. Wildlife BT
    asset can still be authored later — controller no-ops while a
-   designer-assigned BT runs.
+   designer-assigned BT runs. **2026-06-05:** wildlife now have
+   gravity/slope-conforming movement, per-species real-world sizing
+   (capsule + auto-fit mesh from `BodyLength/HeightMeters`), and a
+   working two-way damage exchange (predators hurt the player via
+   `AQRCharacter::TakeDamage`→Survival; player weapon + engine damage
+   hurt wildlife via `AQRWildlifeBase::TakeDamage`).
 2. **Mission generator + RewardSourceValidation** — director exists,
    template-instantiator + No-Pocket-OP law not wired.
 3. **Hauler de-hardcode** — `UQRHaulerComponent` hardcodes

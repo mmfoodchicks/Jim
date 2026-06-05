@@ -14,6 +14,11 @@ AQRWildlife_ShellmawAmbusher::AQRWildlife_ShellmawAmbusher()
 	ThreatDetectionRadius = BuriedDetectionRadius;
 	NoiseFactor        = 0.05f;
 
+	// Real-world size + attack tuning (burrowing armoured ambusher)
+	BodyLengthMeters   = 3.6f;
+	BodyHeightMeters   = 1.7f;
+	AttackDamage       = 38.0f;
+
 	DeathDrops.Add({ FName("FOD_SHELLMAW_MEAT"),   3, 5, 1.0f });
 	DeathDrops.Add({ FName("MAT_SHELLMAW_PLATE"),   2, 3, 0.9f });
 	DeathDrops.Add({ FName("MAT_MINERAL_CRUST"),    2, 4, 0.7f });

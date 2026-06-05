@@ -3,6 +3,9 @@
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/DamageEvents.h"
 #include "AIController.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -13,6 +16,74 @@ AQRWildlifeBase::AQRWildlifeBase()
 	bReplicates = true;
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	AIControllerClass = AQRWildlifeAIController::StaticClass();
+
+	// Walk on the ground under gravity and conform to terrain. Without
+	// this an animal dropped on a slope would slide/float along a flat
+	// plane instead of following the hill. Movement mode is set to walking
+	// so CharacterMovement keeps the capsule glued to the floor every tick.
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		Move->GravityScale            = 1.0f;
+		Move->DefaultLandMovementMode = MOVE_Walking;
+		Move->bConstrainToPlane       = false;
+		Move->SetWalkableFloorAngle(50.0f);   // climb fairly steep terrain
+		Move->bUseRVOAvoidance        = false;
+		Move->bOrientRotationToMovement = true; // face travel direction
+		Move->RotationRate            = FRotator(0.0f, 360.0f, 0.0f);
+	}
+
+	// Let the controller, not the spawn rotation, drive facing.
+	bUseControllerRotationYaw = false;
+}
+
+void AQRWildlifeBase::ApplyBodySizing()
+{
+	const float HeightCm = FMath::Max(BodyHeightMeters * 100.0f, 20.0f);
+	const float LengthCm = FMath::Max(BodyLengthMeters * 100.0f, 20.0f);
+	const float HalfHeight = HeightCm * 0.5f;
+
+	// Radius from body length, capped below the half-height so the capsule
+	// stays geometrically valid (UE requires radius <= half-height).
+	const float Radius = FMath::Clamp(LengthCm * 0.25f, 10.0f, HalfHeight - 1.0f);
+
+	UCapsuleComponent* Capsule = GetCapsuleComponent();
+	if (Capsule)
+	{
+		Capsule->SetCapsuleSize(Radius, HalfHeight);
+	}
+
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		// Bigger animals step over taller obstacles so they don't get
+		// snagged on terrain bumps that are trivial relative to their size.
+		Move->MaxStepHeight = FMath::Clamp(HeightCm * 0.25f, 45.0f, 400.0f);
+
+		// Keep the *nav agent* footprint modest even for megafauna. The
+		// project ships one default RecastNavMesh; a 2.5 m-radius agent would
+		// have no matching nav data and the animal would never path. The
+		// collision capsule above is still full size — only the pathfinding
+		// footprint is capped so large animals keep moving.
+		Move->NavAgentProps.AgentRadius = FMath::Min(Radius, 60.0f);
+		Move->NavAgentProps.AgentHeight = FMath::Min(HeightCm, 200.0f);
+	}
+
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!MeshComp) return;
+
+	// Drop the mesh so its feet rest at the bottom of the capsule.
+	MeshComp->SetRelativeLocation(FVector(0.0f, 0.0f, -HalfHeight));
+
+	if (bAutoFitMeshToBody && MeshComp->GetSkeletalMeshAsset())
+	{
+		// Measure the mesh at unit scale, then rescale so its rendered
+		// height matches BodyHeightMeters. The source FBX scale is then
+		// irrelevant — the animal always shows at its canonical size.
+		MeshComp->SetRelativeScale3D(FVector::OneVector);
+		const FBoxSphereBounds B = MeshComp->CalcBounds(FTransform::Identity);
+		const float MeshHeightCm = FMath::Max(B.BoxExtent.Z * 2.0f, 1.0f);
+		const float Fit = HeightCm / MeshHeightCm;
+		MeshComp->SetRelativeScale3D(FVector(Fit));
+	}
 }
 
 void AQRWildlifeBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -29,6 +100,13 @@ void AQRWildlifeBase::BeginPlay()
 	Super::BeginPlay();
 	CurrentHealth = MaxHealth;
 
+	// Size the capsule + mesh to the species' real-world dimensions, and
+	// push the walk speed onto the movement component (subclass constructors
+	// set MoveSpeedWalk after the base constructor ran).
+	ApplyBodySizing();
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+		Move->MaxWalkSpeed = MoveSpeedWalk;
+
 	if (HasAuthority())
 	{
 		// Launch behavior tree via AI controller
@@ -38,6 +116,23 @@ void AQRWildlifeBase::BeginPlay()
 				AIC->RunBehaviorTree(BehaviorTree);
 		}
 	}
+}
+
+float AQRWildlifeBase::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	const float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	if (HasAuthority() && DamageAmount > 0.0f)
+	{
+		AActor* Causer = DamageCauser;
+		if (!Causer && EventInstigator)
+		{
+			Causer = EventInstigator->GetPawn();
+		}
+		TakeDamage_Wildlife(DamageAmount, Causer);
+	}
+	return Actual;
 }
 
 void AQRWildlifeBase::TakeDamage_Wildlife(float Amount, AActor* DamageCauser)

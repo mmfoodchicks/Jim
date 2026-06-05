@@ -25,6 +25,14 @@ void AQRWildlifeAIController::OnPossess(APawn* InPawn)
 
 	HomeLocation = WildlifePawn->GetActorLocation();
 
+	// Adopt the species' per-pawn combat tuning so each animal hits for its
+	// own damage / reach / cadence rather than the controller's generic
+	// defaults. Perception scales with the pawn's authored detection radius.
+	if (WildlifePawn->AttackDamage > 0.0f)          AttackDamage = WildlifePawn->AttackDamage;
+	if (WildlifePawn->AttackRange >= 50.0f)         AttackRange = WildlifePawn->AttackRange;
+	if (WildlifePawn->AttackIntervalSeconds >= 0.25f) AttackIntervalSeconds = WildlifePawn->AttackIntervalSeconds;
+	if (WildlifePawn->ThreatDetectionRadius >= 100.0f) PerceptionRadius = WildlifePawn->ThreatDetectionRadius;
+
 	// Stagger initial dwell so a freshly-spawned herd doesn't all step
 	// off in the same tick.
 	const float Now = GetWorld()->GetTimeSeconds();

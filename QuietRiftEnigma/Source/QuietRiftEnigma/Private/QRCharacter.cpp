@@ -48,6 +48,7 @@
 #include "Net/UnrealNetwork.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/HitResult.h"
+#include "Engine/DamageEvents.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
 AQRCharacter::AQRCharacter()
@@ -1112,6 +1113,19 @@ void AQRCharacter::HandleHealthChanged(float NewHealth)
 		QRUISound::PlayHitImpact(this, GetActorLocation());
 	}
 	LastObservedHealth = NewHealth;
+}
+
+float AQRCharacter::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	const float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	// Only the server mutates vitals; clients see the change via OnRep_Health.
+	if (HasAuthority() && Survival && DamageAmount > 0.0f)
+	{
+		Survival->ApplyDamage(DamageAmount, EQRInjuryType::Bleeding);
+	}
+	return Actual;
 }
 
 void AQRCharacter::OnDied_Implementation()

@@ -82,7 +82,22 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 	if (Target)
 	{
 		if (UQRSurvivalComponent* Survival = Target->FindComponentByClass<UQRSurvivalComponent>())
+		{
 			Survival->ApplyDamage(Damage, EQRInjuryType::Bleeding);
+		}
+		else
+		{
+			// No survival component (e.g. wildlife, which model health on
+			// AQRWildlifeBase). Route through the engine damage pipeline so
+			// the target's TakeDamage override handles it. Keeps this lower
+			// module free of any game-module type dependency.
+			AController* InstigatorController = nullptr;
+			if (AActor* MyOwner = GetOwner())
+			{
+				InstigatorController = MyOwner->GetInstigatorController();
+			}
+			UGameplayStatics::ApplyDamage(Target, Damage, InstigatorController, GetOwner(), nullptr);
+		}
 	}
 
 	--CurrentAmmo;

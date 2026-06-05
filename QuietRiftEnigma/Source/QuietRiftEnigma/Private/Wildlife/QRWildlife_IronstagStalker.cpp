@@ -13,6 +13,11 @@ AQRWildlife_IronstagStalker::AQRWildlife_IronstagStalker()
 	ThreatDetectionRadius = 3000.0f;
 	NoiseFactor        = 0.3f;
 
+	// Real-world size + attack tuning (apex armoured stag, antler swipes)
+	BodyLengthMeters   = 3.2f;
+	BodyHeightMeters   = 2.3f;
+	AttackDamage       = 40.0f;
+
 	DeathDrops.Add({ FName("FOD_IRONSTAG_MEAT"),    4, 7, 1.0f });
 	DeathDrops.Add({ FName("MAT_FERRIC_ANTLER"),     2, 2, 1.0f });
 	DeathDrops.Add({ FName("MAT_CHEST_PLATE_IRON"),  1, 1, 0.9f });

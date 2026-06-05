@@ -13,6 +13,12 @@ AQRWildlife_VaultbackDray::AQRWildlife_VaultbackDray()
 	ThreatDetectionRadius = 1000.0f;
 	NoiseFactor        = 0.5f;
 
+	// Real-world size + attack tuning (~5m pack-beast cargo hauler)
+	BodyLengthMeters   = 5.0f;
+	BodyHeightMeters   = 3.0f;
+	AttackDamage       = 35.0f;
+	AttackRange        = 350.0f;
+
 	DeathDrops.Add({ FName("FOD_DRAY_MEAT_LARGE"), 6, 10, 1.0f });
 	DeathDrops.Add({ FName("MAT_VAULT_HIDE"),       3,  5, 0.85f });
 	DeathDrops.Add({ FName("MAT_BONE_HEAVY"),        2,  4, 0.75f });

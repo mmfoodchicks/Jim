@@ -13,6 +13,11 @@ AQRWildlife_RidgebackGrazer::AQRWildlife_RidgebackGrazer()
 	ThreatDetectionRadius = 2000.0f;
 	NoiseFactor        = 0.4f;
 
+	// Real-world size + attack tuning (large herd grazer)
+	BodyLengthMeters   = 2.2f;
+	BodyHeightMeters   = 1.5f;
+	AttackDamage       = 12.0f;
+
 	// Death drops — large food source
 	DeathDrops.Add({ FName("FOD_GRAZER_MEAT_LARGE"), 4, 8, 1.0f });
 	DeathDrops.Add({ FName("MAT_GRAZER_HIDE"),       1, 2, 0.9f });

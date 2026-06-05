@@ -14,6 +14,11 @@ AQRWildlife_TrenchDiggers::AQRWildlife_TrenchDiggers()
 	ThreatDetectionRadius = 2000.0f;
 	NoiseFactor        = 0.6f;
 
+	// Real-world size + attack tuning (low-slung burrowing pack predator)
+	BodyLengthMeters   = 2.6f;
+	BodyHeightMeters   = 1.0f;
+	AttackDamage       = 26.0f;
+
 	DeathDrops.Add({ FName("MAT_MINERAL_TOOTH"),   2, 4, 1.0f });
 	DeathDrops.Add({ FName("MAT_DIGGER_CARAPACE"), 1, 2, 0.8f });
 }

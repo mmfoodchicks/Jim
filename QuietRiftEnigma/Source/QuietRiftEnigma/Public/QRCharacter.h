@@ -360,6 +360,13 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	// Routes engine damage (wildlife bites, hazards, anything calling
+	// AActor::TakeDamage) into the Survival component's vitals so the
+	// player actually loses health and dies. Without this override the
+	// base AActor::TakeDamage is a no-op for our health model.
+	virtual float TakeDamage(float DamageAmount, const struct FDamageEvent& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
+
 private:
 	UFUNCTION(Server, Reliable)
 	void Server_Interact(AActor* Target);

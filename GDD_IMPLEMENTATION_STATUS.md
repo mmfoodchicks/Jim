@@ -347,8 +347,17 @@ re-ranked by impact on shipping.
    pathing via `MoveToLocation`) — covers Prey/Predator/Scavenger/
    Ambient/Hazard role branching, herd alert on flee, predator prey
    selection, attack swing cooldowns. Respects designer-supplied
-   `BehaviorTree` if one is later assigned. **Still missing:** NPC
-   colony/leader BTs, mount panic & taming flow, herd-route data
+   `BehaviorTree` if one is later assigned. **Combat + physicality
+   wired (2026-06-05):** `AQRWildlifeBase` now configures walking
+   movement + gravity (animals conform to slopes instead of floating),
+   sizes its capsule + auto-fits its mesh from per-species
+   `BodyLength/HeightMeters` (Pillarback ~10 m … Fogleech ~0.4 m), and
+   bridges the engine damage pipeline into wildlife health via a
+   `TakeDamage` override. Predators deal per-species `AttackDamage`;
+   `AQRCharacter::TakeDamage` routes hits into the Survival component so
+   the player actually takes damage, and the weapon now damages
+   wildlife (was previously SurvivalComponent-only). **Still missing:**
+   NPC colony/leader BTs, mount panic & taming flow, herd-route data
    driving (currently random wander around HomeLocation), predator
    pressure-pull weighting between species.
 2. **Mission generator from `DT_ProceduralMissionTemplates`** — the

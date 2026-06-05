@@ -13,6 +13,11 @@ AQRWildlife_RidgeCourser::AQRWildlife_RidgeCourser()
 	ThreatDetectionRadius = 2200.0f;
 	NoiseFactor        = 0.2f;
 
+	// Real-world size + attack tuning (rideable horse-analogue, kicks)
+	BodyLengthMeters   = 2.6f;
+	BodyHeightMeters   = 1.8f;
+	AttackDamage       = 14.0f;
+
 	DeathDrops.Add({ FName("FOD_COURSER_MEAT"),  3, 5, 1.0f });
 	DeathDrops.Add({ FName("MAT_COURSER_HIDE"),  1, 2, 0.8f });
 	DeathDrops.Add({ FName("MAT_VANE_QUILL"),    2, 4, 0.7f });

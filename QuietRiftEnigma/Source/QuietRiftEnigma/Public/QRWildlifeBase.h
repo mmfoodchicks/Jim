@@ -79,6 +79,36 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife")
 	float MassKg = 50.0f;
 
+	// ── Physical size (real-world) ────────────
+	// Nose-to-tail length and ground-to-back height, in metres. These
+	// drive the collision capsule and (when bAutoFitMeshToBody is true)
+	// rescale the skeletal mesh in BeginPlay so the animal renders at its
+	// canonical in-game size regardless of the source FBX scale.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size", meta = (ClampMin = "0.1"))
+	float BodyLengthMeters = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size", meta = (ClampMin = "0.1"))
+	float BodyHeightMeters = 1.0f;
+
+	// If true, BeginPlay scales GetMesh() so its rendered height matches
+	// BodyHeightMeters. Turn off for a BP whose mesh is already authored
+	// at the correct scale.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size")
+	bool bAutoFitMeshToBody = true;
+
+	// ── Attack (read by AQRWildlifeAIController) ──
+	// Damage applied per swing. Predators set this high; prey leave it
+	// low (only used if a prey species enters the Attacking state, e.g.
+	// a cornered boar). The controller copies these on possession.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Combat", meta = (ClampMin = "0.0"))
+	float AttackDamage = 12.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Combat", meta = (ClampMin = "50.0"))
+	float AttackRange = 250.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Combat", meta = (ClampMin = "0.25"))
+	float AttackIntervalSeconds = 1.5f;
+
 	// ── Behavior Tree ─────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")
 	TObjectPtr<UBehaviorTree> BehaviorTree;
@@ -109,6 +139,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Wildlife")
 	void TakeDamage_Wildlife(float Amount, AActor* DamageCauser);
 
+	// Bridges the engine damage pipeline (weapon fire, explosions, anything
+	// calling AActor::TakeDamage / UGameplayStatics::ApplyDamage) into our
+	// custom wildlife health model.
+	virtual float TakeDamage(float DamageAmount, const struct FDamageEvent& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Wildlife")
 	TArray<FQRWildlifeDrop> Harvest();
 
@@ -134,4 +170,10 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+protected:
+	// Sizes the capsule from BodyLength/HeightMeters, syncs nav-agent +
+	// step height, and (optionally) rescales the mesh to match. Called in
+	// BeginPlay on both server and clients so visuals match everywhere.
+	void ApplyBodySizing();
 };
