@@ -465,12 +465,14 @@ void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)
 	// that PC's local viewport — for listen-server hosts that's the host
 	// screen; for remote clients the widget is created via the standard
 	// owning-PC replication.
+	TWeakObjectPtr<UQRDeathScreenWidget> WeakWidget;
 	if (DeathScreenClass)
 	{
 		if (UQRDeathScreenWidget* W = CreateWidget<UQRDeathScreenWidget>(PC, DeathScreenClass))
 		{
 			W->AddToViewport(/*ZOrder*/ 1000);
 			W->Initialize(RespawnDelaySeconds);
+			WeakWidget = W;
 		}
 	}
 
@@ -481,10 +483,19 @@ void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)
 	TWeakObjectPtr<AQRCharacter>      WeakDead = DeadPawn;
 	FTimerHandle Handle;
 	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateLambda(
-		[this, WeakPC, WeakDead]()
+		[this, WeakPC, WeakDead, WeakWidget]()
 		{
 			APlayerController* P = WeakPC.Get();
 			if (!P) return;
+
+			// Remove the death overlay BEFORE respawning. Without this the
+			// widget sits on screen forever showing "Respawning in 0…" and
+			// the fresh pawn is hidden behind it — looking like the respawn
+			// never happened even though it did.
+			if (UQRDeathScreenWidget* DeadUI = WeakWidget.Get())
+			{
+				DeadUI->RemoveFromParent();
+			}
 
 			// Tear down the corpse before spawning a new pawn so we
 			// don't end up with two characters owned by the same PC.
@@ -496,5 +507,9 @@ void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)
 			// Standard GameModeBase respawn — picks a PlayerStart and
 			// possesses a freshly spawned DefaultPawnClass.
 			RestartPlayer(P);
+
+			// AQRCharacter::OnDied disabled input on the controller; the
+			// fresh pawn won't be controllable until we re-enable it.
+			P->EnableInput(P);
 		}), RespawnDelaySeconds, /*bLoop*/ false);
 }
