@@ -59,20 +59,18 @@ FALLBACK_LANDSCAPE_MTL = ("/Game/Fabs/MWLandscapeAutoMaterial/Materials/Landscap
 GROUND_SOIL_MTL = ("/Game/Fabs/ScifiJungle/Materials/Nature/Ground/"
                    "MI_Soil_Jungle.MI_Soil_Jungle")
 
-# Hill meshes -- jungle cliff rocks at various shapes. Each is scaled
-# 4-7x in placement so they read as terrain features, not props.
-HILL_MESHES = [
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Island_Rock_1.SM_Island_Rock_1",
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Island_Rock_2.SM_Island_Rock_2",
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Island_Rock_3.SM_Island_Rock_3",
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Rock_Cliff_Terrace1.SM_Rock_Cliff_Terrace1",
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Rock_Cliff_Terrace2.SM_Rock_Cliff_Terrace2",
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Rock_Cliff_Terrace3.SM_Rock_Cliff_Terrace3",
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Rock_Cliff_Slope1.SM_Rock_Cliff_Slope1",
-    "/Game/Fabs/ScifiJungle/Models/Nature/Rocks/SM_Rock_Cliff_Slope2.SM_Rock_Cliff_Slope2",
-]
+# Hill meshes -- ENGINE BASIC SHAPES only. The ScifiJungle rock meshes
+# are Git-LFS pointers in this repo and frequently aren't resolved in the
+# asset registry, so relying on them left the map flat. Engine basic
+# shapes are always cooked + registered, so hills always appear. A
+# half-buried Sphere makes a smooth, walkable dome; the Cylinder makes a
+# flat-topped mesa.
+ENGINE_SPHERE = "/Engine/BasicShapes/Sphere.Sphere"
+ENGINE_CYLINDER = "/Engine/BasicShapes/Cylinder.Cylinder"
+ENGINE_CUBE = "/Engine/BasicShapes/Cube.Cube"
+HILL_MESHES = [ENGINE_SPHERE, ENGINE_CYLINDER]
 
-# UE-engine basic shapes for the fallback ground plane.
+# UE-engine basic shapes for the (optional) ground plane.
 ENGINE_PLANE = "/Engine/BasicShapes/Plane.Plane"
 
 # Heightmap resolution for the Landscape path. 505 = small, fast.
@@ -320,117 +318,83 @@ def _apply_landscape_material(landscape):
 
 # ─── PATH B: static-mesh hill formation (always works) ─────────────────
 
-def _spawn_ground_plane(material):
-    """Big jungle-textured plane under the hills so wildlife and the
-    player still have a solid floor between hill formations."""
-    mesh = _load_static_mesh(ENGINE_PLANE)
-    if not mesh:
-        print("[terrain] Engine basic plane mesh missing -- skipping ground plane")
-        return None
-
+def _spawn_dome(label, x, y, width_m, height_m, mesh, yaw=0.0):
+    """Spawn one half-buried sphere as a smooth, walkable hill. The
+    sphere is scaled to width_m across and height_m tall, then its centre
+    is sunk so only the top dome pokes above z=0 -- wildlife and the
+    player walk up and over it. Collision on so the slope-conforming
+    movement has something to climb."""
     actor = _spawn(unreal.StaticMeshActor,
-                   unreal.Vector(0.0, 0.0, 0.0),
-                   unreal.Rotator(0.0, 0.0, 0.0),
-                   "QR_Terrain_GroundPlane")
+                   unreal.Vector(x, y, 0.0),
+                   unreal.Rotator(0.0, yaw, 0.0), label)
     if not actor:
         return None
-
     smc = actor.static_mesh_component
     smc.set_static_mesh(mesh)
-    # Engine plane is 100x100 cm; 1500 scale = 1.5 km, easily covers
-    # the dev-test bowl.
-    actor.set_actor_scale3d(unreal.Vector(1500.0, 1500.0, 1.0))
-    if material:
-        smc.set_material(0, material)
+    # Engine sphere is 100 cm diameter. Horizontal scale = width in m;
+    # vertical scale tuned so the exposed dome is height_m tall. We sink
+    # the sphere by (radius_z - height) so its top sits height_m above 0.
+    sx = float(width_m)
+    sz = float(height_m) * 2.0     # full sphere is 2x the exposed dome
+    actor.set_actor_scale3d(unreal.Vector(sx, sx, sz))
+    radius_z_cm = sz * 50.0        # half of the 100 cm mesh * scale
+    bury_z = -(radius_z_cm - height_m * 100.0)
+    actor.set_actor_location(unreal.Vector(x, y, bury_z), False, False)
     smc.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
-    print("[terrain] ground plane spawned (1.5 km, jungle ground material)")
     return actor
 
 
 def _spawn_hills(seed=1):
-    """Place ~24 oversized rock meshes around the origin to form a
-    rolling-hill basin. Random yaw + scale keeps them from reading as
-    a copy-paste line."""
+    """Build a basin of smooth domes from half-buried engine spheres.
+    No coplanar ground plane (that z-fought the existing dev floor and
+    made the ground flash). Returns the count placed."""
     rng_state = [seed & 0xFFFFFFFF]
     def rand():
-        # Tiny LCG -- deterministic per seed across runs so re-running
-        # gives the same landscape rather than reshuffling on every call.
         rng_state[0] = (rng_state[0] * 1103515245 + 12345) & 0x7FFFFFFF
         return rng_state[0] / float(0x7FFFFFFF)
 
-    meshes = [m for m in [_load_static_mesh(p) for p in HILL_MESHES] if m]
-    if not meshes:
-        print("[terrain] no hill meshes loaded -- ScifiJungle pack missing?")
+    sphere = _load_static_mesh(ENGINE_SPHERE)
+    if not sphere:
+        print("[terrain] engine Sphere mesh missing -- cannot build hills")
         return 0
 
-    count = 32
     placed = 0
-    # Distribute on a jittered ring + a few in the centre, between 30 m
-    # and 120 m from origin so the player spawn area stays open.
+    count = 20
+    # Ring of big rolling hills 30 m..120 m out, keeping the spawn area
+    # at the centre open.
     ring_min, ring_max = 3000.0, 12000.0
     for i in range(count):
-        angle = (i / float(count)) * math.tau + (rand() - 0.5) * 0.6
+        angle = (i / float(count)) * math.tau + (rand() - 0.5) * 0.5
         r = ring_min + (ring_max - ring_min) * rand()
         x = math.cos(angle) * r
         y = math.sin(angle) * r
-        z = -200.0 + rand() * 100.0   # bury feet so they read as hills
-        loc = unreal.Vector(x, y, z)
-        rot = unreal.Rotator(0.0, rand() * 360.0, 0.0)
+        width_m = 25.0 + rand() * 35.0    # 25-60 m wide
+        height_m = 4.0 + rand() * 8.0     # 4-12 m tall
+        if _spawn_dome("QR_Terrain_Hill_{:02d}".format(i),
+                       x, y, width_m, height_m, sphere, yaw=rand() * 360.0):
+            placed += 1
 
-        actor = _spawn(unreal.StaticMeshActor, loc, rot,
-                       "QR_Terrain_Hill_{:02d}".format(i))
-        if not actor:
-            continue
-        mesh = meshes[i % len(meshes)]
-        smc = actor.static_mesh_component
-        smc.set_static_mesh(mesh)
-        # 4-7x scale -- these were authored as smallish cliff props, so
-        # they need to be sized way up to read as terrain.
-        s = 4.0 + rand() * 3.0
-        actor.set_actor_scale3d(unreal.Vector(s, s, s))
-        smc.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
-        # The jungle rocks ship with their own material -- leave it.
-        placed += 1
-
-    # A small "bump" cluster near origin so something is in arm's reach
-    # of the player spawn for immediate "wildlife climbs a hill" testing.
+    # A few smaller mounds near the spawn so there's a slope in arm's
+    # reach for immediate "wildlife climbs a hill" testing.
     near = [
-        (   0.0,  1500.0, -120.0, 1.7),
-        (-1300.0,  -700.0, -100.0, 1.4),
-        ( 1400.0,  -800.0, -150.0, 2.0),
-        ( -200.0,  -1900.0, -80.0, 1.2),
+        (   0.0,  1800.0, 14.0, 3.0),
+        (-1600.0,  -900.0, 11.0, 2.5),
+        ( 1700.0, -1000.0, 18.0, 4.0),
     ]
-    for i, (x, y, z, s) in enumerate(near):
-        mesh = meshes[i % len(meshes)]
-        actor = _spawn(unreal.StaticMeshActor,
-                       unreal.Vector(x, y, z),
-                       unreal.Rotator(0.0, i * 53.0, 0.0),
-                       "QR_Terrain_NearHill_{:02d}".format(i))
-        if not actor:
-            continue
-        smc = actor.static_mesh_component
-        smc.set_static_mesh(mesh)
-        actor.set_actor_scale3d(unreal.Vector(s, s, s))
-        smc.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
-        placed += 1
+    for i, (x, y, w, h) in enumerate(near):
+        if _spawn_dome("QR_Terrain_NearHill_{:02d}".format(i),
+                       x, y, w, h, sphere, yaw=i * 47.0):
+            placed += 1
 
-    print("[terrain] spawned {} hill rocks (jungle cliffs, scale 4-7x)".format(placed))
+    print("[terrain] spawned {} smooth domes (half-buried engine spheres)".format(placed))
     return placed
 
 
 def static_mesh_path(seed=1):
-    """Always-works fallback: ground plane + jungle hill rocks. Returns
-    the number of actors placed (>0 = success). Materials are best-
-    effort -- if the ScifiJungle pack isn't registered yet, the script
-    still spawns the geometry; mesh defaults take over."""
-    print("[terrain] using static-mesh hill formation (PATH B)")
-
-    soil = _load_first_available_material(GROUND_SOIL_MTL, JUNGLE_LANDSCAPE_MTL,
-                                          FALLBACK_LANDSCAPE_MTL)
-    plane_actor = _spawn_ground_plane(soil)
-    hills_placed = _spawn_hills(seed=seed)
-
-    return (1 if plane_actor else 0) + hills_placed
+    """Always-works path: half-buried engine-sphere hills on top of the
+    level's existing floor. No Fab dependency, no coplanar plane."""
+    print("[terrain] using engine-shape hill formation (PATH B)")
+    return _spawn_hills(seed=seed)
 
 
 # ─── Top-level run() ───────────────────────────────────────────────────
@@ -459,23 +423,19 @@ def run(try_landscape=False, seed=1):
     if not landscape:
         n = static_mesh_path(seed=seed)
         if n == 0:
-            print("[terrain] FAILED -- no terrain placed. Check that the")
-            print("[terrain]   ScifiJungle pack is at /Game/Fabs/ScifiJungle/")
+            print("[terrain] FAILED -- no terrain placed (engine Sphere mesh")
+            print("[terrain]   couldn't load, which should never happen).")
             return
 
-    # Force the editor to redraw + flag the level dirty so saves pick
-    # up the new actors.
-    _try(lambda: unreal.EditorLevelLibrary.editor_set_game_view(False),
-         "exit game view")
     print("[terrain] done.")
     print("[terrain] NEXT STEPS:")
-    print("[terrain]   1. Save the level (Ctrl+S).")
-    print("[terrain]   2. If you ran qr_dev_test_dressup before, your NavMesh")
-    print("[terrain]      volume is in place -- press P in the viewport to verify")
-    print("[terrain]      the green nav overlay now wraps the hill bases.")
-    print("[terrain]   3. Drop a wildlife actor near a hill in PIE -- gravity-fix")
-    print("[terrain]      and slope-conforming movement (commit b367afb5) will")
-    print("[terrain]      walk it up and around the terrain.")
+    print("[terrain]   1. Save the level (Ctrl+S) to rebuild the NavMesh over")
+    print("[terrain]      the new hills.")
+    print("[terrain]   2. Press P in the viewport to verify the green nav")
+    print("[terrain]      overlay now drapes the dome slopes.")
+    print("[terrain]   3. Drop / spawn a wildlife actor near a hill in PIE --")
+    print("[terrain]      gravity + slope-conforming movement walks it up and")
+    print("[terrain]      over the domes.")
 
 
 if __name__ == "__main__":

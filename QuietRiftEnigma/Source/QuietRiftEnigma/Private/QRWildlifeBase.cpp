@@ -5,6 +5,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/DamageEvents.h"
 #include "AIController.h"
 #include "BehaviorTree/BehaviorTree.h"
@@ -16,6 +18,15 @@ AQRWildlifeBase::AQRWildlifeBase()
 	bReplicates = true;
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	AIControllerClass = AQRWildlifeAIController::StaticClass();
+
+	// Placeholder visible body. The species classes don't assign a
+	// SkeletalMesh, so without this a spawned animal is an invisible
+	// capsule that can still bite the player ("died to nothing"). Attach
+	// to the capsule root; sized + shown/hidden in SetupFallbackVisual.
+	FallbackMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FallbackMesh"));
+	FallbackMesh->SetupAttachment(GetCapsuleComponent());
+	FallbackMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FallbackMesh->SetCastShadow(true);
 
 	// Walk on the ground under gravity and conform to terrain. Without
 	// this an animal dropped on a slope would slide/float along a flat
@@ -86,6 +97,60 @@ void AQRWildlifeBase::ApplyBodySizing()
 	}
 }
 
+void AQRWildlifeBase::SetupFallbackVisual()
+{
+	if (!FallbackMesh) return;
+
+	// If a real skeletal mesh is assigned (designer wired one in a BP),
+	// the placeholder isn't needed — hide it and bail.
+	USkeletalMeshComponent* SkelComp = GetMesh();
+	if (SkelComp && SkelComp->GetSkeletalMeshAsset())
+	{
+		FallbackMesh->SetVisibility(false);
+		return;
+	}
+
+	// Shape-code the placeholder by behaviour role so predators read at a
+	// glance: Cube = predator, Cylinder = prey, Sphere = everything else.
+	const TCHAR* ShapePath = TEXT("/Engine/BasicShapes/Sphere.Sphere");
+	switch (BehaviorRole)
+	{
+	case EQRWildlifeBehaviorRole::Predator:
+		ShapePath = TEXT("/Engine/BasicShapes/Cube.Cube");
+		break;
+	case EQRWildlifeBehaviorRole::Prey:
+		ShapePath = TEXT("/Engine/BasicShapes/Cylinder.Cylinder");
+		break;
+	default:
+		ShapePath = TEXT("/Engine/BasicShapes/Sphere.Sphere");
+		break;
+	}
+
+	UStaticMesh* Shape = LoadObject<UStaticMesh>(nullptr, ShapePath);
+	if (!Shape)
+	{
+		// Last-ditch: try the cube, which is always cooked into the engine.
+		Shape = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	}
+	if (!Shape)
+	{
+		FallbackMesh->SetVisibility(false);
+		return;
+	}
+
+	FallbackMesh->SetStaticMesh(Shape);
+	FallbackMesh->SetVisibility(true);
+
+	// Size the placeholder to the body. Engine basic shapes are 100 cm,
+	// so scale = body dimension in metres. Length along X, a narrower
+	// width along Y, height along Z. Centre it in the capsule.
+	const float LenM = FMath::Max(BodyLengthMeters, 0.2f);
+	const float HtM  = FMath::Max(BodyHeightMeters, 0.2f);
+	const float WidM = FMath::Max(LenM * 0.45f, 0.15f);
+	FallbackMesh->SetRelativeLocation(FVector::ZeroVector);
+	FallbackMesh->SetRelativeScale3D(FVector(LenM, WidM, HtM));
+}
+
 void AQRWildlifeBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -104,6 +169,9 @@ void AQRWildlifeBase::BeginPlay()
 	// push the walk speed onto the movement component (subclass constructors
 	// set MoveSpeedWalk after the base constructor ran).
 	ApplyBodySizing();
+	// Show a placeholder body so an animal without a skeletal mesh is
+	// visible instead of an invisible biting capsule.
+	SetupFallbackVisual();
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 		Move->MaxWalkSpeed = MoveSpeedWalk;
 

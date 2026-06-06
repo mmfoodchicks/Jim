@@ -91,10 +91,19 @@ run(rebuild_meshes=True)
 
 ```
 exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_setup_sky.py').read())
+run()
 ```
 
-Add rolling jungle hills to the currently-open dev map (so wildlife
-gravity / slope-conformance actually has something to climb):
+Exposure is LOCKED (no auto-exposure blowout). If the map is too bright
+or too dark, nudge the EV knob — higher = darker:
+
+```
+run(exposure_ev=15.0)   # darker than the 13.0 default
+```
+
+Add rolling hills (half-buried engine spheres — no Fab dependency) to
+the currently-open dev map so wildlife gravity / slope-conformance has
+something to climb:
 
 ```
 exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_terrain_devtest.py').read())

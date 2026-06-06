@@ -9,6 +9,7 @@
 class UQRSurvivalComponent;
 class UBehaviorTree;
 class UAIPerceptionComponent;
+class UStaticMeshComponent;
 
 // Drop entry when the animal is harvested/killed
 USTRUCT(BlueprintType)
@@ -176,4 +177,16 @@ protected:
 	// step height, and (optionally) rescales the mesh to match. Called in
 	// BeginPlay on both server and clients so visuals match everywhere.
 	void ApplyBodySizing();
+
+	// Placeholder body shown when GetMesh() has no SkeletalMesh assigned
+	// (the v15 species classes don't ship a skeletal mesh, so without this
+	// a spawned animal is an invisible capsule). An engine basic shape,
+	// shape-coded by role: Cube = predator, Cylinder = prey, Sphere =
+	// other. Hidden automatically if a real skeletal mesh is present.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wildlife|Visual")
+	TObjectPtr<UStaticMeshComponent> FallbackMesh;
+
+	// Loads an engine basic-shape mesh into FallbackMesh sized to the body,
+	// or hides it if a skeletal mesh is set. Called from BeginPlay.
+	void SetupFallbackVisual();
 };

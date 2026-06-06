@@ -135,7 +135,45 @@ def _ensure_celestial(label, mesh_path, location, scale, material_path=None):
     return actor
 
 
-def run():
+def _purge_stray_directional_lights(keep_labels):
+    """Delete every DirectionalLight whose label isn't in keep_labels.
+    A map shipping its own default sun on top of QR_KeyLight + QR_Jovianlight
+    is what triggers 'Multiple directional lights are competing...' — there
+    can be at most ONE atmosphere sun and the priorities only break a tie
+    between two. Removing strays is the clean fix."""
+    actor_sub = None
+    try:
+        actor_sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    except Exception:
+        actor_sub = None
+    killed = 0
+    for a in list(_all_actors()):
+        if isinstance(a, unreal.DirectionalLight):
+            lbl = a.get_actor_label()
+            if lbl not in keep_labels:
+                try:
+                    if actor_sub:
+                        actor_sub.destroy_actor(a)
+                    else:
+                        unreal.EditorLevelLibrary.destroy_actor(a)
+                    killed += 1
+                    print("[sky] removed stray DirectionalLight '{}'".format(lbl))
+                except Exception as e:
+                    print("[sky]   (could not remove '{}': {})".format(lbl, e))
+    if killed == 0:
+        print("[sky] no stray directional lights to remove")
+
+
+def run(exposure_ev=13.0, sun_lux=10.0):
+    """Set up the Jovian sky + lighting on the current level.
+
+    exposure_ev -- LOCKED camera exposure (EV100). The scene no longer
+      auto-adapts, so it can't blow out to white. HIGHER = darker image,
+      LOWER = brighter. If the map is still too bright, bump this to 14-15;
+      if too dark, drop to 11-12. Re-run after changing.
+    sun_lux -- DirectionalLight intensity (lux). Canon is a dim
+      Jupiter-distance sun; raise for a brighter key light.
+    """
     V = unreal.Vector
 
     # ── SkyAtmosphere — makes the sky render ──────────────────────
@@ -145,22 +183,27 @@ def run():
         _spawn(unreal.SkyAtmosphere, "QR_SkyAtmosphere", V(0.0, 0.0, 0.0))
         print("[sky] SkyAtmosphere spawned")
 
+    # Remove any pre-existing/default directional lights so only the two
+    # QR lights remain (kills the 'competing directional lights' warning).
+    _purge_stray_directional_lights({"QR_KeyLight", "QR_Jovianlight"})
+
     # ── DirectionalLight — key light, Movable (no build needed) ───
-    sun = _find(unreal.DirectionalLight)
+    # Find specifically by label so a re-run never hijacks a stray light.
+    sun = _find(unreal.DirectionalLight, "QR_KeyLight")
     if sun:
-        print("[sky] DirectionalLight already present — retuning")
+        print("[sky] QR_KeyLight already present — retuning")
     else:
         sun = _spawn(unreal.DirectionalLight, "QR_KeyLight", V(0.0, 0.0, 30000.0))
-        print("[sky] DirectionalLight spawned")
+        print("[sky] QR_KeyLight spawned")
     if sun:
         _try(lambda: sun.set_actor_rotation(unreal.Rotator(-38.0, -45.0, 0.0), False))
         comp = getattr(sun, "directional_light_component", None)
         if comp:
             _try(lambda: comp.set_mobility(unreal.ComponentMobility.MOVABLE))
-            # 10.0 is the UE 5.x DirectionalLight default in lux units --
-            # 4.0 was the prior value and read as 'night' under PIE's
-            # auto-exposure, leaving the scene black even with SkyLight on.
-            _try(lambda: comp.set_intensity(10.0))
+            # Intensity in lux. Tunable via run(sun_lux=...); canon is a
+            # dim Jupiter-distance sun. With LOCKED exposure (below) the
+            # scene brightness is predictable from this value.
+            _try(lambda: comp.set_intensity(sun_lux))
             _try(lambda: comp.set_light_color(unreal.LinearColor(1.0, 0.93, 0.82, 1.0)))
             # Bind this DirectionalLight to the SkyAtmosphere so the sky
             # actually picks up its colour and disk. Without this flag the
@@ -325,32 +368,34 @@ def run():
         _try(lambda: ppv.set_editor_property("unbound", True))
         settings = ppv.get_editor_property("settings")
         if settings:
-            # Auto-exposure (histogram is the modern default).
+            # LOCKED exposure. The prior histogram auto-exposure was
+            # adapting UP because the dim sun left the scene under-lit,
+            # which blew the bright SkyAtmosphere pixels out to solid
+            # cream/white (the 'unbelievably bright' report). Locking the
+            # camera removes adaptation entirely: brightness is now a
+            # fixed function of the actual light, so it can't run away.
+            #
+            # Implemented as histogram auto-exposure with min == max ==
+            # exposure_ev, which pins the camera at a constant EV100.
+            # HIGHER exposure_ev = darker image. Tunable via run().
             _try(lambda: setattr(settings, "override_auto_exposure_method", True))
             _try(lambda: setattr(settings, "auto_exposure_method",
                                   unreal.AutoExposureMethod.AEM_HISTOGRAM))
-            # Clamp adaptation range. Tightened after the user reported
-            # daytime blowing out white -- max EV 12 was letting the
-            # camera adapt to extremely bright targets, blowing the
-            # midtones to white when there's any bright pixel on screen.
-            # Range -1 EV (Jovianlight ambient) to +8 EV (dim daylight).
             _try(lambda: setattr(settings, "override_auto_exposure_min_brightness", True))
-            _try(lambda: setattr(settings, "auto_exposure_min_brightness", -1.0))
+            _try(lambda: setattr(settings, "auto_exposure_min_brightness", float(exposure_ev)))
             _try(lambda: setattr(settings, "override_auto_exposure_max_brightness", True))
-            _try(lambda: setattr(settings, "auto_exposure_max_brightness", 8.0))
-            # Exposure compensation: 0.0 = neutral. Was 1.5 which
-            # multiplied perceived brightness by ~3x and washed daytime
-            # out completely with the new Jovianlight + SkyLight bumps.
+            _try(lambda: setattr(settings, "auto_exposure_max_brightness", float(exposure_ev)))
+            # Neutral compensation; the lock above does the work.
             _try(lambda: setattr(settings, "override_auto_exposure_bias", True))
             _try(lambda: setattr(settings, "auto_exposure_bias", 0.0))
-            # Faster adapt going dark->bright (3 EV/sec), slower going
-            # bright->dark (1 EV/sec) -- matches real eye adaptation
-            # asymmetry and feels right.
+            # Instant settle (no visible adaptation ramp).
             _try(lambda: setattr(settings, "override_auto_exposure_speed_up", True))
-            _try(lambda: setattr(settings, "auto_exposure_speed_up", 3.0))
+            _try(lambda: setattr(settings, "auto_exposure_speed_up", 20.0))
             _try(lambda: setattr(settings, "override_auto_exposure_speed_down", True))
-            _try(lambda: setattr(settings, "auto_exposure_speed_down", 1.0))
+            _try(lambda: setattr(settings, "auto_exposure_speed_down", 20.0))
             _try(lambda: ppv.set_editor_property("settings", settings))
+            print("[sky] exposure LOCKED at EV {} (raise to darken, lower to brighten)"
+                  .format(exposure_ev))
 
     print("[sky] done — re-run any time, it re-tunes instead of duplicating.")
     print("[sky] SAVE THE LEVEL (Ctrl+S). QR_Jupiter is a plain sphere —")
