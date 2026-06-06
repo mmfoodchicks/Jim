@@ -315,7 +315,7 @@ def ensure_wildlife_spawner():
     _try(lambda: spawner.set_editor_property("spawn_radius_max", 6000.0),
          "spawn_radius_max")
     _try(lambda: spawner.set_editor_property("initial_burst", 6), "initial_burst")
-    _try(lambda: spawner.set_editor_property("b_global_cap", True), "global_cap")
+    _try(lambda: spawner.set_editor_property("global_cap", True), "global_cap")
 
     print("[dressup] QR_WildlifeSpawner placed (cap=12, interval=8s,")
     print("[dressup]   {} species in pool, initial burst 6).".format(len(pool)))

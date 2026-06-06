@@ -8,6 +8,7 @@
 #include "Navigation/PathFollowingComponent.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
+#include "Engine/DamageEvents.h"
 
 AQRWildlifeAIController::AQRWildlifeAIController()
 {
