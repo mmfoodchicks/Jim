@@ -374,12 +374,12 @@ private:
 	void Look(const struct FInputActionValue& Value);
 	void StartSprint();
 	void StopSprint();
-	// Fire input: Started = trigger pull, Triggered = held (drives full-auto),
-	// Completed = release.
+	// Fire input: Started = trigger pull (one shot for every mode);
+	// Completed = release. Full-auto sustains via Tick polling bFireHeld
+	// so no Enhanced Input trigger config is required.
 	void OnFirePressed();
-	void OnFireHeld();
 	void OnFireReleased();
-	// True while the fire key is held; client-side rate-of-fire pace gate.
+	// True while the fire key is held; Tick uses this to drive full-auto.
 	bool bFireHeld = false;
 	float NextLocalFireTime = 0.0f;
 	void HandleJumpPressed();

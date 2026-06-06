@@ -285,6 +285,14 @@ void AQRCharacter::Tick(float DeltaTime)
 	if (IsLocallyControlled())
 		ScanForInteractable();
 
+	// Full-auto fire — when the trigger is held on a full-auto weapon,
+	// poll once a tick. TryFireWeapon is cadence-gated so this only
+	// actually shoots at the weapon's RPM, no matter how fast Tick runs.
+	if (IsLocallyControlled() && bFireHeld && Weapon && Weapon->IsFullAuto())
+	{
+		TryFireWeapon();
+	}
+
 	// Footsteps — local-only, grounded, moving above threshold. Cadence
 	// interpolates between walk and sprint interval based on current
 	// horizontal speed vs. max speed.
@@ -400,12 +408,12 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Completed, this, &AQRCharacter::StopSprint);
 		if (FireAction)
 		{
-			// Started = the initial trigger pull (every fire mode fires once).
-			// Triggered = fires each frame the key is held, which drives
-			// full-auto (gated to RPM inside TryFireWeapon). Completed =
-			// release. Semi/bolt ignore the held event.
+			// Started = initial trigger pull (every fire mode fires once).
+			// Completed = release. Full-auto continuous fire is driven by
+			// Tick() polling bFireHeld so we don't depend on a specific
+			// Enhanced Input trigger config to deliver per-tick "Triggered"
+			// events (default Boolean triggers can fire just once on press).
 			EI->BindAction(FireAction, ETriggerEvent::Started,   this, &AQRCharacter::OnFirePressed);
-			EI->BindAction(FireAction, ETriggerEvent::Triggered, this, &AQRCharacter::OnFireHeld);
 			EI->BindAction(FireAction, ETriggerEvent::Completed, this, &AQRCharacter::OnFireReleased);
 		}
 		if (ReloadAction)    EI->BindAction(ReloadAction,    ETriggerEvent::Started,   this, &AQRCharacter::TryReload);
@@ -581,17 +589,6 @@ void AQRCharacter::OnFirePressed()
 {
 	bFireHeld = true;
 	TryFireWeapon();
-}
-
-void AQRCharacter::OnFireHeld()
-{
-	// Only full-auto keeps firing while the trigger is held. Semi-auto and
-	// bolt/pump require a fresh trigger pull (the Started event) for each
-	// shot, so they no-op here.
-	if (bFireHeld && Weapon && Weapon->IsFullAuto())
-	{
-		TryFireWeapon();
-	}
 }
 
 void AQRCharacter::OnFireReleased()

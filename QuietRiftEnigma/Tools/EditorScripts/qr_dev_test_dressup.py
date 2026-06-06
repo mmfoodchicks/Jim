@@ -245,11 +245,89 @@ def ensure_loot_tables():
     return table
 
 
+def ensure_wildlife_spawner():
+    """Spawn AQRWildlifeSpawner if absent, pre-seeded with the v15
+    species pool, cap 12, top-up every 8s. Designer can edit the actor
+    in the Outliner to change cap / interval / species list."""
+    actor_sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    if not actor_sub:
+        print("[dressup] no EditorActorSubsystem -- skipping wildlife spawner")
+        return None
+
+    spawner_cls = getattr(unreal, "QRWildlifeSpawner", None)
+    if not spawner_cls:
+        print("[dressup] AQRWildlifeSpawner C++ class not visible to Python --")
+        print("[dressup]   compile the project first (it ships with the latest commit).")
+        return None
+
+    # Idempotent: skip if any spawner already exists.
+    for a in actor_sub.get_all_level_actors():
+        if isinstance(a, spawner_cls):
+            print("[dressup] wildlife spawner already present at {} -- skipping spawn"
+                  .format(a.get_actor_label()))
+            return a
+
+    loc = unreal.Vector(0.0, 0.0, 200.0)
+    rot = unreal.Rotator(0.0, 0.0, 0.0)
+    spawner = _try(lambda: unreal.EditorLevelLibrary.spawn_actor_from_class(
+        spawner_cls, loc, rot), "wildlife spawner spawn")
+    if not spawner:
+        return None
+    _try(lambda: spawner.set_actor_label("QR_WildlifeSpawner"), "label")
+
+    # Wire the species pool from compiled C++ classes that ship with
+    # this checkout. Skip any that aren't compiled into the current
+    # build (the user may compile without all species headers).
+    species_class_names = [
+        "QRWildlife_AshbackBoar",
+        "QRWildlife_FogleechSwarm",
+        "QRWildlife_GlasshornRunner",
+        "QRWildlife_HookjawStalker",
+        "QRWildlife_IronstagStalker",
+        "QRWildlife_NestweaverDrifter",
+        "QRWildlife_PillarbackHauler",
+        "QRWildlife_RidgeCourser",
+        "QRWildlife_RidgebackGrazer",
+        "QRWildlife_ShardbackGrazer",
+        "QRWildlife_ShellmawAmbusher",
+        "QRWildlife_SiltStrider",
+        "QRWildlife_SutureWisp",
+        "QRWildlife_ThornhideDray",
+        "QRWildlife_TrenchDiggers",
+        "QRWildlife_VaneRippers",
+        "QRWildlife_VaultbackDray",
+    ]
+    pool = []
+    for nm in species_class_names:
+        cls = getattr(unreal, nm, None)
+        if cls:
+            pool.append(cls)
+    if pool:
+        _try(lambda: spawner.set_editor_property("species_pool", pool),
+             "set species pool ({} entries)".format(len(pool)))
+
+    # Tunables match C++ defaults but spelled out so they're greppable.
+    _try(lambda: spawner.set_editor_property("max_alive", 12), "max_alive")
+    _try(lambda: spawner.set_editor_property("spawn_interval_seconds", 8.0),
+         "spawn_interval_seconds")
+    _try(lambda: spawner.set_editor_property("spawn_radius_min", 2000.0),
+         "spawn_radius_min")
+    _try(lambda: spawner.set_editor_property("spawn_radius_max", 6000.0),
+         "spawn_radius_max")
+    _try(lambda: spawner.set_editor_property("initial_burst", 6), "initial_burst")
+    _try(lambda: spawner.set_editor_property("b_global_cap", True), "global_cap")
+
+    print("[dressup] QR_WildlifeSpawner placed (cap=12, interval=8s,")
+    print("[dressup]   {} species in pool, initial burst 6).".format(len(pool)))
+    return spawner
+
+
 def run():
     print("\n=== qr_dev_test_dressup ===")
     ensure_navmesh_bounds_volume()
     ensure_build_catalog()
     ensure_loot_tables()
+    ensure_wildlife_spawner()
     print("[dressup] done.")
     print("[dressup] MANUAL FOLLOW-UPS:")
     print("[dressup]   1. Save the level (Ctrl+S) to trigger the nav build.")

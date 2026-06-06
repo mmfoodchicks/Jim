@@ -107,10 +107,13 @@ def _spawn(actor_class, location, rotation=None, label=None):
     """Spawn an actor in the current editor world and (best-effort) label it."""
     if rotation is None:
         rotation = unreal.Rotator(0.0, 0.0, 0.0)
+    # UClass objects don't expose get_name() as a bound method here;
+    # use __name__ for the debug label.
+    cls_label = getattr(actor_class, "__name__", str(actor_class))
     actor = _try(
         lambda: unreal.EditorLevelLibrary.spawn_actor_from_class(
             actor_class, location, rotation),
-        "spawn {}".format(actor_class.get_name()))
+        "spawn {}".format(cls_label))
     if actor and label:
         _try(lambda: actor.set_actor_label(label), "label")
     return actor
@@ -123,10 +126,44 @@ def _load_static_mesh(pkg):
     return None
 
 
+_MATERIAL_LOAD_WARNED = False
+
+
 def _load_material(pkg):
-    asset = unreal.EditorAssetLibrary.load_asset(pkg)
-    if isinstance(asset, (unreal.MaterialInterface,)):
+    """Load a material by package path. Returns None on any failure
+    (asset registry miss, type mismatch, etc.) and prints a one-time
+    actionable hint the first time anything goes missing."""
+    global _MATERIAL_LOAD_WARNED
+    # does_asset_exist is asset-registry-driven, so it will return False
+    # if the asset is on disk but the registry hasn't scanned it yet.
+    try:
+        if not unreal.EditorAssetLibrary.does_asset_exist(pkg):
+            if not _MATERIAL_LOAD_WARNED:
+                print("[terrain] material not in asset registry: {}".format(pkg))
+                print("[terrain]   if the .uasset is on disk, force a rescan via")
+                print("[terrain]   Window > Asset Registry > Refresh, OR close + reopen")
+                print("[terrain]   the editor once after the Fab pack landed on disk.")
+                print("[terrain]   The script falls back to the default material on the mesh.")
+                _MATERIAL_LOAD_WARNED = True
+            return None
+    except Exception:
+        pass
+    try:
+        asset = unreal.EditorAssetLibrary.load_asset(pkg)
+    except Exception:
+        return None
+    if isinstance(asset, unreal.MaterialInterface):
         return asset
+    return None
+
+
+def _load_first_available_material(*pkgs):
+    """Return the first material that resolves from a list of candidate
+    package paths."""
+    for p in pkgs:
+        m = _load_material(p)
+        if m:
+            return m
     return None
 
 
@@ -383,14 +420,13 @@ def _spawn_hills(seed=1):
 
 def static_mesh_path(seed=1):
     """Always-works fallback: ground plane + jungle hill rocks. Returns
-    the number of actors placed (>0 = success)."""
+    the number of actors placed (>0 = success). Materials are best-
+    effort -- if the ScifiJungle pack isn't registered yet, the script
+    still spawns the geometry; mesh defaults take over."""
     print("[terrain] using static-mesh hill formation (PATH B)")
 
-    soil = _load_material(GROUND_SOIL_MTL)
-    if not soil:
-        # Try the landscape material as a less-tiled but still-jungle
-        # texture for the ground plane.
-        soil = _load_material(JUNGLE_LANDSCAPE_MTL)
+    soil = _load_first_available_material(GROUND_SOIL_MTL, JUNGLE_LANDSCAPE_MTL,
+                                          FALLBACK_LANDSCAPE_MTL)
     plane_actor = _spawn_ground_plane(soil)
     hills_placed = _spawn_hills(seed=seed)
 
