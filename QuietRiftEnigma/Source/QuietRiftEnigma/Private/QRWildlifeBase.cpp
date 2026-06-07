@@ -45,6 +45,17 @@ AQRWildlifeBase::AQRWildlifeBase()
 
 	// Let the controller, not the spawn rotation, drive facing.
 	bUseControllerRotationYaw = false;
+
+	// The player's weapon does a line trace on ECC_Visibility. Character
+	// capsules use the "Pawn" collision profile which IGNORES Visibility
+	// by default, so without this override bullets pass straight through
+	// every animal and do zero damage. Flip the capsule to Block on
+	// Visibility so weapon hits land + the engine damage pipeline routes
+	// through AQRWildlifeBase::TakeDamage as intended.
+	if (UCapsuleComponent* Cap = GetCapsuleComponent())
+	{
+		Cap->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	}
 }
 
 void AQRWildlifeBase::ApplyBodySizing()
@@ -123,10 +134,15 @@ void AQRWildlifeBase::SetupFallbackVisual()
 	//         SM_ANM_<Species> (older naming) or SM_ANI_<Species> (newer).
 	//      Auto-derivation means every species class that has a mesh on
 	//      disk gets it without any per-subclass wiring.
+	// LOAD_NoWarn keeps the log clean when a species' FBX hasn't been
+	// baked yet -- we're probing several candidate paths by design and the
+	// "first hit wins" pattern would otherwise spam Warning entries for
+	// every miss on every wildlife spawn.
+	const uint32 QuietLoadFlags = LOAD_NoWarn | LOAD_Quiet;
 	UStaticMesh* RealMesh = nullptr;
 	if (!FallbackMeshPath.IsEmpty())
 	{
-		RealMesh = LoadObject<UStaticMesh>(nullptr, *FallbackMeshPath);
+		RealMesh = LoadObject<UStaticMesh>(nullptr, *FallbackMeshPath, nullptr, QuietLoadFlags);
 	}
 	if (!RealMesh)
 	{
@@ -141,7 +157,7 @@ void AQRWildlifeBase::SetupFallbackVisual()
 				const FString Path = FString::Printf(
 					TEXT("/Game/Meshes/wildlife/%s%s.%s%s"),
 					Pfx, *Species, Pfx, *Species);
-				RealMesh = LoadObject<UStaticMesh>(nullptr, *Path);
+				RealMesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, QuietLoadFlags);
 				if (RealMesh) break;
 			}
 		}

@@ -321,13 +321,12 @@ def _apply_landscape_material(landscape):
 def _spawn_dome(label, x, y, diameter_m, mesh, expose_frac=0.42, yaw=0.0):
     """Spawn one half-buried sphere as a smooth, walkable hill.
 
-    CRITICAL: the sphere is scaled UNIFORMLY. Engine sphere simple
-    collision is a sphere primitive that only deforms correctly under
-    uniform scale -- a non-uniform scale leaves the collision shape NOT
-    matching the visible dome, so the player walks into an invisible wall
-    / through the hill (exactly the 'I can walk into hills' bug). With
-    uniform scale the collision sphere == the visible sphere, so player
-    and AI both climb the same surface.
+    Uses USE_COMPLEX_AS_SIMPLE collision so the VISUAL triangles ARE the
+    collision surface. Without this the engine Sphere mesh has a small
+    default simple sphere that doesn't match the scaled-up visual, and
+    the player walks through hill territory ('I can walk into the made
+    hills'). Complex-as-simple guarantees collision == visual at every
+    scale.
 
     diameter_m  -- full sphere diameter in metres.
     expose_frac -- fraction of the RADIUS that pokes above z=0 (0.42 ~=
@@ -348,6 +347,28 @@ def _spawn_dome(label, x, y, diameter_m, mesh, expose_frac=0.42, yaw=0.0):
     bury_z = -(radius_cm - exposed_cm)   # sink centre so the cap pokes out
     actor.set_actor_location(unreal.Vector(x, y, bury_z), False, False)
     smc.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
+
+    # Force the visual mesh triangles to BE the collision surface. The
+    # engine Sphere ships with a small default simple collision that
+    # doesn't tightly match the visible sphere at this scale, which is
+    # why the player walked through hills before. Setting the body
+    # instance to USE_COMPLEX_AS_SIMPLE makes the triangulated sphere
+    # itself the collision -- exact match, no walk-through.
+    body = smc.get_editor_property("body_instance")
+    if body:
+        try:
+            body.set_editor_property(
+                "collision_complexity",
+                unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+            smc.set_editor_property("body_instance", body)
+        except Exception as e:
+            print("[terrain]   (collision_complexity skip: {})".format(e))
+    # Belt-and-suspenders: force a BlockAll-style profile so nothing in
+    # the project's collision matrix accidentally lets pawns walk through.
+    try:
+        smc.set_collision_profile_name("BlockAll")
+    except Exception:
+        pass
     return actor
 
 
