@@ -143,9 +143,18 @@ void AQRCharacter::BeginPlay()
 
 	// Bind death delegate
 	if (Survival)
+	{
 		Survival->OnDeath.AddDynamic(this, &AQRCharacter::OnDied);
 		Survival->OnHealthChanged.AddDynamic(this, &AQRCharacter::HandleHealthChanged);
 		LastObservedHealth = Survival->Health;
+	}
+
+	// Remember the mesh's resting pose so Revive can undo a death ragdoll.
+	if (USkeletalMeshComponent* M = GetMesh())
+	{
+		MeshBaseRelLocation = M->GetRelativeLocation();
+		MeshBaseRelRotation = M->GetRelativeRotation();
+	}
 
 	// Fill any unset input action slots + build a runtime mapping context
 	// with sensible defaults (WASD / mouse / F / G / Tab / 1-9 / etc).
@@ -1189,6 +1198,45 @@ void AQRCharacter::OnDied_Implementation()
 		{
 			GM->HandlePlayerDied(this);
 		}
+	}
+}
+
+void AQRCharacter::Revive(FVector Location, FRotator Rotation)
+{
+	if (!HasAuthority()) return;
+
+	// Refill vitals (clears bIsDead so the survival component ticks again).
+	if (Survival)
+	{
+		Survival->Revive();
+		LastObservedHealth = Survival->Health;
+	}
+
+	// Undo the death ragdoll: stop simulating, reattach the mesh to the
+	// capsule, and snap it back to its resting pose.
+	if (USkeletalMeshComponent* M = GetMesh())
+	{
+		M->SetSimulatePhysics(false);
+		M->AttachToComponent(GetCapsuleComponent(),
+			FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		M->SetRelativeLocationAndRotation(MeshBaseRelLocation, MeshBaseRelRotation);
+	}
+
+	// Restore capsule collision + walking movement.
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		Move->SetMovementMode(MOVE_Walking);
+	}
+
+	// Teleport to the respawn point.
+	SetActorLocationAndRotation(Location, Rotation, /*bSweep*/ false,
+		/*OutHit*/ nullptr, ETeleportType::TeleportPhysics);
+
+	// Re-enable input on the controlling PC (OnDied disabled it).
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->EnableInput(PC);
 	}
 }
 

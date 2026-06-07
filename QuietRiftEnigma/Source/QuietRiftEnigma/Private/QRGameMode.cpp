@@ -489,27 +489,30 @@ void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)
 			if (!P) return;
 
 			// Remove the death overlay BEFORE respawning. Without this the
-			// widget sits on screen forever showing "Respawning in 0…" and
-			// the fresh pawn is hidden behind it — looking like the respawn
-			// never happened even though it did.
+			// widget sits on screen forever showing "Respawning in 0…",
+			// covering the revived pawn.
 			if (UQRDeathScreenWidget* DeadUI = WeakWidget.Get())
 			{
 				DeadUI->RemoveFromParent();
 			}
 
-			// Tear down the corpse before spawning a new pawn so we
-			// don't end up with two characters owned by the same PC.
-			if (AQRCharacter* Corpse = WeakDead.Get())
+			AQRCharacter* Pawn = WeakDead.Get();
+			if (!Pawn) return;
+
+			// Respawn-in-place: revive the SAME pawn rather than spawning a
+			// fresh one via RestartPlayer. RestartPlayer would have wiped the
+			// player's inventory and left the dead pawn's HUD widgets stranded
+			// in the viewport (stale 0-HP bar + old hotbar that wouldn't
+			// cycle). Reusing the pawn keeps inventory, HUDs, and input bindings
+			// intact — Revive just refills vitals, un-ragdolls, re-enables input
+			// and teleports to a PlayerStart.
+			FVector  SpawnLoc = Pawn->GetActorLocation();
+			FRotator SpawnRot = Pawn->GetActorRotation();
+			if (AActor* Start = FindPlayerStart(P))
 			{
-				Corpse->Destroy();
+				SpawnLoc = Start->GetActorLocation();
+				SpawnRot = Start->GetActorRotation();
 			}
-
-			// Standard GameModeBase respawn — picks a PlayerStart and
-			// possesses a freshly spawned DefaultPawnClass.
-			RestartPlayer(P);
-
-			// AQRCharacter::OnDied disabled input on the controller; the
-			// fresh pawn won't be controllable until we re-enable it.
-			P->EnableInput(P);
+			Pawn->Revive(SpawnLoc, SpawnRot);
 		}), RespawnDelaySeconds, /*bLoop*/ false);
 }

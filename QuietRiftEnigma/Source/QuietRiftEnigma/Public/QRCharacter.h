@@ -244,6 +244,13 @@ public:
 	void OnDied();
 	virtual void OnDied_Implementation();
 
+	// Server-side respawn-in-place: un-ragdolls, restores collision +
+	// input, refills vitals via the Survival component, and teleports to
+	// the given transform. Reuses this same pawn (inventory + HUD widgets
+	// survive) instead of spawning a fresh one.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Character")
+	void Revive(FVector Location, FRotator Rotation);
+
 	// Drop the currently-equipped hotbar item into the world. Dispatches
 	// by category: Wildlife → spawn wandering actor; building-prefixed
 	// (BLD_) → enter build mode with that piece selected; else → drop
@@ -441,6 +448,11 @@ private:
 	// Last observed health value — used by HandleHealthChanged to detect
 	// damage (drop) vs healing (rise) so we only play the hit SFX on hits.
 	float LastObservedHealth = 100.0f;
+
+	// Resting relative transform of the third-person mesh, captured in
+	// BeginPlay so Revive can put it back after a death ragdoll.
+	FVector  MeshBaseRelLocation = FVector::ZeroVector;
+	FRotator MeshBaseRelRotation = FRotator::ZeroRotator;
 
 	UFUNCTION()
 	void HandleHealthChanged(float NewHealth);

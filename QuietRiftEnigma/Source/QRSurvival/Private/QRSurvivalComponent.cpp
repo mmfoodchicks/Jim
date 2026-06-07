@@ -163,6 +163,21 @@ void UQRSurvivalComponent::ApplyHealing(float Amount)
 	OnHealthChanged.Broadcast(Health);
 }
 
+void UQRSurvivalComponent::Revive()
+{
+	bIsDead = false;
+	Health  = MaxHealth;
+	Hunger  = MaxHunger * 0.8f;
+	Thirst  = MaxThirst * 0.8f;
+	Fatigue = MaxFatigue;
+	Oxygen  = MaxOxygen;
+	CoreTemperature = 37.0f;
+	ActiveInjuries.Empty();
+	ActiveStatusTags = FGameplayTagContainer();
+	OnHealthChanged.Broadcast(Health);
+	OnStatusChanged.Broadcast(ActiveStatusTags);
+}
+
 void UQRSurvivalComponent::ConsumeFood(UQRItemInstance* FoodItem)
 {
 	if (!FoodItem || !FoodItem->Definition) return;

@@ -157,6 +157,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void ApplyHealing(float Amount);
 
+	// Bring a dead survivor back: clears bIsDead, refills health (and the
+	// other vitals), wipes injuries + status tags, and broadcasts so the
+	// HUD updates. Used by the respawn path so the same pawn is reused
+	// (inventory + HUD survive) rather than spawning a fresh one.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
+	void Revive();
+
 	// Applies nutrition from FoodItem and decrements its Quantity by 1.
 	// Caller must remove the item instance from inventory when Quantity reaches 0.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
