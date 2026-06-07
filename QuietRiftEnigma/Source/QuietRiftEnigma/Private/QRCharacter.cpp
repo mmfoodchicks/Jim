@@ -66,20 +66,9 @@ AQRCharacter::AQRCharacter()
 	// white regardless of which PostProcessVolume / auto-exposure the level
 	// happens to have. Histogram auto-exposure with min == max pins the
 	// camera at a constant EV (no adaptation). This lives on the camera (not
-	// a level PPV) so it's always applied and survives map re-dressing --
-	// the recurring "incredibly bright again" was the level PPV being reset
-	// / not re-run. Raise LockedExposureEV to darken, lower to brighten.
-	{
-		FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
-		PP.bOverride_AutoExposureMethod = true;
-		PP.AutoExposureMethod = AEM_Histogram;
-		PP.bOverride_AutoExposureMinBrightness = true;
-		PP.AutoExposureMinBrightness = LockedExposureEV;
-		PP.bOverride_AutoExposureMaxBrightness = true;
-		PP.AutoExposureMaxBrightness = LockedExposureEV;
-		PP.bOverride_AutoExposureBias = true;
-		PP.AutoExposureBias = 0.0f;
-	}
+	// a level PPV) so it's always applied and survives map re-dressing.
+	// Tune live in PIE with the QR_Exposure console exec.
+	QR_Exposure(LockedExposureEV);
 
 	// Arm mesh (visible only to local player)
 	ArmsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmsMesh"));
@@ -944,6 +933,27 @@ void AQRCharacter::QR_StudyItem(FName Id)
 			Codex->Record(Id, Category, DisplayName, EQRCodexDiscoveryState::Known);
 		}
 	}
+}
+
+void AQRCharacter::QR_Exposure(float NewEV)
+{
+	LockedExposureEV = FMath::Clamp(NewEV, 4.0f, 18.0f);
+	if (!FirstPersonCamera) return;
+
+	// Histogram auto with min == max == EV pins exposure -- no adaptation,
+	// no blow-out, predictable brightness. Updates take effect on the next
+	// frame; live-tunable from the tilde console.
+	FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
+	PP.bOverride_AutoExposureMethod = true;
+	PP.AutoExposureMethod = AEM_Histogram;
+	PP.bOverride_AutoExposureMinBrightness = true;
+	PP.AutoExposureMinBrightness = LockedExposureEV;
+	PP.bOverride_AutoExposureMaxBrightness = true;
+	PP.AutoExposureMaxBrightness = LockedExposureEV;
+	PP.bOverride_AutoExposureBias = true;
+	PP.AutoExposureBias = 0.0f;
+
+	UE_LOG(LogTemp, Log, TEXT("[QR_Exposure] locked at EV %.2f"), LockedExposureEV);
 }
 
 void AQRCharacter::QR_OpenSettings()

@@ -81,10 +81,11 @@ public:
 
 	// "Jovianlight" floor -- Jupiter reflects substantial sunlight onto
 	// the moon during the moon's nightside, ~500x brighter than our full
-	// moon. 200 lux is a soft-twilight floor that lets you see at night.
+	// moon. 800 lux is a brighter soft-twilight floor so the world stays
+	// readable at the camera's locked EV without auto-exposure adapting.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
 		meta = (ClampMin = "0", ClampMax = "10000"))
-	float NightIntensity = 200.0f;
+	float NightIntensity = 800.0f;
 
 	// Sun color at noon vs at horizon (sunrise/sunset).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")

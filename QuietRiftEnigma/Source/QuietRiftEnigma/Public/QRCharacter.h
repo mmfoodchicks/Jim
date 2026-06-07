@@ -168,10 +168,18 @@ public:
 
 	// LOCKED camera exposure (EV100). Applied to FirstPersonCamera in the
 	// constructor so the view can't auto-expose to white. HIGHER = darker
-	// image, LOWER = brighter. Tune live in a BP subclass / instance.
+	// image, LOWER = brighter. Default 9 keeps both noon and the
+	// Jovianlight-only night visible without blowing out. Tune live with
+	// the QR_Exposure console exec or in a BP subclass.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera",
 		meta = (ClampMin = "4.0", ClampMax = "18.0"))
-	float LockedExposureEV = 13.0f;
+	float LockedExposureEV = 9.0f;
+
+	// Live-set the locked exposure EV on FirstPersonCamera. Tilde console:
+	//   QR_Exposure 8     <- brighter
+	//   QR_Exposure 11    <- darker
+	UFUNCTION(Exec, BlueprintCallable, Category = "Camera")
+	void QR_Exposure(float NewEV);
 
 	// ── Weapon recoil ─────────────────────────
 	// Recoil kicks the held weapon mesh, not the camera, so firing reads
