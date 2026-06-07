@@ -166,18 +166,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	float InteractDistance = 250.0f;
 
-	// LOCKED camera exposure (EV100). Applied to FirstPersonCamera in the
-	// constructor so the view can't auto-expose to white. HIGHER = darker
-	// image, LOWER = brighter. Default 9 keeps both noon and the
-	// Jovianlight-only night visible without blowing out. Tune live with
-	// the QR_Exposure console exec or in a BP subclass.
+	// Camera exposure COMPENSATION (bias, in stops) layered on top of the
+	// bounded auto-exposure. 0 = neutral; HIGHER = brighter, LOWER = darker.
+	// The camera adapts to day/night on its own; this just nudges it.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera",
-		meta = (ClampMin = "4.0", ClampMax = "18.0"))
-	float LockedExposureEV = 9.0f;
+		meta = (ClampMin = "-8.0", ClampMax = "8.0"))
+	float LockedExposureEV = 0.0f;
 
-	// Live-set the locked exposure EV on FirstPersonCamera. Tilde console:
-	//   QR_Exposure 8     <- brighter
-	//   QR_Exposure 11    <- darker
+	// Live-set the exposure bias on FirstPersonCamera. Tilde console:
+	//   QR_Exposure 1     <- brighter
+	//   QR_Exposure -1    <- darker
 	UFUNCTION(Exec, BlueprintCallable, Category = "Camera")
 	void QR_Exposure(float NewEV);
 

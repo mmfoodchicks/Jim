@@ -164,15 +164,15 @@ def _purge_stray_directional_lights(keep_labels):
         print("[sky] no stray directional lights to remove")
 
 
-def run(exposure_ev=13.0, sun_lux=10.0):
+def run(exposure_ev=0.0, sun_lux=10.0):
     """Set up the Jovian sky + lighting on the current level.
 
-    exposure_ev -- LOCKED camera exposure (EV100). The scene no longer
-      auto-adapts, so it can't blow out to white. HIGHER = darker image,
-      LOWER = brighter. If the map is still too bright, bump this to 14-15;
-      if too dark, drop to 11-12. Re-run after changing.
-    sun_lux -- DirectionalLight intensity (lux). Canon is a dim
-      Jupiter-distance sun; raise for a brighter key light.
+    exposure_ev -- exposure BIAS (stops) on top of the bounded auto
+      exposure. 0 = neutral; +1 brighter, -1 darker. In PIE the player
+      camera drives exposure (tilde: QR_Exposure <bias>); this volume
+      makes the editor viewport match.
+    sun_lux -- editor-preview DirectionalLight intensity (lux). In PIE the
+      QRSkyManager overrides this with its day/night cycle (~2800 lux noon).
     """
     V = unreal.Vector
 
@@ -233,9 +233,11 @@ def run(exposure_ev=13.0, sun_lux=10.0):
             _try(lambda: comp.set_editor_property("real_time_capture", True))
             _try(lambda: comp.set_editor_property("lower_hemisphere_is_black", False))
             # SkyLight intensity is a multiplier on the captured cubemap.
-            # 5.0 (was 3.0) lifts the ambient floor so the world isn't
-            # coal-black when the sun is on the wrong side of the moon.
-            _try(lambda: comp.set_intensity(5.0))
+            # 1.0 is neutral; the old 5.0 flooded the scene with 5x flat
+            # ambient that washed out all contrast (the 'can't see anything,
+            # everything is flat white' look). With physically-based
+            # luminance units the sky already provides plenty of fill.
+            _try(lambda: comp.set_intensity(1.0))
             _try(lambda: comp.recapture_sky())
 
     # ── Jovianlight — second DirectionalLight that represents Jupiter
@@ -368,33 +370,30 @@ def run(exposure_ev=13.0, sun_lux=10.0):
         _try(lambda: ppv.set_editor_property("unbound", True))
         settings = ppv.get_editor_property("settings")
         if settings:
-            # LOCKED exposure. The prior histogram auto-exposure was
-            # adapting UP because the dim sun left the scene under-lit,
-            # which blew the bright SkyAtmosphere pixels out to solid
-            # cream/white (the 'unbelievably bright' report). Locking the
-            # camera removes adaptation entirely: brightness is now a
-            # fixed function of the actual light, so it can't run away.
-            #
-            # Implemented as histogram auto-exposure with min == max ==
-            # exposure_ev, which pins the camera at a constant EV100.
-            # HIGHER exposure_ev = darker image. Tunable via run().
+            # BOUNDED AUTO exposure (matches AQRCharacter's camera setup).
+            # With physically-based luminance units (ExtendDefaultLuminance
+            # Range in DefaultEngine.ini), the camera adapts across the
+            # huge day<->Jovianlight-night swing. A wide min/max EV range
+            # lets it stop down fully for bright daylight (no white-out)
+            # and open up for night, while the clamps prevent runaway.
+            # The player camera overrides this volume in-game; the volume
+            # makes the editor viewport look right too. exposure_ev is the
+            # bias here (0 = neutral; +1 brighter, -1 darker).
             _try(lambda: setattr(settings, "override_auto_exposure_method", True))
             _try(lambda: setattr(settings, "auto_exposure_method",
                                   unreal.AutoExposureMethod.AEM_HISTOGRAM))
             _try(lambda: setattr(settings, "override_auto_exposure_min_brightness", True))
-            _try(lambda: setattr(settings, "auto_exposure_min_brightness", float(exposure_ev)))
+            _try(lambda: setattr(settings, "auto_exposure_min_brightness", -2.0))
             _try(lambda: setattr(settings, "override_auto_exposure_max_brightness", True))
-            _try(lambda: setattr(settings, "auto_exposure_max_brightness", float(exposure_ev)))
-            # Neutral compensation; the lock above does the work.
+            _try(lambda: setattr(settings, "auto_exposure_max_brightness", 14.0))
             _try(lambda: setattr(settings, "override_auto_exposure_bias", True))
-            _try(lambda: setattr(settings, "auto_exposure_bias", 0.0))
-            # Instant settle (no visible adaptation ramp).
+            _try(lambda: setattr(settings, "auto_exposure_bias", float(exposure_ev)))
             _try(lambda: setattr(settings, "override_auto_exposure_speed_up", True))
-            _try(lambda: setattr(settings, "auto_exposure_speed_up", 20.0))
+            _try(lambda: setattr(settings, "auto_exposure_speed_up", 6.0))
             _try(lambda: setattr(settings, "override_auto_exposure_speed_down", True))
-            _try(lambda: setattr(settings, "auto_exposure_speed_down", 20.0))
+            _try(lambda: setattr(settings, "auto_exposure_speed_down", 6.0))
             _try(lambda: ppv.set_editor_property("settings", settings))
-            print("[sky] exposure LOCKED at EV {} (raise to darken, lower to brighten)"
+            print("[sky] exposure = bounded AUTO, bias {} (+ brighter / - darker)"
                   .format(exposure_ev))
 
     print("[sky] done — re-run any time, it re-tunes instead of duplicating.")

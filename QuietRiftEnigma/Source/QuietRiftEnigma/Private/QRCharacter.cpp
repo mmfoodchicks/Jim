@@ -937,23 +937,32 @@ void AQRCharacter::QR_StudyItem(FName Id)
 
 void AQRCharacter::QR_Exposure(float NewEV)
 {
-	LockedExposureEV = FMath::Clamp(NewEV, 4.0f, 18.0f);
+	// NewEV is the exposure COMPENSATION (bias) in stops. Higher = brighter,
+	// lower = darker. Stored in LockedExposureEV for the editor knob.
+	LockedExposureEV = FMath::Clamp(NewEV, -8.0f, 8.0f);
 	if (!FirstPersonCamera) return;
 
-	// Histogram auto with min == max == EV pins exposure -- no adaptation,
-	// no blow-out, predictable brightness. Updates take effect on the next
-	// frame; live-tunable from the tilde console.
+	// Bounded histogram AUTO exposure: the camera adapts across the huge
+	// day<->Jovianlight-night luminance swing instead of being pinned to a
+	// single EV (which made noon wash out or night go black). The wide
+	// min/max range lets it stop down fully for the bright daylit scene
+	// (no white-out) and open up for night, while the clamps stop it from
+	// running away. ExposureBias is the user offset on top.
 	FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
 	PP.bOverride_AutoExposureMethod = true;
 	PP.AutoExposureMethod = AEM_Histogram;
 	PP.bOverride_AutoExposureMinBrightness = true;
-	PP.AutoExposureMinBrightness = LockedExposureEV;
+	PP.AutoExposureMinBrightness = -2.0f;   // EV100 floor (night)
 	PP.bOverride_AutoExposureMaxBrightness = true;
-	PP.AutoExposureMaxBrightness = LockedExposureEV;
+	PP.AutoExposureMaxBrightness = 14.0f;   // EV100 ceiling (bright day)
 	PP.bOverride_AutoExposureBias = true;
-	PP.AutoExposureBias = 0.0f;
+	PP.AutoExposureBias = LockedExposureEV;
+	PP.bOverride_AutoExposureSpeedUp = true;
+	PP.AutoExposureSpeedUp = 6.0f;
+	PP.bOverride_AutoExposureSpeedDown = true;
+	PP.AutoExposureSpeedDown = 6.0f;
 
-	UE_LOG(LogTemp, Log, TEXT("[QR_Exposure] locked at EV %.2f"), LockedExposureEV);
+	UE_LOG(LogTemp, Log, TEXT("[QR_Exposure] exposure bias %.2f (adaptive)"), LockedExposureEV);
 }
 
 void AQRCharacter::QR_OpenSettings()
