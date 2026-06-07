@@ -114,8 +114,11 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 	const bool bIsDirtyAmmo = AmmoInstance && AmmoInstance->Definition &&
 		AmmoInstance->Definition->ItemTags.HasTag(FGameplayTag::RequestGameplayTag(TEXT("Ammo.Dirty")));
 
-	// Check jam before firing
-	if (FMath::FRand() < GetJamChance())
+	// Check jam before firing. Skipped entirely in unlimited-ammo (test)
+	// mode so the gun never jams to a stop on the range -- the prior
+	// behaviour accumulated fouling -> rising jam chance -> a permanent
+	// Jammed state that read as "the gun stopped working".
+	if (!bUnlimitedAmmo && FMath::FRand() < GetJamChance())
 	{
 		bIsJammed   = true;
 		WeaponState = EQRWeaponState::Jammed;
@@ -150,11 +153,13 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 		}
 	}
 
-	// v1.17: canonical fouling increment (dirty ammo ×5, suppressor ×1.5)
-	FoulingFactor = FMath::Clamp(FoulingFactor + GetFoulingIncrement(bIsDirtyAmmo, bHasSuppressor), 0.0f, 1.0f);
-
+	// v1.17: canonical fouling increment (dirty ammo ×5, suppressor ×1.5).
+	// Unlimited-ammo (test) mode keeps the bore clean so accuracy + jam
+	// chance never degrade during a long range session.
 	if (!bUnlimitedAmmo)
 	{
+		FoulingFactor = FMath::Clamp(FoulingFactor + GetFoulingIncrement(bIsDirtyAmmo, bHasSuppressor), 0.0f, 1.0f);
+
 		--CurrentAmmo;
 		if (CurrentAmmo <= 0)
 			WeaponState = EQRWeaponState::Empty;

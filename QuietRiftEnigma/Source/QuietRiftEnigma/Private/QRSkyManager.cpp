@@ -35,11 +35,39 @@ void AQRSkyManager::BeginPlay()
 
 	if (!SunLight)
 	{
-		// Find the first ADirectionalLight in the level.
+		// Prefer a Movable directional light (QR_KeyLight is spawned Movable
+		// by qr_setup_sky.py) over a leftover Static "DirectionalLight_1" the
+		// map may have shipped with -- rotating a Static light is what spammed
+		// the per-tick 'has to be Movable' warning. Fall back to the first
+		// light found if none are Movable (it then gets forced Movable below).
+		ADirectionalLight* Fallback = nullptr;
 		for (TActorIterator<ADirectionalLight> It(GetWorld()); It; ++It)
 		{
-			SunLight = *It;
-			break;
+			ADirectionalLight* DL = *It;
+			if (!Fallback) Fallback = DL;
+			if (UDirectionalLightComponent* LC = DL->FindComponentByClass<UDirectionalLightComponent>())
+			{
+				if (LC->Mobility == EComponentMobility::Movable)
+				{
+					SunLight = DL;
+					break;
+				}
+			}
+		}
+		if (!SunLight) SunLight = Fallback;
+	}
+
+	// The sun is rotated every tick, which UE only permits on a Movable
+	// light component. Force it Movable so a Static/Stationary map light
+	// doesn't spam 'has to be Movable if you'd like to move' every frame.
+	if (SunLight)
+	{
+		if (UDirectionalLightComponent* LC = SunLight->FindComponentByClass<UDirectionalLightComponent>())
+		{
+			if (LC->Mobility != EComponentMobility::Movable)
+			{
+				LC->SetMobility(EComponentMobility::Movable);
+			}
 		}
 	}
 

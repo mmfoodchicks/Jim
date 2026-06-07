@@ -1110,8 +1110,12 @@ void AQRCharacter::RefreshHeldItemMesh()
 			// (full-auto SMG/carbine, semi pistol/DMR, bolt/pump sniper &
 			// shotgun). Name-based until the armory DataTable is wired in C++.
 			Weapon->ConfigureForWeaponId(HandDef->ItemId);
-			// TESTING: unlimited ammo so every gun is range-ready.
+			// TESTING: unlimited ammo so every gun is range-ready, and
+			// clear any leftover jam/fouling so a previously-gunked weapon
+			// doesn't come back Jammed.
 			Weapon->bUnlimitedAmmo = true;
+			Weapon->bIsJammed = false;
+			Weapon->FoulingFactor = 0.0f;
 			Weapon->CurrentAmmo = Weapon->MagazineCapacity;
 			Weapon->WeaponState = EQRWeaponState::Ready;
 		}

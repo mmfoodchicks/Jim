@@ -318,12 +318,21 @@ def _apply_landscape_material(landscape):
 
 # ─── PATH B: static-mesh hill formation (always works) ─────────────────
 
-def _spawn_dome(label, x, y, width_m, height_m, mesh, yaw=0.0):
-    """Spawn one half-buried sphere as a smooth, walkable hill. The
-    sphere is scaled to width_m across and height_m tall, then its centre
-    is sunk so only the top dome pokes above z=0 -- wildlife and the
-    player walk up and over it. Collision on so the slope-conforming
-    movement has something to climb."""
+def _spawn_dome(label, x, y, diameter_m, mesh, expose_frac=0.42, yaw=0.0):
+    """Spawn one half-buried sphere as a smooth, walkable hill.
+
+    CRITICAL: the sphere is scaled UNIFORMLY. Engine sphere simple
+    collision is a sphere primitive that only deforms correctly under
+    uniform scale -- a non-uniform scale leaves the collision shape NOT
+    matching the visible dome, so the player walks into an invisible wall
+    / through the hill (exactly the 'I can walk into hills' bug). With
+    uniform scale the collision sphere == the visible sphere, so player
+    and AI both climb the same surface.
+
+    diameter_m  -- full sphere diameter in metres.
+    expose_frac -- fraction of the RADIUS that pokes above z=0 (0.42 ~=
+                   a broad rolling hill; 1.0 would be a full hemisphere).
+    """
     actor = _spawn(unreal.StaticMeshActor,
                    unreal.Vector(x, y, 0.0),
                    unreal.Rotator(0.0, yaw, 0.0), label)
@@ -331,23 +340,21 @@ def _spawn_dome(label, x, y, width_m, height_m, mesh, yaw=0.0):
         return None
     smc = actor.static_mesh_component
     smc.set_static_mesh(mesh)
-    # Engine sphere is 100 cm diameter. Horizontal scale = width in m;
-    # vertical scale tuned so the exposed dome is height_m tall. We sink
-    # the sphere by (radius_z - height) so its top sits height_m above 0.
-    sx = float(width_m)
-    sz = float(height_m) * 2.0     # full sphere is 2x the exposed dome
-    actor.set_actor_scale3d(unreal.Vector(sx, sx, sz))
-    radius_z_cm = sz * 50.0        # half of the 100 cm mesh * scale
-    bury_z = -(radius_z_cm - height_m * 100.0)
+    # Engine sphere is 100 cm diameter at scale 1, so scale = diameter_m.
+    s = float(diameter_m)
+    actor.set_actor_scale3d(unreal.Vector(s, s, s))
+    radius_cm = s * 50.0
+    exposed_cm = radius_cm * float(expose_frac)
+    bury_z = -(radius_cm - exposed_cm)   # sink centre so the cap pokes out
     actor.set_actor_location(unreal.Vector(x, y, bury_z), False, False)
     smc.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
     return actor
 
 
 def _spawn_hills(seed=1):
-    """Build a basin of smooth domes from half-buried engine spheres.
-    No coplanar ground plane (that z-fought the existing dev floor and
-    made the ground flash). Returns the count placed."""
+    """Build a basin of smooth domes from half-buried, UNIFORMLY-scaled
+    engine spheres. No coplanar ground plane (that z-fought the existing
+    dev floor and made the ground flash). Returns the count placed."""
     rng_state = [seed & 0xFFFFFFFF]
     def rand():
         rng_state[0] = (rng_state[0] * 1103515245 + 12345) & 0x7FFFFFFF
@@ -368,25 +375,26 @@ def _spawn_hills(seed=1):
         r = ring_min + (ring_max - ring_min) * rand()
         x = math.cos(angle) * r
         y = math.sin(angle) * r
-        width_m = 25.0 + rand() * 35.0    # 25-60 m wide
-        height_m = 4.0 + rand() * 8.0     # 4-12 m tall
+        diameter_m = 30.0 + rand() * 40.0   # 30-70 m spheres
+        expose = 0.30 + rand() * 0.25       # shallow..medium domes
         if _spawn_dome("QR_Terrain_Hill_{:02d}".format(i),
-                       x, y, width_m, height_m, sphere, yaw=rand() * 360.0):
+                       x, y, diameter_m, sphere, expose_frac=expose,
+                       yaw=rand() * 360.0):
             placed += 1
 
     # A few smaller mounds near the spawn so there's a slope in arm's
     # reach for immediate "wildlife climbs a hill" testing.
     near = [
-        (   0.0,  1800.0, 14.0, 3.0),
-        (-1600.0,  -900.0, 11.0, 2.5),
-        ( 1700.0, -1000.0, 18.0, 4.0),
+        (   0.0,  1800.0, 18.0),
+        (-1600.0,  -900.0, 14.0),
+        ( 1700.0, -1000.0, 22.0),
     ]
-    for i, (x, y, w, h) in enumerate(near):
+    for i, (x, y, d) in enumerate(near):
         if _spawn_dome("QR_Terrain_NearHill_{:02d}".format(i),
-                       x, y, w, h, sphere, yaw=i * 47.0):
+                       x, y, d, sphere, expose_frac=0.40, yaw=i * 47.0):
             placed += 1
 
-    print("[terrain] spawned {} smooth domes (half-buried engine spheres)".format(placed))
+    print("[terrain] spawned {} smooth domes (uniform-scaled engine spheres)".format(placed))
     return placed
 
 
