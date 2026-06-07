@@ -46,15 +46,33 @@ AQRWildlifeBase::AQRWildlifeBase()
 	// Let the controller, not the spawn rotation, drive facing.
 	bUseControllerRotationYaw = false;
 
-	// The player's weapon does a line trace on ECC_Visibility. Character
-	// capsules use the "Pawn" collision profile which IGNORES Visibility
-	// by default, so without this override bullets pass straight through
-	// every animal and do zero damage. Flip the capsule to Block on
-	// Visibility so weapon hits land + the engine damage pipeline routes
-	// through AQRWildlifeBase::TakeDamage as intended.
+	// NOTE: the capsule's ECC_Visibility response is set in BeginPlay, NOT
+	// here. Setting it in the constructor gets wiped when the component
+	// registers and re-applies the "Pawn" collision profile, which is why
+	// bullets were still passing through. See SetupHitCollision().
+}
+
+void AQRWildlifeBase::SetupHitCollision()
+{
+	// The player's weapon line-traces on ECC_Visibility. ACharacter
+	// capsules use the "Pawn" profile, which IGNORES Visibility -- so
+	// weapon traces fly straight through animals and hit whatever's
+	// behind them. Force the capsule (and the visible body mesh) to BLOCK
+	// Visibility so shots land and route through TakeDamage. Done in
+	// BeginPlay so it survives the profile being applied at registration.
 	if (UCapsuleComponent* Cap = GetCapsuleComponent())
 	{
 		Cap->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	}
+	// Also make the visible body itself shootable so hits register on the
+	// silhouette, not just the capsule. Query-only (no physics) keeps it
+	// out of movement/overlap logic while still catching weapon traces.
+	if (FallbackMesh && FallbackMesh->IsVisible())
+	{
+		FallbackMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		FallbackMesh->SetCollisionObjectType(ECC_WorldDynamic);
+		FallbackMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+		FallbackMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	}
 }
 
@@ -150,14 +168,43 @@ void AQRWildlifeBase::SetupFallbackVisual()
 		const FString Prefix = TEXT("QRWildlife_");
 		if (ClassName.StartsWith(Prefix))
 		{
-			const FString Species = ClassName.RightChop(Prefix.Len());
-			const TCHAR* Folders[] = { TEXT("SM_ANM_"), TEXT("SM_ANI_"), TEXT("SM_PRD_") };
-			for (const TCHAR* Pfx : Folders)
+			// Species suffix in the class's CamelCase form (e.g.
+			// "NestweaverDrifter") and its UPPER_SNAKE EntityId form
+			// ("NESTWEAVER_DRIFTER"). The legacy generator wrote
+			// CamelCase filenames (SM_ANM_AshbackBoar) while the v15 pass
+			// writes the EntityId verbatim (SM_ANI_NESTWEAVER_DRIFTER), so
+			// we probe both.
+			const FString SpeciesCamel = ClassName.RightChop(Prefix.Len());
+			FString SpeciesSnake;
+			for (int32 i = 0; i < SpeciesCamel.Len(); ++i)
 			{
-				const FString Path = FString::Printf(
-					TEXT("/Game/Meshes/wildlife/%s%s.%s%s"),
-					Pfx, *Species, Pfx, *Species);
-				RealMesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, QuietLoadFlags);
+				const TCHAR Ch = SpeciesCamel[i];
+				if (i > 0 && FChar::IsUpper(Ch)) SpeciesSnake.AppendChar(TEXT('_'));
+				SpeciesSnake.AppendChar(FChar::ToUpper(Ch));
+			}
+
+			// Import path varies by tool: UE auto-import mirrors the disk
+			// folder ("wildlife", lowercase); qr_seed_items.py buckets to
+			// "Wildlife" (capital). Probe both. Prefixes ANM/ANI/PRD and
+			// both name casings round out the matrix.
+			const TCHAR* Folders[] = { TEXT("wildlife"), TEXT("Wildlife") };
+			const TCHAR* Prefixes[] = { TEXT("SM_ANM_"), TEXT("SM_ANI_"), TEXT("SM_PRD_") };
+			const FString Names[] = { SpeciesCamel, SpeciesSnake };
+
+			for (const TCHAR* Folder : Folders)
+			{
+				for (const TCHAR* Pfx : Prefixes)
+				{
+					for (const FString& Nm : Names)
+					{
+						const FString Asset = FString::Printf(TEXT("%s%s"), Pfx, *Nm);
+						const FString Path = FString::Printf(
+							TEXT("/Game/Meshes/%s/%s.%s"), Folder, *Asset, *Asset);
+						RealMesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, QuietLoadFlags);
+						if (RealMesh) break;
+					}
+					if (RealMesh) break;
+				}
 				if (RealMesh) break;
 			}
 		}
@@ -251,6 +298,9 @@ void AQRWildlifeBase::BeginPlay()
 	// Show a placeholder body so an animal without a skeletal mesh is
 	// visible instead of an invisible biting capsule.
 	SetupFallbackVisual();
+	// Make the animal shootable (must run after registration + after the
+	// visible mesh is set up).
+	SetupHitCollision();
 	if (UCharacterMovementComponent* Move = GetCharacterMovement())
 		Move->MaxWalkSpeed = MoveSpeedWalk;
 

@@ -196,4 +196,9 @@ protected:
 	// Loads an engine basic-shape mesh into FallbackMesh sized to the body,
 	// or hides it if a skeletal mesh is set. Called from BeginPlay.
 	void SetupFallbackVisual();
+
+	// Makes the capsule + visible body block ECC_Visibility so weapon
+	// traces register hits. Called from BeginPlay (must run after profile
+	// registration, otherwise the "Pawn" profile wipes the response).
+	void SetupHitCollision();
 };
