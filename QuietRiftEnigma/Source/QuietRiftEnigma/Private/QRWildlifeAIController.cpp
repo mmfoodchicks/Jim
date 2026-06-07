@@ -106,18 +106,53 @@ AActor* AQRWildlifeAIController::ScanForThreat() const
 {
 	if (!WildlifePawn || !GetWorld()) return nullptr;
 
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC) return nullptr;
-	APawn* PlayerPawn = PC->GetPawn();
-	if (!PlayerPawn) return nullptr;
+	const FVector Origin = WildlifePawn->GetActorLocation();
+	const float PerceptionSq = PerceptionRadius * PerceptionRadius;
 
-	const float DistSq = FVector::DistSquared(
-		PlayerPawn->GetActorLocation(), WildlifePawn->GetActorLocation());
-	if (DistSq <= PerceptionRadius * PerceptionRadius)
+	AActor* Best = nullptr;
+	float BestDistSq = FLT_MAX;
+
+	// Nearby predators count as threats for everyone -- prey runs from any
+	// predator; a small predator runs from a noticeably bigger predator
+	// ("there's always a bigger fish": the bigger-MassKg rule below).
+	const bool bSelfIsPredator =
+		WildlifePawn->BehaviorRole == EQRWildlifeBehaviorRole::Predator;
+	for (TActorIterator<AQRWildlifeBase> It(GetWorld()); It; ++It)
 	{
-		return PlayerPawn;
+		AQRWildlifeBase* Other = *It;
+		if (!Other || Other == WildlifePawn || Other->IsDead()) continue;
+		if (Other->BehaviorRole != EQRWildlifeBehaviorRole::Predator) continue;
+		if (bSelfIsPredator)
+		{
+			// Predator-on-predator: only meaningfully bigger predators
+			// (60%+ heavier) are threatening. A pack of equal-mass wolves
+			// shouldn't all flee each other.
+			if (Other->MassKg < WildlifePawn->MassKg * 1.6f) continue;
+		}
+
+		const float D2 = FVector::DistSquared(Other->GetActorLocation(), Origin);
+		if (D2 <= PerceptionSq && D2 < BestDistSq)
+		{
+			Best = Other;
+			BestDistSq = D2;
+		}
 	}
-	return nullptr;
+
+	// The player counts as a threat too (closest wins).
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (APawn* PlayerPawn = PC->GetPawn())
+		{
+			const float D2 = FVector::DistSquared(PlayerPawn->GetActorLocation(), Origin);
+			if (D2 <= PerceptionSq && D2 < BestDistSq)
+			{
+				Best = PlayerPawn;
+				BestDistSq = D2;
+			}
+		}
+	}
+
+	return Best;
 }
 
 
@@ -131,15 +166,31 @@ AActor* AQRWildlifeAIController::ScanForPrey() const
 	AActor* Best = nullptr;
 	float BestDistSq = FLT_MAX;
 
-	// Prefer prey wildlife within range -- a predator that hunts other
-	// animals reads as more interesting than one that only chases the
-	// player.
+	// Huntable = prey/scavenger/ambient, OR a noticeably smaller predator
+	// (the "bigger fish" rule -- a pack predator gladly takes a smaller
+	// scavenger but not an equal-mass rival).
 	for (TActorIterator<AQRWildlifeBase> It(GetWorld()); It; ++It)
 	{
 		AQRWildlifeBase* Other = *It;
-		if (!Other || Other == WildlifePawn) continue;
-		if (Other->IsDead()) continue;
-		if (Other->BehaviorRole != EQRWildlifeBehaviorRole::Prey) continue;
+		if (!Other || Other == WildlifePawn || Other->IsDead()) continue;
+
+		bool bHuntable = false;
+		switch (Other->BehaviorRole)
+		{
+		case EQRWildlifeBehaviorRole::Prey:
+		case EQRWildlifeBehaviorRole::Scavenger:
+		case EQRWildlifeBehaviorRole::Ambient:
+			bHuntable = true;
+			break;
+		case EQRWildlifeBehaviorRole::Predator:
+			// Smaller predators are fair game. 0.6x threshold mirrors the
+			// 1.6x threshold in ScanForThreat: A hunts B iff B hunts no A.
+			bHuntable = Other->MassKg < WildlifePawn->MassKg * 0.6f;
+			break;
+		default:
+			break;
+		}
+		if (!bHuntable) continue;
 
 		const float D2 = FVector::DistSquared(Other->GetActorLocation(), Origin);
 		if (D2 <= PerceptionSq && D2 < BestDistSq)
@@ -151,9 +202,24 @@ AActor* AQRWildlifeAIController::ScanForPrey() const
 
 	if (Best) return Best;
 
-	// Fall back to the player so predators aren't passive when there's
-	// no prey species in range.
-	return ScanForThreat();
+	// Player as a last-resort target only when very close (20% of
+	// perception). Without this clamp predators path-followed the player
+	// across the map even when wildlife targets were available; with it
+	// they hunt the ecosystem and only engage the player on contact.
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (APawn* PlayerPawn = PC->GetPawn())
+		{
+			const float CloseRadius = PerceptionRadius * 0.20f;
+			const float D2 = FVector::DistSquared(PlayerPawn->GetActorLocation(), Origin);
+			if (D2 <= CloseRadius * CloseRadius)
+			{
+				return PlayerPawn;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 
@@ -251,13 +317,24 @@ void AQRWildlifeAIController::Think()
 	// Perception step: refresh CurrentTarget for non-ambient roles.
 	// Ambient animals (bone lantern drifters, lantern mite swarms) just
 	// wander; they don't react to anything.
+	bool bFleeingBiggerFish = false;
 	if (!bAmbient)
 	{
 		if (IsPredatorRole())
 		{
-			if (CurState != EQRWildlifeAIState::Stalking &&
-				CurState != EQRWildlifeAIState::Charging &&
-				CurState != EQRWildlifeAIState::Attacking)
+			// Bigger-fish check FIRST: even a predator runs from a
+			// noticeably bigger predator. ScanForThreat with a predator
+			// pawn only returns 1.6x-heavier hunters (and the player when
+			// they're closer than that). If something scary is around,
+			// switch to flee mode regardless of what we were doing.
+			if (AActor* Hunter = ScanForThreat())
+			{
+				CurrentTarget = Hunter;
+				bFleeingBiggerFish = true;
+			}
+			else if (CurState != EQRWildlifeAIState::Stalking &&
+			         CurState != EQRWildlifeAIState::Charging &&
+			         CurState != EQRWildlifeAIState::Attacking)
 			{
 				CurrentTarget = ScanForPrey();
 			}
@@ -272,6 +349,17 @@ void AQRWildlifeAIController::Think()
 				CurrentTarget = ScanForThreat();
 			}
 		}
+	}
+
+	// A predator that just spotted a bigger predator drops everything and
+	// bolts -- it's the same behaviour prey runs when threatened.
+	if (bFleeingBiggerFish && CurrentTarget)
+	{
+		StopMovement();
+		MoveToLocation(PickFleeTarget(CurrentTarget));
+		SetState(EQRWildlifeAIState::Fleeing);
+		bMoveOutstanding = true;
+		return;
 	}
 
 	// Apply state. Each branch is a single tick of the FSM; movement is

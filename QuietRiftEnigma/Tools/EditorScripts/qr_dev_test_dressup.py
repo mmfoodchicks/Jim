@@ -307,18 +307,22 @@ def ensure_wildlife_spawner():
              "set species pool ({} entries)".format(len(pool)))
 
     # Tunables match C++ defaults but spelled out so they're greppable.
-    _try(lambda: spawner.set_editor_property("max_alive", 12), "max_alive")
-    _try(lambda: spawner.set_editor_property("spawn_interval_seconds", 8.0),
+    # Tunables -- testing-friendly defaults so the ecosystem (predator-
+    # on-prey + bigger-fish chases) actually has enough actors to read.
+    # Drop these in the actor inspector for slower-paced gameplay.
+    _try(lambda: spawner.set_editor_property("max_alive", 30), "max_alive")
+    _try(lambda: spawner.set_editor_property("spawn_interval_seconds", 5.0),
          "spawn_interval_seconds")
     _try(lambda: spawner.set_editor_property("spawn_radius_min", 2000.0),
          "spawn_radius_min")
-    _try(lambda: spawner.set_editor_property("spawn_radius_max", 6000.0),
+    _try(lambda: spawner.set_editor_property("spawn_radius_max", 8000.0),
          "spawn_radius_max")
-    _try(lambda: spawner.set_editor_property("initial_burst", 6), "initial_burst")
+    _try(lambda: spawner.set_editor_property("initial_burst", 18),
+         "initial_burst")
     _try(lambda: spawner.set_editor_property("global_cap", True), "global_cap")
 
-    print("[dressup] QR_WildlifeSpawner placed (cap=12, interval=8s,")
-    print("[dressup]   {} species in pool, initial burst 6).".format(len(pool)))
+    print("[dressup] QR_WildlifeSpawner placed (cap=30, interval=5s,")
+    print("[dressup]   {} species in pool, initial burst 18).".format(len(pool)))
     return spawner
 
 
