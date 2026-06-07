@@ -144,6 +144,19 @@ bool AQRWildlifeSpawner::TrySpawnOne()
 	FVector Loc;
 	if (!PickSpawnLocation(Loc)) return false;
 
+	// Hoist big animals well above the navmesh so the giant capsule isn't
+	// born interpenetrating the floor (this is what made the Pillarback /
+	// Vaultback spam "stuck and failed to move"). Read BodyHeightMeters
+	// from the CDO so any subclass auto-gets the right clearance.
+	if (const AQRWildlifeBase* CDO = Cast<AQRWildlifeBase>(Cls->GetDefaultObject()))
+	{
+		const float ClearanceCm = FMath::Max(CDO->BodyHeightMeters, 0.5f) * 100.0f;
+		// Drop the existing +100 cm bias and replace with a per-species
+		// clearance equal to one body-height; small animals get 50-200 cm,
+		// Vaultback (~5 m) gets 500 cm, Pillarback (~10 m) gets 1000 cm.
+		Loc.Z += (ClearanceCm - 100.0f);
+	}
+
 	FActorSpawnParameters Params;
 	Params.Owner = this;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;

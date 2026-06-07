@@ -115,6 +115,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire")
 	bool bUnlimitedAmmo = true;
 
+	// Number of projectiles fired per trigger pull. >1 = shotgun pellets:
+	// each pellet runs its own spread-cone trace, so all 8 share the same
+	// shot but spray independently. ConfigureForWeaponId sets this to 8
+	// for a shotgun, 1 for everything else.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire",
+		meta = (ClampMin = "1", ClampMax = "20"))
+	int32 PelletsPerShot = 1;
+
+	// Per-pellet spread cone half-angle in degrees, ADDED to the weapon's
+	// normal spread. Shotguns use ~6°; non-shotguns leave this at 0.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire",
+		meta = (ClampMin = "0", ClampMax = "20"))
+	float PelletConeDegrees = 0.0f;
+
 	// Noise radius in meters when fired (affects wildlife flee and enemy detection)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float FireNoiseRadiusMeters = 200.0f;
@@ -331,6 +345,10 @@ private:
 	// even when no reload-animation notify is wired up.
 	FTimerHandle ReloadTimerHandle;
 	void HandleReloadTimerElapsed();
+
+	// Apply per-pellet damage without re-running fouling / jam / cadence
+	// checks (those happened once on the first pellet of the shot).
+	void ApplyPelletDamage(AActor* HitActor, const FHitResult& Hit);
 
 	// World time of the last successful shot, for rate-of-fire pacing.
 	// Authoritative (set inside TryFire on the server).

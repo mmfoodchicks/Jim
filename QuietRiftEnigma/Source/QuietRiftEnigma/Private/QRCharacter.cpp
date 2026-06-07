@@ -88,8 +88,12 @@ AQRCharacter::AQRCharacter()
 	HeldItemMesh->SetCastShadow(false);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetVisibility(false);
-	HeldItemBaseLocation = FVector(45.0f, 18.0f, -16.0f);
-	HeldItemBaseRotation = FRotator(-3.0f, -6.0f, 0.0f);
+	// Held weapon transform in camera-local space. The previous offset
+	// pushed the gun ~18 cm right of centre which read as "floating off
+	// to the side"; bringing it in closer and dropping it slightly makes
+	// it sit in the lower-right where FPS hands normally hold a gun.
+	HeldItemBaseLocation = FVector(38.0f, 9.0f, -14.0f);
+	HeldItemBaseRotation = FRotator(-2.0f, -3.0f, 0.0f);
 	HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation);
 	HeldItemMesh->SetRelativeRotation(HeldItemBaseRotation);
 	HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
@@ -130,6 +134,11 @@ AQRCharacter::AQRCharacter()
 	Vault         = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
 	Hotbar        = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
 	Build         = CreateDefaultSubobject<UQRBuildModeComponent>(TEXT("Build"));
+	// First-person view driver. Owns ADS state + FOV interpolation. Without
+	// this component RMB toggling ADS was a no-op (FindComponentByClass
+	// returned null), so the weapon's spread function never knew you were
+	// aiming and hipfire spread stayed maxed.
+	FPView        = CreateDefaultSubobject<UQRFPViewComponent>(TEXT("FPView"));
 	BiomeAmbient  = CreateDefaultSubobject<UAudioComponent>(TEXT("BiomeAmbient"));
 	if (BiomeAmbient)
 	{
@@ -1178,10 +1187,15 @@ void AQRCharacter::RefreshHeldItemMesh()
 	// visible size.
 	if (TargetMesh)
 	{
+		// Scale by the mesh's LONGEST horizontal extent (X) so guns sit at
+		// roughly the right length in first-person view (the previous
+		// max-of-3-axes scaling shrunk long thin weapons to read tiny).
+		// Target ~30 cm half-length = 60 cm gun in hand, which matches a
+		// real carbine / SMG silhouette.
 		const FBoxSphereBounds B = TargetMesh->GetBounds();
-		const float MaxExtent = FMath::Max3(B.BoxExtent.X, B.BoxExtent.Y, B.BoxExtent.Z);
-		const float TargetHalfExtentCm = 20.0f;   // 20 cm half-extent ≈ 40 cm long — typical FPS weapon footprint
-		const float S = (MaxExtent > 0.01f) ? (TargetHalfExtentCm / MaxExtent) : 1.0f;
+		const float LongExtent = FMath::Max(B.BoxExtent.X, B.BoxExtent.Y);
+		const float TargetHalfLengthCm = 30.0f;
+		const float S = (LongExtent > 0.01f) ? (TargetHalfLengthCm / LongExtent) : 1.0f;
 		HeldItemMesh->SetRelativeScale3D(FVector(S));
 	}
 	else

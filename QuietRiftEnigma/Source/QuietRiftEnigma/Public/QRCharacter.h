@@ -54,6 +54,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UQRBuildModeComponent> Build;
 
+	// First-person view driver (ADS state + FOV interpolation). RMB
+	// SetADS(true) lowers weapon spread because GetEffectiveSpreadDegrees
+	// reads bIsAimed from this component.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UQRFPViewComponent> FPView;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
 

@@ -334,6 +334,8 @@ float AQRWildlifeBase::TakeDamage(float DamageAmount, const FDamageEvent& Damage
 
 void AQRWildlifeBase::TakeDamage_Wildlife(float Amount, AActor* DamageCauser)
 {
+	UE_LOG(LogTemp, Log, TEXT("[Wildlife] %s TakeDamage_Wildlife amt=%.1f hp=%.1f/%.1f"),
+		*GetName(), Amount, CurrentHealth, MaxHealth);
 	if (!HasAuthority() || bIsDead || Amount <= 0.0f) return;
 
 	CurrentHealth = FMath::Max(0.0f, CurrentHealth - Amount);
@@ -411,13 +413,55 @@ void AQRWildlifeBase::OnDied_Implementation(AActor* Killer)
 	bIsDead = true;
 	SetAIState(EQRWildlifeAIState::Dead);
 
-	// Ragdoll
-	GetMesh()->SetSimulatePhysics(true);
+	UE_LOG(LogTemp, Log, TEXT("[Wildlife] %s died (killer=%s)"),
+		*GetName(), Killer ? *Killer->GetName() : TEXT("<none>"));
+
+	// Disable collision + movement so the corpse doesn't bump the player.
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		Move->StopMovementImmediately();
+		Move->DisableMovement();
+	}
 
-	// Detach AI controller
+	// Topple the visible body. GetMesh() ragdolls only work if a real
+	// skeletal mesh is assigned -- the v15 species don't ship one, so
+	// the body is on FallbackMesh. Flip it onto its side so death reads
+	// clearly even without an animated death.
+	if (FallbackMesh && FallbackMesh->IsVisible())
+	{
+		FallbackMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		// Rotate the corpse 80° around X (rolled onto its side) and drop
+		// half a body-height so it lies on the ground.
+		const float DropCm = FMath::Max(BodyHeightMeters, 0.5f) * 40.0f;
+		FRotator R = FallbackMesh->GetRelativeRotation();
+		R.Roll = 80.0f;
+		FallbackMesh->SetRelativeRotation(R);
+		FallbackMesh->AddLocalOffset(FVector(0.0f, 0.0f, -DropCm));
+	}
+	// Real skeletal mesh path -- ragdoll like before.
+	if (USkeletalMeshComponent* SkelComp = GetMesh())
+	{
+		if (SkelComp->GetSkeletalMeshAsset())
+		{
+			SkelComp->SetSimulatePhysics(true);
+		}
+	}
+
+	// Detach AI controller so the corpse doesn't keep ticking decisions.
 	if (AAIController* AIC = Cast<AAIController>(GetController()))
+	{
 		AIC->UnPossess();
+	}
 
-	// TODO: Start carcass despawn timer
+	// Despawn the corpse after a delay so the world stays tidy.
+	if (GetWorld())
+	{
+		FTimerHandle DespawnHandle;
+		GetWorld()->GetTimerManager().SetTimer(DespawnHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				if (IsValid(this)) Destroy();
+			}), 20.0f, false);
+	}
 }

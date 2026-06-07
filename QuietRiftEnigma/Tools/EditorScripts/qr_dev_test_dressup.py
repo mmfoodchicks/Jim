@@ -278,12 +278,9 @@ def ensure_wildlife_spawner():
     # Wire the species pool from compiled C++ classes that ship with
     # this checkout. Skip any that aren't compiled into the current
     # build (the user may compile without all species headers).
-    #
-    # PillarbackHauler (~10 m, 2400 kg) and VaultbackDray (~5 m, 900 kg)
-    # are intentionally LEFT OUT of the auto-spawn pool: their huge
-    # collision capsules can't resolve floor penetration on the dev
-    # navmesh and spam 'stuck and failed to move'. Place those two by hand
-    # in an open area to test megafauna.
+    # Megafauna are back in the pool: AQRWildlifeSpawner::TrySpawnOne now
+    # hoists them above the navmesh by their BodyHeightMeters so the giant
+    # capsules don't spawn interpenetrating the floor.
     species_class_names = [
         "QRWildlife_AshbackBoar",
         "QRWildlife_FogleechSwarm",
@@ -291,6 +288,7 @@ def ensure_wildlife_spawner():
         "QRWildlife_HookjawStalker",
         "QRWildlife_IronstagStalker",
         "QRWildlife_NestweaverDrifter",
+        "QRWildlife_PillarbackHauler",
         "QRWildlife_RidgeCourser",
         "QRWildlife_RidgebackGrazer",
         "QRWildlife_ShardbackGrazer",
@@ -300,6 +298,7 @@ def ensure_wildlife_spawner():
         "QRWildlife_ThornhideDray",
         "QRWildlife_TrenchDiggers",
         "QRWildlife_VaneRippers",
+        "QRWildlife_VaultbackDray",
     ]
     pool = []
     for nm in species_class_names:

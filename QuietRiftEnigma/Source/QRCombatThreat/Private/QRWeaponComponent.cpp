@@ -43,6 +43,8 @@ void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRWeaponComponent, bHasSuppressor);
 	DOREPLIFETIME(UQRWeaponComponent, FireMode);
 	DOREPLIFETIME(UQRWeaponComponent, RoundsPerMinute);
+	DOREPLIFETIME(UQRWeaponComponent, PelletsPerShot);
+	DOREPLIFETIME(UQRWeaponComponent, PelletConeDegrees);
 	DOREPLIFETIME(UQRWeaponComponent, bUnlimitedAmmo);
 }
 
@@ -68,20 +70,32 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 	WeaponItemId = WeaponId;
 	const FString S = WeaponId.ToString().ToUpper();
 
+	// Reset shotgun-only fields by default; per-weapon branch sets them.
+	PelletsPerShot = 1;
+	PelletConeDegrees = 0.0f;
+
 	auto Apply = [this](EQRFireMode Mode, float Rpm)
 	{
 		FireMode = Mode;
 		RoundsPerMinute = Rpm;
 	};
 
-	// Name-based, matching DT_ArmoryWeapons RPM values. Order matters:
-	// check the more specific tokens before generic ones.
-	if      (S.Contains(TEXT("SMG")))        Apply(EQRFireMode::FullAuto,   750.0f);
-	else if (S.Contains(TEXT("CARBINE")))    Apply(EQRFireMode::FullAuto,   650.0f);
+	// RPMs widened so SMG and Carbine feel meaningfully different:
+	// the SMG sprays (~15 rps), the carbine taps (~8.3 rps). Numbers loosely
+	// track DT_ArmoryWeapons but are tuned for "different in the hand".
+	if      (S.Contains(TEXT("SMG")))        Apply(EQRFireMode::FullAuto,   900.0f);
+	else if (S.Contains(TEXT("CARBINE")))    Apply(EQRFireMode::FullAuto,   500.0f);
 	else if (S.Contains(TEXT("LONGRANGE")))  Apply(EQRFireMode::SingleShot,  35.0f);
 	else if (S.Contains(TEXT("BOLT")))       Apply(EQRFireMode::SingleShot,  40.0f);
 	else if (S.Contains(TEXT("PUMP")) || S.Contains(TEXT("SHOTGUN")))
-	                                         Apply(EQRFireMode::SingleShot,  90.0f);
+	{
+		Apply(EQRFireMode::SingleShot, 90.0f);
+		// Pellets per shell + cone spread. 8 pellets at 6 deg gives a
+		// recognisable shotgun pattern that's lethal up close and useless
+		// past ~20 m -- exactly the role a pump should fill.
+		PelletsPerShot = 8;
+		PelletConeDegrees = 6.0f;
+	}
 	else if (S.Contains(TEXT("DMR")))        Apply(EQRFireMode::SemiAuto,   240.0f);
 	else if (S.Contains(TEXT("SNIPER")))     Apply(EQRFireMode::SingleShot,  40.0f);
 	else if (S.Contains(TEXT("PISTOL")))     Apply(EQRFireMode::SemiAuto,   360.0f);
@@ -240,6 +254,28 @@ void UQRWeaponComponent::Clean()
 	// Cleaning also clears any pre-jam condition (does not clear active jam — use ClearJam first)
 }
 
+void UQRWeaponComponent::ApplyPelletDamage(AActor* HitActor, const FHitResult& Hit)
+{
+	if (!HitActor) return;
+
+	const float DistanceMeters = Hit.Distance / 100.0f;
+	const float Damage = ComputeEffectiveDamage(DistanceMeters);
+
+	if (UQRSurvivalComponent* Survival = HitActor->FindComponentByClass<UQRSurvivalComponent>())
+	{
+		Survival->ApplyDamage(Damage, EQRInjuryType::Bleeding);
+	}
+	else
+	{
+		AController* InstigatorController = nullptr;
+		if (AActor* MyOwner = GetOwner())
+		{
+			InstigatorController = MyOwner->GetInstigatorController();
+		}
+		UGameplayStatics::ApplyDamage(HitActor, Damage, InstigatorController, GetOwner(), nullptr);
+	}
+}
+
 float UQRWeaponComponent::GetEffectiveSpreadDegrees(bool bIsAimed, bool bIsMoving) const
 {
 	float Spread = BaseSpreadDegrees;
@@ -261,52 +297,77 @@ FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector T
 	if (!W) return Result;
 	if (!TraceForward.Normalize()) return Result;
 
-	// Compute spread-adjusted direction. RandPointInCircle-like approach
-	// using a small uniform offset in the plane perpendicular to forward.
 	const float SpreadDeg = GetEffectiveSpreadDegrees(bIsAimed, bIsMoving);
-	const float SpreadRad = FMath::DegreesToRadians(SpreadDeg);
-	// Sample a random direction inside the spread cone.
-	const float Theta = FMath::FRandRange(0.0f, 2.0f * PI);
-	// sin(spread) for the cone radius at a unit distance, then a random
-	// 0..1 sqrt-distributed magnitude so spread is uniform over area.
-	const float Magnitude = FMath::Sqrt(FMath::FRand()) * FMath::Tan(SpreadRad);
-	// Build orthonormal basis around TraceForward.
+	const float ConeDeg   = SpreadDeg + PelletConeDegrees;
+	const float ConeRad   = FMath::DegreesToRadians(ConeDeg);
+	const float TanCone   = FMath::Tan(ConeRad);
+	const float RangeCm   = MaxRangeMeters * 100.0f;
+
+	// Orthonormal basis around TraceForward, computed once and reused per
+	// pellet so the cone math doesn't drift.
 	FVector Right = FVector::CrossProduct(FVector::UpVector, TraceForward);
 	if (!Right.Normalize()) Right = FVector::RightVector;
 	const FVector Up = FVector::CrossProduct(TraceForward, Right);
-	const FVector Offset = (Right * FMath::Cos(Theta) + Up * FMath::Sin(Theta)) * Magnitude;
-	const FVector FinalDir = (TraceForward + Offset).GetSafeNormal();
 
-	const float RangeCm = MaxRangeMeters * 100.0f;
-	const FVector TraceEnd = TraceStart + FinalDir * RangeCm;
-
-	FHitResult Hit;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(QRWeaponFire), /*bTraceComplex*/ false);
-	// Ignore the weapon's owner so the player doesn't shoot themselves.
 	if (AActor* MyOwner = GetOwner()) Params.AddIgnoredActor(MyOwner);
-	const bool bHit = W->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
 
-	AActor* HitActor = bHit ? Hit.GetActor() : nullptr;
+	const int32 NumPellets = FMath::Clamp(PelletsPerShot, 1, 20);
 
-	// Delegate to the standard TryFire path for damage / fouling / state
-	// transitions. We pass HitActor so it applies damage via the survival
-	// component as it already does; if HitActor is null this is just a
-	// "fire into the air" which still consumes ammo + ages the weapon.
-	const bool bFired = TryFire(HitActor, AmmoInstance);
+	bool bAnyHit = false;
+	FHitResult BestHit;          // for the cosmetic FX origin
+	FVector    BestDir = TraceForward;
+	int32      Hits    = 0;
 
-	Result.bFired = bFired;
-	if (!bFired)
+	for (int32 p = 0; p < NumPellets; ++p)
 	{
-		// TryFire might have produced a jam — recoil shouldn't apply then.
-		return Result;
+		// Sample a random direction inside the (spread + pellet) cone.
+		// sqrt-distributed magnitude keeps the spray uniform over area.
+		const float Theta     = FMath::FRandRange(0.0f, 2.0f * PI);
+		const float Magnitude = FMath::Sqrt(FMath::FRand()) * TanCone;
+		const FVector Offset  = (Right * FMath::Cos(Theta) + Up * FMath::Sin(Theta)) * Magnitude;
+		const FVector PelletDir = (TraceForward + Offset).GetSafeNormal();
+		const FVector TraceEnd  = TraceStart + PelletDir * RangeCm;
+
+		FHitResult Hit;
+		const bool bHit = W->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+		AActor* HitActor = bHit ? Hit.GetActor() : nullptr;
+
+		// Each pellet routes its own damage via TryFire. The first pellet
+		// also handles the per-shot fouling + cadence stamp; subsequent
+		// pellets bypass the cadence/jam check via bIsAdditional=true so
+		// they don't gate themselves out.
+		if (p == 0)
+		{
+			if (!TryFire(HitActor, AmmoInstance))
+			{
+				return Result;   // jam / out-of-ammo / cadence: bail
+			}
+		}
+		else
+		{
+			ApplyPelletDamage(HitActor, Hit);
+		}
+
+		if (bHit)
+		{
+			++Hits;
+			if (!bAnyHit)
+			{
+				bAnyHit = true;
+				BestHit = Hit;
+				BestDir = PelletDir;
+			}
+		}
 	}
 
-	Result.bHitSomething = bHit;
-	Result.HitActor      = HitActor;
-	Result.HitLocation   = bHit ? Hit.ImpactPoint  : TraceEnd;
-	Result.HitNormal     = bHit ? Hit.ImpactNormal : -FinalDir;
-	Result.DistanceMeters = bHit ? (Hit.Distance / 100.0f) : MaxRangeMeters;
-	Result.Damage         = ComputeEffectiveDamage(Result.DistanceMeters);
+	Result.bFired = true;
+	Result.bHitSomething = bAnyHit;
+	Result.HitActor      = bAnyHit ? BestHit.GetActor() : nullptr;
+	Result.HitLocation   = bAnyHit ? BestHit.ImpactPoint  : (TraceStart + TraceForward * RangeCm);
+	Result.HitNormal     = bAnyHit ? BestHit.ImpactNormal : -TraceForward;
+	Result.DistanceMeters = bAnyHit ? (BestHit.Distance / 100.0f) : MaxRangeMeters;
+	Result.Damage        = ComputeEffectiveDamage(Result.DistanceMeters) * FMath::Max(Hits, 1);
 
 	// Recoil — aimed shots get reduced kick. Standard FPS feel.
 	const float AimMult = bIsAimed ? 0.5f : 1.0f;
