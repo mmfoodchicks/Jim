@@ -110,8 +110,72 @@ void AQRWildlifeBase::SetupFallbackVisual()
 		return;
 	}
 
-	// Shape-code the placeholder by behaviour role so predators read at a
-	// glance: Cube = predator, Cylinder = prey, Sphere = everything else.
+	const float HalfHeightCm = GetCapsuleComponent()
+		? GetCapsuleComponent()->GetScaledCapsuleHalfHeight()
+		: BodyHeightMeters * 50.0f;
+	const float TargetHeightCm = FMath::Max(BodyHeightMeters * 100.0f, 20.0f);
+
+	// 1) Try the real species mesh. Order of attempts:
+	//      a. FallbackMeshPath override (designer-set on a BP),
+	//      b. Auto-derived path from the C++ class name. Subclasses are
+	//         named "AQRWildlife_<Species>"; the static-mesh assets shipped
+	//         from the Blender generator under /Game/Meshes/wildlife/ are
+	//         SM_ANM_<Species> (older naming) or SM_ANI_<Species> (newer).
+	//      Auto-derivation means every species class that has a mesh on
+	//      disk gets it without any per-subclass wiring.
+	UStaticMesh* RealMesh = nullptr;
+	if (!FallbackMeshPath.IsEmpty())
+	{
+		RealMesh = LoadObject<UStaticMesh>(nullptr, *FallbackMeshPath);
+	}
+	if (!RealMesh)
+	{
+		FString ClassName = GetClass()->GetName(); // e.g. "QRWildlife_AshbackBoar"
+		const FString Prefix = TEXT("QRWildlife_");
+		if (ClassName.StartsWith(Prefix))
+		{
+			const FString Species = ClassName.RightChop(Prefix.Len());
+			const TCHAR* Folders[] = { TEXT("SM_ANM_"), TEXT("SM_ANI_"), TEXT("SM_PRD_") };
+			for (const TCHAR* Pfx : Folders)
+			{
+				const FString Path = FString::Printf(
+					TEXT("/Game/Meshes/wildlife/%s%s.%s%s"),
+					Pfx, *Species, Pfx, *Species);
+				RealMesh = LoadObject<UStaticMesh>(nullptr, *Path);
+				if (RealMesh) break;
+			}
+		}
+	}
+
+	if (RealMesh)
+	{
+		FallbackMesh->SetStaticMesh(RealMesh);
+		FallbackMesh->SetVisibility(true);
+
+		// Measure at unit scale, then rescale so the rendered height
+		// matches BodyHeightMeters (matches the auto-fit logic on the
+		// skeletal-mesh path). Align the mesh's bottom to the capsule
+		// bottom, regardless of where the source FBX's pivot landed.
+		FallbackMesh->SetRelativeRotation(FRotator::ZeroRotator);
+		FallbackMesh->SetRelativeScale3D(FVector::OneVector);
+		FallbackMesh->SetRelativeLocation(FVector::ZeroVector);
+		const FBoxSphereBounds B = FallbackMesh->CalcBounds(FTransform::Identity);
+		const float MeshHeightCm = FMath::Max(B.BoxExtent.Z * 2.0f, 1.0f);
+		const float Fit = TargetHeightCm / MeshHeightCm;
+		FallbackMesh->SetRelativeScale3D(FVector(Fit));
+
+		// After scaling, recompute bounds to figure out the mesh-bottom
+		// offset from its pivot, then drop it so its feet sit at the
+		// capsule bottom.
+		const FBoxSphereBounds B2 = FallbackMesh->CalcBounds(FallbackMesh->GetRelativeTransform());
+		const float MeshBottomZ = B2.Origin.Z - B2.BoxExtent.Z;
+		FallbackMesh->AddLocalOffset(FVector(0.0f, 0.0f, -HalfHeightCm - MeshBottomZ));
+		return;
+	}
+
+	// 2) No real mesh available — shape-code by behaviour role so even a
+	//    placeholder reads clearly: Cube = predator, Cylinder = prey,
+	//    Sphere = everything else.
 	const TCHAR* ShapePath = TEXT("/Engine/BasicShapes/Sphere.Sphere");
 	switch (BehaviorRole)
 	{
@@ -129,7 +193,6 @@ void AQRWildlifeBase::SetupFallbackVisual()
 	UStaticMesh* Shape = LoadObject<UStaticMesh>(nullptr, ShapePath);
 	if (!Shape)
 	{
-		// Last-ditch: try the cube, which is always cooked into the engine.
 		Shape = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 	}
 	if (!Shape)
@@ -141,12 +204,12 @@ void AQRWildlifeBase::SetupFallbackVisual()
 	FallbackMesh->SetStaticMesh(Shape);
 	FallbackMesh->SetVisibility(true);
 
-	// Size the placeholder to the body. Engine basic shapes are 100 cm,
-	// so scale = body dimension in metres. Length along X, a narrower
-	// width along Y, height along Z. Centre it in the capsule.
+	// Engine basic shapes are 100 cm, so scale = body dimension in metres.
+	// Length along X, narrower width along Y, height along Z. Centre it.
 	const float LenM = FMath::Max(BodyLengthMeters, 0.2f);
 	const float HtM  = FMath::Max(BodyHeightMeters, 0.2f);
 	const float WidM = FMath::Max(LenM * 0.45f, 0.15f);
+	FallbackMesh->SetRelativeRotation(FRotator::ZeroRotator);
 	FallbackMesh->SetRelativeLocation(FVector::ZeroVector);
 	FallbackMesh->SetRelativeScale3D(FVector(LenM, WidM, HtM));
 }

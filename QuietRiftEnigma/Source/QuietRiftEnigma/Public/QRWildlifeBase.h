@@ -97,6 +97,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size")
 	bool bAutoFitMeshToBody = true;
 
+	// Optional explicit override for the placeholder mesh. Leave blank to
+	// let BeginPlay auto-derive from the class name (e.g. AQRWildlife_
+	// AshbackBoar -> /Game/Meshes/wildlife/SM_ANM_AshbackBoar). Only used
+	// when no SkeletalMesh is assigned to GetMesh().
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual")
+	FString FallbackMeshPath;
+
 	// ── Attack (read by AQRWildlifeAIController) ──
 	// Damage applied per swing. Predators set this high; prey leave it
 	// low (only used if a prey species enters the Attacking state, e.g.
