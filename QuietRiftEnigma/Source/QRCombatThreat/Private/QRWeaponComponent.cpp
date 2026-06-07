@@ -377,7 +377,7 @@ FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector T
 	// Replicated cosmetic FX. Muzzle origin defaults to TraceStart — a
 	// real socket lookup belongs once the held weapon mesh carries a
 	// "Muzzle" socket; until then this anchors the flash to the camera.
-	Multicast_PlayFireFX(TraceStart, Result.HitLocation, Result.HitNormal, bHit);
+	Multicast_PlayFireFX(TraceStart, Result.HitLocation, Result.HitNormal, bAnyHit);
 
 	return Result;
 }
