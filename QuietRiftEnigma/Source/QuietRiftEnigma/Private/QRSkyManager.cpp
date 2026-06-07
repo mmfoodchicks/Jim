@@ -71,6 +71,21 @@ void AQRSkyManager::BeginPlay()
 		}
 	}
 
+	// Resolve the 'Multiple directional lights are competing to be the
+	// single one used for forward shading' warning by giving the chosen
+	// sun the clear-winner ForwardShadingPriority and demoting every other
+	// directional light (e.g. QR_Jovianlight, or a leftover map light) so
+	// the tie no longer has to be broken by brightness.
+	for (TActorIterator<ADirectionalLight> It(GetWorld()); It; ++It)
+	{
+		ADirectionalLight* DL = *It;
+		if (UDirectionalLightComponent* LC = DL->FindComponentByClass<UDirectionalLightComponent>())
+		{
+			LC->ForwardShadingPriority = (DL == SunLight) ? 10 : 0;
+			LC->MarkRenderStateDirty();
+		}
+	}
+
 	ResolveSkyActors();
 }
 

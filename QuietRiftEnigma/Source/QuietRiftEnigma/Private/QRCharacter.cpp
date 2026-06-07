@@ -62,6 +62,25 @@ AQRCharacter::AQRCharacter()
 	FirstPersonCamera->SetRelativeLocation(FVector(-10.0f, 0.0f, 60.0f));
 	FirstPersonCamera->bUsePawnControlRotation = true;
 
+	// LOCK exposure on the camera itself so the view can never blow out to
+	// white regardless of which PostProcessVolume / auto-exposure the level
+	// happens to have. Histogram auto-exposure with min == max pins the
+	// camera at a constant EV (no adaptation). This lives on the camera (not
+	// a level PPV) so it's always applied and survives map re-dressing --
+	// the recurring "incredibly bright again" was the level PPV being reset
+	// / not re-run. Raise LockedExposureEV to darken, lower to brighten.
+	{
+		FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
+		PP.bOverride_AutoExposureMethod = true;
+		PP.AutoExposureMethod = AEM_Histogram;
+		PP.bOverride_AutoExposureMinBrightness = true;
+		PP.AutoExposureMinBrightness = LockedExposureEV;
+		PP.bOverride_AutoExposureMaxBrightness = true;
+		PP.AutoExposureMaxBrightness = LockedExposureEV;
+		PP.bOverride_AutoExposureBias = true;
+		PP.AutoExposureBias = 0.0f;
+	}
+
 	// Arm mesh (visible only to local player)
 	ArmsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmsMesh"));
 	ArmsMesh->SetupAttachment(FirstPersonCamera);
@@ -107,6 +126,12 @@ AQRCharacter::AQRCharacter()
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	GetCharacterMovement()->bCanWalkOffLedges = true;
 	GetCharacterMovement()->bUseFlatBaseForFloorChecks = true;
+	// Climb steeper terrain before sliding. The default ~45° was letting
+	// the player slide back down the lower (steeper) part of dome hills
+	// they ought to be able to walk up. 52° + a higher step height makes
+	// the rolling hills climbable.
+	GetCharacterMovement()->SetWalkableFloorAngle(52.0f);
+	GetCharacterMovement()->MaxStepHeight = 55.0f;
 
 	// Survival Components
 	Inventory = CreateDefaultSubobject<UQRInventoryComponent>(TEXT("Inventory"));

@@ -166,6 +166,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	float InteractDistance = 250.0f;
 
+	// LOCKED camera exposure (EV100). Applied to FirstPersonCamera in the
+	// constructor so the view can't auto-expose to white. HIGHER = darker
+	// image, LOWER = brighter. Tune live in a BP subclass / instance.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera",
+		meta = (ClampMin = "4.0", ClampMax = "18.0"))
+	float LockedExposureEV = 13.0f;
+
 	// ── Weapon recoil ─────────────────────────
 	// Recoil kicks the held weapon mesh, not the camera, so firing reads
 	// on the gun without yanking the whole view around.

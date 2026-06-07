@@ -396,8 +396,12 @@ def _spawn_hills(seed=1):
         r = ring_min + (ring_max - ring_min) * rand()
         x = math.cos(angle) * r
         y = math.sin(angle) * r
-        diameter_m = 30.0 + rand() * 40.0   # 30-70 m spheres
-        expose = 0.30 + rand() * 0.25       # shallow..medium domes
+        # Big, broad spheres exposed only a little: a low expose_frac means
+        # the dome's rim slope is gentle (a sphere is steepest at the rim,
+        # so a shallow cap keeps the whole walkable surface under the
+        # player's ~52° walkable-floor limit). 0.12-0.26 ~= 28-43° rim.
+        diameter_m = 45.0 + rand() * 55.0   # 45-100 m broad hills
+        expose = 0.12 + rand() * 0.14       # shallow, climbable domes
         if _spawn_dome("QR_Terrain_Hill_{:02d}".format(i),
                        x, y, diameter_m, sphere, expose_frac=expose,
                        yaw=rand() * 360.0):
@@ -406,13 +410,13 @@ def _spawn_hills(seed=1):
     # A few smaller mounds near the spawn so there's a slope in arm's
     # reach for immediate "wildlife climbs a hill" testing.
     near = [
-        (   0.0,  1800.0, 18.0),
-        (-1600.0,  -900.0, 14.0),
-        ( 1700.0, -1000.0, 22.0),
+        (   0.0,  1800.0, 26.0),
+        (-1600.0,  -900.0, 22.0),
+        ( 1700.0, -1000.0, 32.0),
     ]
     for i, (x, y, d) in enumerate(near):
         if _spawn_dome("QR_Terrain_NearHill_{:02d}".format(i),
-                       x, y, d, sphere, expose_frac=0.40, yaw=i * 47.0):
+                       x, y, d, sphere, expose_frac=0.20, yaw=i * 47.0):
             placed += 1
 
     print("[terrain] spawned {} smooth domes (uniform-scaled engine spheres)".format(placed))
