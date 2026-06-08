@@ -490,6 +490,12 @@ private:
 	UFUNCTION()
 	void RefreshHeldItemMesh();
 
+	// Walks every Clothing-category item in the inventory, sums the metal-
+	// tier protection from each ARM_<METAL>_<SLOT> id, and stamps the total
+	// onto Survival->ArmourDamageReduction. Subscribed to OnInventoryChanged.
+	UFUNCTION()
+	void RefreshArmour();
+
 	void ScanForInteractable();
 	TWeakObjectPtr<AActor> CurrentInteractable;
 

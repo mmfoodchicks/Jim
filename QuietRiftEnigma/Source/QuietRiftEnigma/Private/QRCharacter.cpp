@@ -217,8 +217,10 @@ void AQRCharacter::BeginPlay()
 	if (Inventory)
 	{
 		Inventory->OnInventoryChanged.AddDynamic(this, &AQRCharacter::RefreshHeldItemMesh);
+		Inventory->OnInventoryChanged.AddDynamic(this, &AQRCharacter::RefreshArmour);
 	}
 	RefreshHeldItemMesh();
+	RefreshArmour();
 
 	// Spawn the runtime UI on the local player. Skip on dedicated server
 	// pawns and remote clients (each client makes its own).
@@ -1244,6 +1246,57 @@ void AQRCharacter::RefreshHeldItemMesh()
 				 || Id.Contains(TEXT("SCOPE"));
 	}
 	if (CachedView) CachedView->SetScopeAvailable(bHasScope);
+}
+
+void AQRCharacter::RefreshArmour()
+{
+	if (!Inventory || !Survival) return;
+
+	// Per-piece protection by slot, in stops of damage reduction (additive).
+	// e.g. chest is the biggest cover, helm + legs add a smaller share.
+	auto SlotShare = [](const FString& Id) -> float
+	{
+		if (Id.Contains(TEXT("CHEST"))) return 0.55f;
+		if (Id.Contains(TEXT("LEGS")))  return 0.25f;
+		if (Id.Contains(TEXT("HELM")))  return 0.20f;
+		return 0.0f;
+	};
+	// Metal tier sets the absolute fraction blocked at "full coverage".
+	// Stacked piece shares scale this, so a full set hits the metal's cap.
+	auto MetalCap = [](const FString& Id) -> float
+	{
+		if (Id.Contains(TEXT("REMNANT")))    return 0.80f;
+		if (Id.Contains(TEXT("SPARKSTONE"))) return 0.65f;
+		if (Id.Contains(TEXT("FROSTSPARK")))return 0.55f;
+		if (Id.Contains(TEXT("BLACKGLASS")))return 0.45f;
+		if (Id.Contains(TEXT("SUNWIRE")))    return 0.45f;
+		if (Id.Contains(TEXT("MAGNET")))     return 0.40f;
+		if (Id.Contains(TEXT("FERRIC")))     return 0.30f;
+		return 0.0f;
+	};
+
+	float HeadCov = 0.0f, ChestCov = 0.0f, LegsCov = 0.0f;
+	float HeadCap = 0.0f, ChestCap = 0.0f, LegsCap = 0.0f;
+
+	const TArray<UQRItemInstance*> Clothes =
+		Inventory->GetItemsByCategory(EQRItemCategory::Clothing);
+	for (UQRItemInstance* Inst : Clothes)
+	{
+		if (!Inst || !Inst->Definition) continue;
+		const FString Id = Inst->Definition->ItemId.ToString().ToUpper();
+		if (!Id.StartsWith(TEXT("ARM_"))) continue;
+		const float Share = SlotShare(Id);
+		const float Cap   = MetalCap(Id);
+		if (Id.Contains(TEXT("HELM")))  { HeadCov  = FMath::Max(HeadCov,  Share); HeadCap  = FMath::Max(HeadCap,  Cap); }
+		if (Id.Contains(TEXT("CHEST"))) { ChestCov = FMath::Max(ChestCov, Share); ChestCap = FMath::Max(ChestCap, Cap); }
+		if (Id.Contains(TEXT("LEGS")))  { LegsCov  = FMath::Max(LegsCov,  Share); LegsCap  = FMath::Max(LegsCap,  Cap); }
+	}
+
+	// Weighted contribution: each slot covers its share, capped to the metal
+	// tier of THAT slot. Full set = HeadCap*0.20 + ChestCap*0.55 + LegsCap*0.25.
+	const float Total = (HeadCap * HeadCov) + (ChestCap * ChestCov) + (LegsCap * LegsCov);
+	Survival->SetArmourDamageReduction(Total);
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] Armour refreshed: %.0f%% reduction"), Total * 100.0f);
 }
 
 void AQRCharacter::HandleHealthChanged(float NewHealth)

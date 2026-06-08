@@ -154,6 +154,17 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void ApplyDamage(float Amount, EQRInjuryType InjuryType = EQRInjuryType::None);
 
+	// ── Armour ──────────────────────────────
+	// Wear-protection: fraction of incoming damage absorbed by equipped
+	// armour, 0..0.95. Stamped by the character whenever clothing changes
+	// (head/chest/legs aggregated). ApplyDamage multiplies (1 - this).
+	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Survival|Armour",
+		meta = (ClampMin = "0", ClampMax = "0.95"))
+	float ArmourDamageReduction = 0.0f;
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival|Armour")
+	void SetArmourDamageReduction(float NewValue);
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void ApplyHealing(float Amount);
 
