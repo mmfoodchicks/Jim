@@ -13,10 +13,12 @@ class USoundBase;
 UENUM(BlueprintType)
 enum class EQRWeaponType : uint8
 {
-	Melee       UMETA(DisplayName = "Melee"),
-	Ranged      UMETA(DisplayName = "Ranged"),
-	Thrown      UMETA(DisplayName = "Thrown"),
+	Melee       UMETA(DisplayName = "Melee"),       // dagger, sword, axe, spear, pickaxe
+	Ranged      UMETA(DisplayName = "Ranged"),       // firearms
+	Thrown      UMETA(DisplayName = "Thrown"),       // throwing knife, javelin
 	Improvised  UMETA(DisplayName = "Improvised"),
+	Bow         UMETA(DisplayName = "Bow / Drawn"),  // bow, crossbow, sling
+	Shield      UMETA(DisplayName = "Shield"),       // block instead of attack
 };
 
 UENUM(BlueprintType)
@@ -87,7 +89,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	FName WeaponItemId;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Weapon")
 	EQRWeaponType WeaponType = EQRWeaponType::Ranged;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -140,6 +142,29 @@ public:
 	// fouling multipliers, so you have to actually aim.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire")
 	bool bIsPrecisionWeapon = false;
+
+	// Melee swing forgiveness. When WeaponType == Melee and this is > 1, the
+	// attack sweeps a sphere of this radius (cm) instead of a thin line, so a
+	// swing connects without pixel-perfect aim. 0 = thin line (ranged).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire",
+		meta = (ClampMin = "0", ClampMax = "80"))
+	float MeleeSweepRadius = 0.0f;
+
+	// ── Shield ────────────────────────────────
+	// True for shields. A shield doesn't attack; while raised (RMB/ADS) it
+	// reduces incoming frontal damage by ShieldDamageReduction. Energy
+	// shields add a regenerating absorb pool (ShieldMaxHP); a flat shield
+	// (wood/riot) leaves that at 0 and just mitigates by the fraction.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Shield")
+	bool bIsShield = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Shield",
+		meta = (ClampMin = "0", ClampMax = "1"))
+	float ShieldDamageReduction = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Shield",
+		meta = (ClampMin = "0"))
+	float ShieldMaxHP = 0.0f;
 
 	// Noise radius in meters when fired (affects wildlife flee and enemy detection)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")

@@ -47,6 +47,11 @@ void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRWeaponComponent, PelletsPerShot);
 	DOREPLIFETIME(UQRWeaponComponent, PelletConeDegrees);
 	DOREPLIFETIME(UQRWeaponComponent, bIsPrecisionWeapon);
+	DOREPLIFETIME(UQRWeaponComponent, MeleeSweepRadius);
+	DOREPLIFETIME(UQRWeaponComponent, WeaponType);
+	DOREPLIFETIME(UQRWeaponComponent, bIsShield);
+	DOREPLIFETIME(UQRWeaponComponent, ShieldDamageReduction);
+	DOREPLIFETIME(UQRWeaponComponent, ShieldMaxHP);
 	DOREPLIFETIME(UQRWeaponComponent, bUnlimitedAmmo);
 }
 
@@ -76,6 +81,11 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 	PelletsPerShot = 1;
 	PelletConeDegrees = 0.0f;
 	bIsPrecisionWeapon = false;
+	MeleeSweepRadius = 0.0f;
+	bIsShield = false;
+	ShieldDamageReduction = 0.0f;
+	ShieldMaxHP = 0.0f;
+	WeaponType = EQRWeaponType::Ranged;
 
 	// One place to set every per-weapon stat. EffRange = the distance out
 	// to which damage is full; past it ComputeEffectiveDamage falls off.
@@ -92,7 +102,32 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 		RecoilPitch = Recoil;
 	};
 
+	// Melee helper: short-range sphere-sweep "swing", no falloff, no recoil.
+	// RangeM is the reach; SwingRPM is the swing cadence; Sweep is the hit
+	// forgiveness radius (cm).
+	auto Melee = [this, &Apply](float Dmg, float RangeM, float SwingRPM, float Sweep)
+	{
+		Apply(EQRFireMode::SemiAuto, SwingRPM, Dmg, 9999.f, RangeM, 0.0f);
+		WeaponType = EQRWeaponType::Melee;
+		MeleeSweepRadius = Sweep;
+	};
+
+	// Exotic-metal damage multiplier, parsed from the id suffix. The
+	// planet's metals (see EXOTIC_METALS_ARSENAL.md) ladder up a blade's
+	// damage; the same metals feed armour + shields in the recipe data.
+	auto MetalMult = [&S]() -> float
+	{
+		if (S.Contains(TEXT("REMNANT")) || S.Contains(TEXT("EXOTIC"))) return 2.0f;
+		if (S.Contains(TEXT("SPARKSTONE")))                            return 1.55f;
+		if (S.Contains(TEXT("FROSTSPARK")))                            return 1.40f;
+		if (S.Contains(TEXT("SUNWIRE")))                               return 1.25f;
+		if (S.Contains(TEXT("BLACKGLASS")))                            return 1.25f;
+		if (S.Contains(TEXT("MAGNET")))                                return 1.15f;
+		return 1.0f; // ferric / scrap / bone / unspecified
+	};
+
 	//        mode                    RPM    dmg  eff   max   recoil
+	// ── Firearms ─────────────────────────────
 	if      (S.Contains(TEXT("SMG")))
 		Apply(EQRFireMode::FullAuto,  900.f, 28.f, 120.f, 300.f, 0.8f);
 	else if (S.Contains(TEXT("CARBINE")))
@@ -102,15 +137,13 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 		Apply(EQRFireMode::SingleShot, 35.f, 150.f, 1200.f, 2000.f, 6.5f);
 		bIsPrecisionWeapon = true;
 	}
-	else if (S.Contains(TEXT("BOLT")))
+	else if (S.Contains(TEXT("BOLT")) && S.Contains(TEXT("SNIPER")))
 	{
 		Apply(EQRFireMode::SingleShot, 40.f, 120.f, 900.f, 1500.f, 5.5f);
 		bIsPrecisionWeapon = true;
 	}
 	else if (S.Contains(TEXT("PUMP")) || S.Contains(TEXT("SHOTGUN")))
 	{
-		// Per-pellet damage is modest; 8 pellets stack up close, fall off
-		// hard past the short effective range.
 		Apply(EQRFireMode::SingleShot, 90.f, 12.f, 15.f, 60.f, 4.0f);
 		PelletsPerShot = 8;
 		PelletConeDegrees = 6.0f;
@@ -127,6 +160,67 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 	}
 	else if (S.Contains(TEXT("PISTOL")))
 		Apply(EQRFireMode::SemiAuto,  360.f, 38.f, 80.f, 200.f, 1.0f);
+
+	// ── Bows / drawn ─────────────────────────
+	// Single-shot, slow cadence (the "draw"), precise on ADS, hitscan MVP
+	// (arrow-arc projectiles are a follow-up). Crossbow hits harder + slower.
+	else if (S.Contains(TEXT("CROSSBOW")))
+	{
+		Apply(EQRFireMode::SingleShot, 50.f, 90.f, 120.f, 400.f, 2.5f);
+		WeaponType = EQRWeaponType::Bow;
+		bIsPrecisionWeapon = true;
+	}
+	else if (S.Contains(TEXT("BOW")))
+	{
+		Apply(EQRFireMode::SingleShot, 70.f, 55.f, 100.f, 350.f, 2.0f);
+		WeaponType = EQRWeaponType::Bow;
+		bIsPrecisionWeapon = true;
+	}
+	else if (S.Contains(TEXT("SLING")))
+	{
+		Apply(EQRFireMode::SingleShot, 80.f, 22.f, 40.f, 150.f, 1.5f);
+		WeaponType = EQRWeaponType::Bow;
+	}
+
+	// ── Shields ──────────────────────────────
+	else if (S.Contains(TEXT("SHIELD")))
+	{
+		WeaponType = EQRWeaponType::Shield;
+		bIsShield = true;
+		MaxRangeMeters = 2.0f;
+		BaseDamage = 8.0f;             // a shove / bash if you "attack"
+		RoundsPerMinute = 60.f;
+		if (S.Contains(TEXT("PLASMA")) || S.Contains(TEXT("ENERGY")) || S.Contains(TEXT("REMNANT")))
+		{
+			ShieldDamageReduction = 0.92f;   // Halo-style energy shield
+			ShieldMaxHP = 200.f;             // regenerating absorb pool (wiring TBD)
+		}
+		else if (S.Contains(TEXT("RIOT")))
+			ShieldDamageReduction = 0.70f;   // ballistic riot shield
+		else
+			ShieldDamageReduction = 0.45f;   // wood / scrap buckler
+	}
+
+	// ── Melee: crude + metal-tier blades ─────
+	else if (S.Contains(TEXT("DAGGER")) || S.Contains(TEXT("KNIFE")))
+		Melee(28.f  * MetalMult(), 1.8f, 200.f, 18.f);
+	else if (S.Contains(TEXT("MACHETE")))
+		Melee(40.f  * MetalMult(), 2.0f, 150.f, 22.f);
+	else if (S.Contains(TEXT("SWORD")))
+		Melee(55.f  * MetalMult(), 2.4f, 110.f, 26.f);
+	else if (S.Contains(TEXT("AXE")) && !S.Contains(TEXT("PICK")))
+		Melee(70.f  * MetalMult(), 2.2f,  85.f, 24.f);
+	else if (S.Contains(TEXT("HATCHET")))
+		Melee(45.f  * MetalMult(), 1.9f, 130.f, 20.f);
+	else if (S.Contains(TEXT("PICKAXE")) || S.Contains(TEXT("PICK")))
+		Melee(38.f  * MetalMult(), 2.0f, 100.f, 20.f);   // dual-use tool/weapon
+	else if (S.Contains(TEXT("SPEAR")) || S.Contains(TEXT("JAVELIN")))
+		Melee(50.f  * MetalMult(), 3.2f, 100.f, 16.f);   // reach
+	else if (S.Contains(TEXT("CLUB")) || S.Contains(TEXT("MACE")) || S.Contains(TEXT("MAUL")))
+		Melee(60.f  * MetalMult(), 2.0f,  90.f, 28.f);
+	else if (S.Contains(TEXT("FIST")) || S.Contains(TEXT("KNUCKLE")))
+		Melee(18.f  * MetalMult(), 1.6f, 260.f, 16.f);
+
 	else
 		Apply(EQRFireMode::SemiAuto,  360.f, 30.f, 150.f, 300.f, 1.2f);
 }
@@ -375,8 +469,20 @@ FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector T
 		const FVector PelletDir = (TraceForward + Offset).GetSafeNormal();
 		const FVector TraceEnd  = TraceStart + PelletDir * RangeCm;
 
+		// Melee weapons sweep a sphere instead of a thin line so a swing
+		// connects without pixel-perfect aim -- you're hitting with an axe,
+		// not threading a needle. Ranged weapons keep the precise line trace.
 		FHitResult Hit;
-		const bool bHit = W->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+		bool bHit = false;
+		if (WeaponType == EQRWeaponType::Melee && MeleeSweepRadius > 1.0f)
+		{
+			bHit = W->SweepSingleByChannel(Hit, TraceStart, TraceEnd, FQuat::Identity,
+				ECC_Visibility, FCollisionShape::MakeSphere(MeleeSweepRadius), Params);
+		}
+		else
+		{
+			bHit = W->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+		}
 		AActor* HitActor = bHit ? Hit.GetActor() : nullptr;
 
 		// First pellet runs the gun mechanics (cadence, jam, ammo, fouling)

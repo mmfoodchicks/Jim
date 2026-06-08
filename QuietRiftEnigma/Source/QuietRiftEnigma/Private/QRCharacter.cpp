@@ -1260,10 +1260,32 @@ float AQRCharacter::TakeDamage(float DamageAmount, const FDamageEvent& DamageEve
 {
 	const float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-	// Only the server mutates vitals; clients see the change via OnRep_Health.
-	if (HasAuthority() && Survival && DamageAmount > 0.0f)
+	float Incoming = DamageAmount;
+
+	// Shield block: if a shield is equipped and raised (ADS/RMB), mitigate
+	// frontal damage. Only blocks hits coming from in front of the player --
+	// you can't block what's behind you.
+	if (Incoming > 0.0f && Weapon && Weapon->bIsShield && FPView && FPView->IsADS())
 	{
-		Survival->ApplyDamage(DamageAmount, EQRInjuryType::Bleeding);
+		bool bFrontal = true;
+		if (DamageCauser)
+		{
+			const FVector ToThreat = (DamageCauser->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+			bFrontal = FVector::DotProduct(GetActorForwardVector(), ToThreat) > 0.25f;
+		}
+		if (bFrontal)
+		{
+			const float Before = Incoming;
+			Incoming *= (1.0f - FMath::Clamp(Weapon->ShieldDamageReduction, 0.0f, 1.0f));
+			UE_LOG(LogTemp, Log, TEXT("[QRCharacter] SHIELD blocked %.0f -> %.0f"),
+				Before, Incoming);
+		}
+	}
+
+	// Only the server mutates vitals; clients see the change via OnRep_Health.
+	if (HasAuthority() && Survival && Incoming > 0.0f)
+	{
+		Survival->ApplyDamage(Incoming, EQRInjuryType::Bleeding);
 	}
 	return Actual;
 }
