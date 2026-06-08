@@ -22,6 +22,8 @@
 UQRInventoryItemButton::UQRInventoryItemButton()
 {
 	OnClicked.AddDynamic(this, &UQRInventoryItemButton::HandleClicked);
+	OnHovered.AddDynamic(this, &UQRInventoryItemButton::HandleHovered);
+	OnUnhovered.AddDynamic(this, &UQRInventoryItemButton::HandleUnhovered);
 }
 
 void UQRInventoryItemButton::HandleClicked()
@@ -30,6 +32,16 @@ void UQRInventoryItemButton::HandleClicked()
 	{
 		OwnerWidget->HandleItemClicked(Item);
 	}
+}
+
+void UQRInventoryItemButton::HandleHovered()
+{
+	if (OwnerWidget.IsValid()) OwnerWidget->HandleItemHovered(Item);
+}
+
+void UQRInventoryItemButton::HandleUnhovered()
+{
+	if (OwnerWidget.IsValid()) OwnerWidget->HandleItemUnhovered(Item);
 }
 
 UQRInventoryCellButton::UQRInventoryCellButton()
@@ -488,4 +500,297 @@ FReply UQRInventoryGridWidget::NativeOnKeyDown(const FGeometry& InGeometry, cons
 		return FReply::Handled();
 	}
 	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+}
+
+// ─── Right-click + context menu ───────────────────────────────────
+
+void UQRInventoryGridWidget::HandleItemHovered(UQRItemInstance* Item)
+{
+	HoveredItem = Item;
+}
+
+void UQRInventoryGridWidget::HandleItemUnhovered(UQRItemInstance* Item)
+{
+	if (HoveredItem == Item) HoveredItem = nullptr;
+}
+
+bool UQRInventoryGridWidget::CanEquipItem(UQRItemInstance* Item) const
+{
+	if (!Item || !Item->Definition) return false;
+	const FString Id = Item->Definition->ItemId.ToString().ToUpper();
+	switch (Item->Definition->Category)
+	{
+	case EQRItemCategory::Weapon:    return true;   // hand slot
+	case EQRItemCategory::Clothing:
+		return Id.Contains(TEXT("HELM"))  ||
+		       Id.Contains(TEXT("CHEST")) ||
+		       Id.Contains(TEXT("LEGS"));
+	case EQRItemCategory::ChestRig:  return true;
+	case EQRItemCategory::Backpack:  return true;
+	default:                         return false;
+	}
+}
+
+bool UQRInventoryGridWidget::IsItemEquipped(UQRItemInstance* Item) const
+{
+	if (!Item || !Inventory) return false;
+	if (Inventory->HandSlot                       == Item) return true;
+	if (Inventory->EquippedHelm                   == Item) return true;
+	if (Inventory->EquippedChestArmour            == Item) return true;
+	if (Inventory->EquippedLegsArmour             == Item) return true;
+	if (Inventory->EquippedChestRig               == Item) return true;
+	if (Inventory->EquippedBackpack               == Item) return true;
+	return false;
+}
+
+FReply UQRInventoryGridWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent)
+{
+	if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		if (HoveredItem)
+		{
+			OpenContextMenu(HoveredItem, InMouseEvent.GetScreenSpacePosition());
+		}
+		else
+		{
+			CloseContextMenu();
+		}
+		return FReply::Handled();
+	}
+	// Left clicks on dead space close any open menu.
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	{
+		CloseContextMenu();
+		HideInspectPopup();
+	}
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
+
+static UTextBlock* _MakeMenuLabel(UWidgetTree* Tree, const FString& Text)
+{
+	UTextBlock* T = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+	T->SetText(FText::FromString(Text));
+	T->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+	FSlateFontInfo Font = T->GetFont();
+	Font.Size = 12;
+	T->SetFont(Font);
+	return T;
+}
+
+void UQRInventoryGridWidget::OpenContextMenu(UQRItemInstance* Item, FVector2D ScreenPos)
+{
+	CloseContextMenu();
+	if (!Item) return;
+
+	ContextTarget = Item;
+
+	// Lazy-create the menu panel parented to the root canvas.
+	UCanvasPanel* Root = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!Root) return;
+
+	ContextMenu = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+	UCanvasPanelSlot* RootSlot = Root->AddChildToCanvas(ContextMenu);
+	if (RootSlot)
+	{
+		// Convert screen pos to local. With the root canvas anchored to
+		// fullscreen and 0 offset, screen px == local px (close enough).
+		RootSlot->SetAnchors(FAnchors(0, 0));
+		RootSlot->SetAutoSize(true);
+		RootSlot->SetPosition(ScreenPos);
+	}
+
+	// Solid background border.
+	UBorder* Bg = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	Bg->SetBrushColor(FLinearColor(0.08f, 0.08f, 0.10f, 0.95f));
+	UCanvasPanelSlot* BgSlot = ContextMenu->AddChildToCanvas(Bg);
+	if (BgSlot)
+	{
+		BgSlot->SetAnchors(FAnchors(0, 0, 1, 1));
+		BgSlot->SetOffsets(FMargin(0));
+	}
+
+	UVerticalBox* List = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Bg->SetContent(List);
+
+	// Header: item id, dim.
+	{
+		UTextBlock* Header = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+		Header->SetText(FText::FromString(Item->Definition ? Item->Definition->ItemId.ToString() : TEXT("?")));
+		Header->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.7f, 0.7f, 1.0f)));
+		FSlateFontInfo Font = Header->GetFont();
+		Font.Size = 11;
+		Header->SetFont(Font);
+		UVerticalBoxSlot* HS = List->AddChildToVerticalBox(Header);
+		if (HS) HS->SetPadding(FMargin(8, 6, 8, 8));
+	}
+
+	// Helper to add one menu row.
+	auto AddRow = [&](const FString& Label, void (UQRInventoryGridWidget::*Fn)())
+	{
+		UButton* B = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+		// Bind via a non-dynamic lambda is messy here; use a static map
+		// to UFUNCTIONs by binding directly:
+		if (Label == TEXT("Equip"))
+		{
+			B->OnClicked.AddDynamic(this, &UQRInventoryGridWidget::ContextActionEquip);
+		}
+		else if (Label == TEXT("Remove"))
+		{
+			B->OnClicked.AddDynamic(this, &UQRInventoryGridWidget::ContextActionUnequip);
+		}
+		else if (Label == TEXT("Destroy"))
+		{
+			B->OnClicked.AddDynamic(this, &UQRInventoryGridWidget::ContextActionDestroy);
+		}
+		else if (Label == TEXT("Inspect"))
+		{
+			B->OnClicked.AddDynamic(this, &UQRInventoryGridWidget::ContextActionInspect);
+		}
+		else
+		{
+			B->OnClicked.AddDynamic(this, &UQRInventoryGridWidget::ContextActionClose);
+		}
+		B->SetContent(_MakeMenuLabel(WidgetTree, Label));
+		UVerticalBoxSlot* S = List->AddChildToVerticalBox(B);
+		if (S) S->SetPadding(FMargin(2));
+	};
+
+	// Conditional rows.
+	if (CanEquipItem(Item) && !IsItemEquipped(Item)) AddRow(TEXT("Equip"),   nullptr);
+	if (IsItemEquipped(Item))                         AddRow(TEXT("Remove"),  nullptr);
+	AddRow(TEXT("Inspect"), nullptr);
+	AddRow(TEXT("Destroy"), nullptr);
+	AddRow(TEXT("Cancel"),  nullptr);
+}
+
+void UQRInventoryGridWidget::CloseContextMenu()
+{
+	if (ContextMenu)
+	{
+		ContextMenu->RemoveFromParent();
+		ContextMenu = nullptr;
+	}
+	ContextTarget = nullptr;
+}
+
+void UQRInventoryGridWidget::ContextActionEquip()
+{
+	if (!Inventory || !ContextTarget || !ContextTarget->Definition) { CloseContextMenu(); return; }
+	UQRItemInstance* Item = ContextTarget;
+	const EQRItemCategory Cat = Item->Definition->Category;
+	bool bOk = false;
+	if      (Cat == EQRItemCategory::Clothing)  bOk = Inventory->TryEquipArmour(Item);
+	else if (Cat == EQRItemCategory::ChestRig
+	      || Cat == EQRItemCategory::Backpack)  bOk = (Inventory->TryEquipContainer(Item) == EQRInventoryResult::Ok);
+	else if (Cat == EQRItemCategory::Weapon)    bOk = Inventory->TryEquipToHandSlot(Item);
+	CloseContextMenu();
+	Rebuild();
+	(void)bOk;
+}
+
+void UQRInventoryGridWidget::ContextActionUnequip()
+{
+	if (!Inventory || !ContextTarget) { CloseContextMenu(); return; }
+	UQRItemInstance* Item = ContextTarget;
+	UQRItemInstance* Removed = nullptr;
+	if      (Inventory->EquippedHelm        == Item) Inventory->TryUnequipArmour(EQRArmourSlot::Helm,  Removed);
+	else if (Inventory->EquippedChestArmour == Item) Inventory->TryUnequipArmour(EQRArmourSlot::Chest, Removed);
+	else if (Inventory->EquippedLegsArmour  == Item) Inventory->TryUnequipArmour(EQRArmourSlot::Legs,  Removed);
+	else if (Inventory->EquippedChestRig    == Item) Inventory->TryUnequipContainer(EQRContainerSlotType::ChestRig, Removed);
+	else if (Inventory->EquippedBackpack    == Item) Inventory->TryUnequipContainer(EQRContainerSlotType::Backpack, Removed);
+	else if (Inventory->HandSlot            == Item) Inventory->ClearHandSlot();
+	CloseContextMenu();
+	Rebuild();
+}
+
+void UQRInventoryGridWidget::ContextActionDestroy()
+{
+	if (!Inventory || !ContextTarget) { CloseContextMenu(); return; }
+	UQRItemInstance* Item = ContextTarget;
+	// Unequip from any slot first so the dangling ptr can be cleared.
+	UQRItemInstance* Dummy = nullptr;
+	if      (Inventory->EquippedHelm        == Item) Inventory->TryUnequipArmour(EQRArmourSlot::Helm,  Dummy);
+	else if (Inventory->EquippedChestArmour == Item) Inventory->TryUnequipArmour(EQRArmourSlot::Chest, Dummy);
+	else if (Inventory->EquippedLegsArmour  == Item) Inventory->TryUnequipArmour(EQRArmourSlot::Legs,  Dummy);
+	else if (Inventory->EquippedChestRig    == Item) Inventory->TryUnequipContainer(EQRContainerSlotType::ChestRig, Dummy);
+	else if (Inventory->EquippedBackpack    == Item) Inventory->TryUnequipContainer(EQRContainerSlotType::Backpack, Dummy);
+	else if (Inventory->HandSlot            == Item) Inventory->ClearHandSlot();
+	Inventory->Items.Remove(Item);
+	if (HoveredItem == Item) HoveredItem = nullptr;
+	CloseContextMenu();
+	Rebuild();
+}
+
+void UQRInventoryGridWidget::ContextActionInspect()
+{
+	if (ContextTarget) ShowInspectPopup(ContextTarget);
+	CloseContextMenu();
+}
+
+void UQRInventoryGridWidget::ContextActionClose()
+{
+	CloseContextMenu();
+}
+
+void UQRInventoryGridWidget::ShowInspectPopup(UQRItemInstance* Item)
+{
+	HideInspectPopup();
+	if (!Item || !Item->Definition) return;
+
+	UCanvasPanel* Root = Cast<UCanvasPanel>(WidgetTree->RootWidget);
+	if (!Root) return;
+	InspectPopup = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+	UCanvasPanelSlot* RS = Root->AddChildToCanvas(InspectPopup);
+	if (RS) { RS->SetAnchors(FAnchors(0.5f, 0.5f)); RS->SetAlignment(FVector2D(0.5f, 0.5f)); RS->SetAutoSize(true); }
+
+	UBorder* Bg = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	Bg->SetBrushColor(FLinearColor(0.04f, 0.05f, 0.07f, 0.98f));
+	UCanvasPanelSlot* BgS = InspectPopup->AddChildToCanvas(Bg);
+	if (BgS) { BgS->SetAnchors(FAnchors(0, 0, 1, 1)); BgS->SetOffsets(FMargin(0)); }
+
+	UVerticalBox* Col = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Bg->SetContent(Col);
+
+	const UQRItemDefinition* Def = Item->Definition;
+	auto Field = [&](const FString& Label, const FString& Value)
+	{
+		UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+		T->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"), *Label, *Value)));
+		T->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		FSlateFontInfo F = T->GetFont(); F.Size = 12; T->SetFont(F);
+		UVerticalBoxSlot* S = Col->AddChildToVerticalBox(T);
+		if (S) S->SetPadding(FMargin(14, 4));
+	};
+
+	Field(TEXT("Id"),       Def->ItemId.ToString());
+	Field(TEXT("Name"),     Def->DisplayName.ToString());
+	Field(TEXT("Category"), FString::FromInt((int32)Def->Category));
+	Field(TEXT("Mass"),     FString::Printf(TEXT("%.2f kg"), Def->MassKg));
+	Field(TEXT("Volume"),   FString::Printf(TEXT("%.2f L"),  Def->VolumeLiters));
+	Field(TEXT("Stack"),    FString::FromInt(Def->MaxStackSize));
+	if (Def->MaxDurability > 0.0f)
+		Field(TEXT("Durability"), FString::Printf(TEXT("%.0f"), Def->MaxDurability));
+	if (!Def->Description.IsEmpty())
+		Field(TEXT("Description"), Def->Description.ToString());
+
+	UButton* Close = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+	Close->OnClicked.AddDynamic(this, &UQRInventoryGridWidget::InspectActionClose);
+	Close->SetContent(_MakeMenuLabel(WidgetTree, TEXT("Close")));
+	UVerticalBoxSlot* CS = Col->AddChildToVerticalBox(Close);
+	if (CS) CS->SetPadding(FMargin(14, 10, 14, 14));
+}
+
+void UQRInventoryGridWidget::HideInspectPopup()
+{
+	if (InspectPopup)
+	{
+		InspectPopup->RemoveFromParent();
+		InspectPopup = nullptr;
+	}
+}
+
+void UQRInventoryGridWidget::InspectActionClose()
+{
+	HideInspectPopup();
 }

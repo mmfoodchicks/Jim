@@ -54,6 +54,10 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeDestruct() override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	// Right-click anywhere on the widget pops the context menu against
+	// HoveredItem. Left-clicks fall through to the per-button handlers.
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry,
+		const FPointerEvent& InMouseEvent) override;
 
 private:
 	UPROPERTY()
@@ -86,6 +90,22 @@ private:
 	TObjectPtr<UQRItemInstance> GrabbedItem = nullptr;
 	bool bGrabbedRotation = false;
 
+	// Item currently under the mouse (set by per-item OnHovered/OnUnhovered).
+	// Right-click anywhere on the widget pops a context menu against this.
+	UPROPERTY()
+	TObjectPtr<UQRItemInstance> HoveredItem = nullptr;
+
+	// Right-click context menu (built lazily). Holds 1-4 action buttons.
+	UPROPERTY()
+	TObjectPtr<UCanvasPanel> ContextMenu = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UQRItemInstance> ContextTarget = nullptr;
+
+	// One-off inspect popup -- text dump of the item's metadata.
+	UPROPERTY()
+	TObjectPtr<UCanvasPanel> InspectPopup = nullptr;
+
 	UFUNCTION() void HandleInventoryChanged();
 
 	// State for double-click container open. When the user clicks a rig
@@ -108,6 +128,20 @@ public:
 	UFUNCTION() void HandleEquipSlotClicked(int32 KindIndex);
 	void HandleItemClicked(UQRItemInstance* Item);
 
+	// Hover tracking -- called by UQRInventoryItemButton on its OnHovered /
+	// OnUnhovered, so right-click knows what's under the cursor.
+	void HandleItemHovered(UQRItemInstance* Item);
+	void HandleItemUnhovered(UQRItemInstance* Item);
+
+	// Context menu actions. Each is a UFUNCTION so a sub-button can fire
+	// it; each shows itself only when it's actually applicable.
+	UFUNCTION() void ContextActionEquip();
+	UFUNCTION() void ContextActionUnequip();
+	UFUNCTION() void ContextActionDestroy();
+	UFUNCTION() void ContextActionInspect();
+	UFUNCTION() void ContextActionClose();
+	UFUNCTION() void InspectActionClose();
+
 private:
 	void Rebuild();
 	void RebuildKind(UCanvasPanel* Panel, EQRContainerKind Kind);
@@ -115,6 +149,17 @@ private:
 	void AddItem(UCanvasPanel* Panel, EQRContainerKind Kind, UQRItemInstance* Item);
 	void RefreshHeader();
 	void RebuildEquipStrip();
+
+	// Build + show / hide the context menu. ScreenPos is in absolute
+	// screen pixels; the menu is positioned just below that point.
+	void OpenContextMenu(UQRItemInstance* Item, FVector2D ScreenPos);
+	void CloseContextMenu();
+	void ShowInspectPopup(UQRItemInstance* Item);
+	void HideInspectPopup();
+
+	// Predicates so the menu shows only the actions that apply.
+	bool CanEquipItem(UQRItemInstance* Item) const;
+	bool IsItemEquipped(UQRItemInstance* Item) const;
 };
 
 /**
@@ -136,6 +181,8 @@ public:
 	TObjectPtr<UQRItemInstance> Item = nullptr;
 
 	UFUNCTION() void HandleClicked();
+	UFUNCTION() void HandleHovered();
+	UFUNCTION() void HandleUnhovered();
 };
 
 /**
