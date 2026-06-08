@@ -52,6 +52,7 @@ void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRWeaponComponent, bIsShield);
 	DOREPLIFETIME(UQRWeaponComponent, ShieldDamageReduction);
 	DOREPLIFETIME(UQRWeaponComponent, ShieldMaxHP);
+	DOREPLIFETIME(UQRWeaponComponent, EquippedAmmoItemId);
 	DOREPLIFETIME(UQRWeaponComponent, bUnlimitedAmmo);
 }
 
@@ -377,16 +378,51 @@ void UQRWeaponComponent::Clean()
 	// Cleaning also clears any pre-jam condition (does not clear active jam — use ClearJam first)
 }
 
+void UQRWeaponComponent::ResolveAmmoEffect(EQRInjuryType& OutInjury, float& OutDmgMult) const
+{
+	OutInjury = EQRInjuryType::Bleeding;
+	OutDmgMult = 1.0f;
+	if (EquippedAmmoItemId.IsNone()) return;
+
+	const FString S = EquippedAmmoItemId.ToString().ToUpper();
+
+	// Damage-payload arrows.
+	if      (S.Contains(TEXT("POISON")))     { OutInjury = EQRInjuryType::Toxin;        OutDmgMult = 0.6f; }
+	else if (S.Contains(TEXT("TOXIN")))      { OutInjury = EQRInjuryType::Toxin;        OutDmgMult = 0.6f; }
+	else if (S.Contains(TEXT("TRANQ")) || S.Contains(TEXT("SLEEP")) || S.Contains(TEXT("SEDAT")))
+	                                          { OutInjury = EQRInjuryType::Sedated;     OutDmgMult = 0.25f; }
+	else if (S.Contains(TEXT("CRYO")) || S.Contains(TEXT("FROST")) || S.Contains(TEXT("ICE")))
+	                                          { OutInjury = EQRInjuryType::Frostbite;   OutDmgMult = 0.7f; }
+	else if (S.Contains(TEXT("EMP")) || S.Contains(TEXT("SHOCK")) || S.Contains(TEXT("ELEC")))
+	                                          { OutInjury = EQRInjuryType::Shock;       OutDmgMult = 0.5f; }
+	else if (S.Contains(TEXT("SMOKE")) || S.Contains(TEXT("GAS")))
+	                                          { OutInjury = EQRInjuryType::Suffocation; OutDmgMult = 0.1f; }
+	else if (S.Contains(TEXT("TRACKER")) || S.Contains(TEXT("MARK")))
+	                                          { OutInjury = EQRInjuryType::Marked;      OutDmgMult = 0.1f; }
+	else if (S.Contains(TEXT("FIRE")) || S.Contains(TEXT("INCEND")))
+	                                          { OutInjury = EQRInjuryType::Burn;        OutDmgMult = 0.85f; }
+	else if (S.Contains(TEXT("EXPLOS")) || S.Contains(TEXT("FRAG")))
+	                                          { OutInjury = EQRInjuryType::Concussion;  OutDmgMult = 1.6f; }
+	else if (S.Contains(TEXT("BLEED")) || S.Contains(TEXT("BROADHEAD")))
+	                                          { OutInjury = EQRInjuryType::Bleeding;    OutDmgMult = 1.2f; }
+	else if (S.Contains(TEXT("ARMOR")) || S.Contains(TEXT("PIERC")))
+	                                          { OutInjury = EQRInjuryType::Bleeding;    OutDmgMult = 1.3f; }
+}
+
 void UQRWeaponComponent::ApplyPelletDamage(AActor* HitActor, const FHitResult& Hit)
 {
 	if (!HitActor) return;
 
+	EQRInjuryType Injury;
+	float AmmoMult;
+	ResolveAmmoEffect(Injury, AmmoMult);
+
 	const float DistanceMeters = Hit.Distance / 100.0f;
-	const float Damage = ComputeEffectiveDamage(DistanceMeters);
+	const float Damage = ComputeEffectiveDamage(DistanceMeters) * AmmoMult;
 
 	if (UQRSurvivalComponent* Survival = HitActor->FindComponentByClass<UQRSurvivalComponent>())
 	{
-		Survival->ApplyDamage(Damage, EQRInjuryType::Bleeding);
+		Survival->ApplyDamage(Damage, Injury);
 	}
 	else
 	{

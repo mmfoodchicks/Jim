@@ -333,6 +333,12 @@ enum class EQRInjuryType : uint8
 	Toxin           UMETA(DisplayName = "Toxin"),
 	Exhaustion      UMETA(DisplayName = "Exhaustion"),
 	Hypothermia     UMETA(DisplayName = "Hypothermia"),
+	// Arrow / projectile status effects.
+	Sedated         UMETA(DisplayName = "Sedated"),         // tranquilizer dart -- progressive fatigue + slow
+	Frostbite       UMETA(DisplayName = "Frostbite"),       // cryo arrow -- slow + cold DOT
+	Shock           UMETA(DisplayName = "Shock"),           // EMP / electric arrow -- stun + electronics off
+	Suffocation     UMETA(DisplayName = "Suffocation"),     // smoke / gas arrow
+	Marked          UMETA(DisplayName = "Marked"),          // tracker arrow -- spotted, no damage
 };
 
 UENUM(BlueprintType)

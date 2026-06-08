@@ -166,6 +166,15 @@ public:
 		meta = (ClampMin = "0"))
 	float ShieldMaxHP = 0.0f;
 
+	// ── Ammo / arrow type ────────────────────
+	// Selected arrow / round id for the next shot. Bows read this to pick
+	// the right injury type (POISON / TRANQ / CRYO / EMP / SMOKE / TRACKER
+	// / FIRE / EXPLOSIVE / BLEED) and a damage multiplier. Empty = standard
+	// arrow. Set by the character from the hotbar's secondary ammo slot, or
+	// directly via the BP for testing.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Ammo")
+	FName EquippedAmmoItemId;
+
 	// Noise radius in meters when fired (affects wildlife flee and enemy detection)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	float FireNoiseRadiusMeters = 200.0f;
@@ -386,6 +395,10 @@ private:
 	// Apply per-pellet damage without re-running fouling / jam / cadence
 	// checks (those happened once on the first pellet of the shot).
 	void ApplyPelletDamage(AActor* HitActor, const FHitResult& Hit);
+
+	// Resolves the equipped ammo id into (injury type, damage multiplier).
+	// Plain bullets / un-set ammo return (Bleeding, 1.0).
+	void ResolveAmmoEffect(EQRInjuryType& OutInjury, float& OutDmgMult) const;
 
 	// World time of the last successful shot, for rate-of-fire pacing.
 	// Authoritative (set inside TryFire on the server).

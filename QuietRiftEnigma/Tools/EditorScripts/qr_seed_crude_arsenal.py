@@ -30,6 +30,7 @@ MESH_PKG_ROOT  = "/Game/Meshes/weapons_assets"   # where a baked SM_<id> would l
 # Category enum ints (match EQRItemCategory). Weapon=8, Clothing=11.
 CAT_WEAPON   = 8
 CAT_CLOTHING = 11
+CAT_AMMO     = 4
 
 
 # ── The arsenal ────────────────────────────────────────────────────
@@ -55,6 +56,38 @@ BOWS = ["WPN_SHORTBOW", "WPN_RECURVE_BOW", "WPN_CROSSBOW", "WPN_SLING"]
 SHIELDS = [
     "WPN_WOOD_SHIELD", "WPN_SCRAP_SHIELD",
     "WPN_RIOT_SHIELD", "WPN_PLASMA_SHIELD",
+]
+
+# Arrow / projectile rounds. Bows read UQRWeaponComponent::EquippedAmmoItemId
+# and map the id (via name tokens) to an EQRInjuryType + damage multiplier.
+# Real-world inspirations + the Jovianlight setting:
+#   POISON: native toxin-gland extract -- DOT, anti-megafauna
+#   TRANQ:  sedative compound for taming or non-lethal capture
+#   CRYO:   frostspark-crystal payload, slow + cold damage
+#   EMP:    capacitor shock, disables Remnant-tech defenders
+#   SMOKE:  signal / area-denial puff (scientifically: aerosolised mineral
+#           dust loaded into a hollow shaft; reduces visibility)
+#   TRACKER: spore + radio dye marker, "Marked" status enables hunter UI
+#   FIRE:   pitch-impregnated head, sustained burn
+#   EXPLOSIVE: sparkstone-warhead, AOE on impact (concussion)
+#   BROADHEAD: heavier bleed, real big-game hunting analog
+#   ARMOR_PIERC: tungsten-core for hard targets (Remnant chassis)
+ARROWS = [
+    "AMO_ARROW_STANDARD",
+    "AMO_ARROW_BROADHEAD",
+    "AMO_ARROW_ARMOR_PIERCING",
+    "AMO_ARROW_POISON",
+    "AMO_ARROW_TRANQ",
+    "AMO_ARROW_CRYO",
+    "AMO_ARROW_EMP",
+    "AMO_ARROW_SMOKE",
+    "AMO_ARROW_TRACKER",
+    "AMO_ARROW_FIRE",
+    "AMO_ARROW_EXPLOSIVE",
+    # Crossbow bolts -- same payloads, bolt-shaped, used by WPN_CROSSBOW.
+    "AMO_BOLT_STANDARD",
+    "AMO_BOLT_ARMOR_PIERCING",
+    "AMO_BOLT_EXPLOSIVE",
 ]
 
 # Armour ids (Clothing category). The wear-protection system is a
@@ -146,22 +179,23 @@ def run(overwrite=False):
     made = 0
     skipped = 0
     plan = (
-        [(i, "Weapons", 1.2) for i in CRUDE_MELEE] +
-        [(i, "Weapons", 2.0) for i in METAL_BLADES] +
-        [(i, "Weapons", 1.6) for i in BOWS] +
-        [(i, "Weapons", 5.0) for i in SHIELDS] +
-        [(i, "Clothing", 3.0) for i in ARMOR]
+        [(i, "Weapons",          CAT_WEAPON,   1.2) for i in CRUDE_MELEE]  +
+        [(i, "Weapons",          CAT_WEAPON,   2.0) for i in METAL_BLADES] +
+        [(i, "Weapons",          CAT_WEAPON,   1.6) for i in BOWS]         +
+        [(i, "Weapons",          CAT_WEAPON,   5.0) for i in SHIELDS]      +
+        [(i, "Clothing",         CAT_CLOTHING, 3.0) for i in ARMOR]        +
+        [(i, "AmmoAttachments",  CAT_AMMO,     0.05) for i in ARROWS]
     )
-    for item_id, bucket, mass in plan:
-        cat = CAT_CLOTHING if bucket == "Clothing" else CAT_WEAPON
+    for item_id, bucket, cat, mass in plan:
         if _make_def(item_id, bucket, cat, mass, def_class, overwrite):
             made += 1
         else:
             skipped += 1
 
     print("[arsenal] created {} item defs, skipped {} existing.".format(made, skipped))
-    print("[arsenal] {} melee, {} metal blades, {} bows, {} shields, {} armour."
-          .format(len(CRUDE_MELEE), len(METAL_BLADES), len(BOWS), len(SHIELDS), len(ARMOR)))
+    print("[arsenal] {} melee, {} metal blades, {} bows, {} shields, {} armour, {} arrows."
+          .format(len(CRUDE_MELEE), len(METAL_BLADES), len(BOWS), len(SHIELDS),
+                  len(ARMOR), len(ARROWS)))
     print("[arsenal] Equip from the creative browser (Tab). Held mesh is empty")
     print("[arsenal] until qr_generate_weapons_assets bakes one -- the weapon")
     print("[arsenal] LOGIC works now (swing/draw/block + damage).")

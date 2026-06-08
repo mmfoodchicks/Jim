@@ -175,6 +175,35 @@ the reverse). Keep it that way.
 
 ---
 
+## Recipe + research mirror rule (HARD policy)
+
+**Whenever an item is added or removed from the game, its crafting
+recipe AND its tech-node research entry must move with it in the same
+commit.** No floating items. Apply recursively — every input ingredient
+the item references must itself already be a real id (or get added too).
+
+Tables to update:
+- `Content/QuietRift/Data/DT_Recipes.csv` — recipe rows
+  (`RecipeId, Output, Inputs, Time, Station, Unlocked By, Source Section`)
+- `Content/QuietRift/Data/DT_TechNodes.csv` — research nodes that
+  unlock the recipe (`UnlockedRecipeIds` column is `+`-separated)
+- If the item gives a status / consumes a buff, update
+  `EQRInjuryType` (`QRTypes.h`) too
+
+Working pattern: write a `qr_append_<feature>_recipes.py` script in
+`Tools/EditorScripts/` that appends the rows idempotently and ships
+alongside the item seeder. The crude arsenal pass
+(`qr_append_crude_arsenal_recipes.py`) is the reference.
+
+After running the appender, the user reimports the data tables in UE
+(Window → DataTable → Reimport) so the new rows go live.
+
+When removing items: drop the recipe rows AND scrub every
+`UnlockedRecipeIds` cell that listed them, so research nodes don't
+reference dangling recipes.
+
+---
+
 ## Don't touch
 
 - `Content/Fabs/**` and `FabsHierarchy.txt` — borrowed/generated Fab pack

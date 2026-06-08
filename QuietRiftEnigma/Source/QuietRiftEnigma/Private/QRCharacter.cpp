@@ -1166,6 +1166,22 @@ void AQRCharacter::RefreshHeldItemMesh()
 		if (HandDef)
 		{
 			TargetMesh = HandDef->WorldMesh.LoadSynchronous();
+
+			// Auto-resolve fallback: if the item def's WorldMesh slot is
+			// empty, look for /Game/Meshes/weapons_assets/SM_<ItemId>.
+			// That's where Blender bakes land, and where qr_seed_items.py
+			// would have stamped the def -- but if the user seeded BEFORE
+			// importing meshes (the common order), the def's slot is empty
+			// and the held weapon stays invisible. Probing the conventional
+			// path keeps the held mesh visible without needing a re-seed.
+			if (!TargetMesh)
+			{
+				const FString Id = HandDef->ItemId.ToString();
+				const FString Path = FString::Printf(
+					TEXT("/Game/Meshes/weapons_assets/SM_%s.SM_%s"), *Id, *Id);
+				TargetMesh = LoadObject<UStaticMesh>(
+					nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			}
 		}
 	}
 
