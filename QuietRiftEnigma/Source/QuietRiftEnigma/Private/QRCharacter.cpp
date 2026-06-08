@@ -502,6 +502,15 @@ void AQRCharacter::Move(const FInputActionValue& Value)
 void AQRCharacter::Look(const FInputActionValue& Value)
 {
 	FVector2D LookVector = Value.Get<FVector2D>();
+
+	// Slow the mouse when aiming so precision shots feel precise. Uses the
+	// FP view component's ADSLookSensitivityMult; falls back to no scaling
+	// if the component isn't ready yet.
+	if (FPView && FPView->IsADS())
+	{
+		LookVector *= FPView->ADSLookSensitivityMult;
+	}
+
 	AddControllerYawInput(LookVector.X);
 	AddControllerPitchInput(LookVector.Y);
 }
@@ -676,19 +685,29 @@ void AQRCharacter::TryFireWeapon()
 		// TryFireWeapon above via ApplyWeaponRecoilKick. The camera is
 		// deliberately left untouched.
 
-		// Visible tracer + hit feedback. The Fab muzzle-flash / impact
-		// Niagara systems are broken on this checkout (compile errors
-		// on missing dependencies), so use UE debug-draw as the
-		// stand-in. Hot pink → cyan so it's impossible to miss.
+		// Visible tracer + hit feedback. One pink line per PELLET so the
+		// shotgun's spread reads clearly (a single line was hiding that
+		// 7 of the 8 pellets even fired). Cyan sphere at each impact.
 		if (UWorld* W = GetWorld())
 		{
 			const FVector Muzzle = Start + Forward * 35.0f;
-			const FVector EndPt  = Result.bHitSomething
-				? Result.HitLocation
-				: (Start + Forward * (Weapon->MaxRangeMeters * 100.0f));
-			DrawDebugLine(W, Muzzle, EndPt, FColor(255, 50, 200),
-				/*bPersistent*/ false, /*lifeTime*/ 0.25f,
-				/*depthPriority*/ 0, /*thickness*/ 2.0f);
+			if (Result.PelletEnds.Num() > 0)
+			{
+				for (const FVector& End : Result.PelletEnds)
+				{
+					DrawDebugLine(W, Muzzle, End, FColor(255, 50, 200),
+						false, 0.25f, 0, 2.0f);
+				}
+			}
+			else
+			{
+				// Fallback (shouldn't normally hit): one line.
+				const FVector EndPt = Result.bHitSomething
+					? Result.HitLocation
+					: (Start + Forward * (Weapon->MaxRangeMeters * 100.0f));
+				DrawDebugLine(W, Muzzle, EndPt, FColor(255, 50, 200),
+					false, 0.25f, 0, 2.0f);
+			}
 			if (Result.bHitSomething)
 			{
 				DrawDebugSphere(W, Result.HitLocation, 18.0f, 12,

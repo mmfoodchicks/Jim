@@ -66,6 +66,12 @@ struct QRCOMBATTHREAT_API FQRFireResult
 	// How much pitch / yaw to apply to the firer's view as kick.
 	UPROPERTY(BlueprintReadOnly) float RecoilPitch = 0.0f;
 	UPROPERTY(BlueprintReadOnly) float RecoilYaw = 0.0f;
+
+	// Per-pellet trace endpoints (one entry per projectile fired in the
+	// shot). For a normal single-bullet weapon this has 1 entry; for the
+	// shotgun it has PelletsPerShot. The caller can draw a tracer / FX
+	// per entry.
+	UPROPERTY(BlueprintReadOnly) TArray<FVector> PelletEnds;
 };
 
 // Handles weapon logic: firing, jamming, fouling, noise generation, reloading
@@ -128,6 +134,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire",
 		meta = (ClampMin = "0", ClampMax = "20"))
 	float PelletConeDegrees = 0.0f;
+
+	// Sniper-class weapon. When true, ADS shots have ZERO spread (tack-driver
+	// at any range). Non-ADS shots still suffer the normal hip-fire / movement /
+	// fouling multipliers, so you have to actually aim.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Weapon|Fire")
+	bool bIsPrecisionWeapon = false;
 
 	// Noise radius in meters when fired (affects wildlife flee and enemy detection)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")

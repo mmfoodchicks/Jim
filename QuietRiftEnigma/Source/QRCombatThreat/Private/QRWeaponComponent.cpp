@@ -45,6 +45,7 @@ void UQRWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UQRWeaponComponent, RoundsPerMinute);
 	DOREPLIFETIME(UQRWeaponComponent, PelletsPerShot);
 	DOREPLIFETIME(UQRWeaponComponent, PelletConeDegrees);
+	DOREPLIFETIME(UQRWeaponComponent, bIsPrecisionWeapon);
 	DOREPLIFETIME(UQRWeaponComponent, bUnlimitedAmmo);
 }
 
@@ -70,9 +71,10 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 	WeaponItemId = WeaponId;
 	const FString S = WeaponId.ToString().ToUpper();
 
-	// Reset shotgun-only fields by default; per-weapon branch sets them.
+	// Reset per-weapon fields by default; the branch below sets them.
 	PelletsPerShot = 1;
 	PelletConeDegrees = 0.0f;
+	bIsPrecisionWeapon = false;
 
 	auto Apply = [this](EQRFireMode Mode, float Rpm)
 	{
@@ -85,19 +87,34 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 	// track DT_ArmoryWeapons but are tuned for "different in the hand".
 	if      (S.Contains(TEXT("SMG")))        Apply(EQRFireMode::FullAuto,   900.0f);
 	else if (S.Contains(TEXT("CARBINE")))    Apply(EQRFireMode::FullAuto,   500.0f);
-	else if (S.Contains(TEXT("LONGRANGE")))  Apply(EQRFireMode::SingleShot,  35.0f);
-	else if (S.Contains(TEXT("BOLT")))       Apply(EQRFireMode::SingleShot,  40.0f);
+	else if (S.Contains(TEXT("LONGRANGE")))
+	{
+		Apply(EQRFireMode::SingleShot, 35.0f);
+		bIsPrecisionWeapon = true;
+	}
+	else if (S.Contains(TEXT("BOLT")))
+	{
+		Apply(EQRFireMode::SingleShot, 40.0f);
+		bIsPrecisionWeapon = true;
+	}
 	else if (S.Contains(TEXT("PUMP")) || S.Contains(TEXT("SHOTGUN")))
 	{
 		Apply(EQRFireMode::SingleShot, 90.0f);
-		// Pellets per shell + cone spread. 8 pellets at 6 deg gives a
-		// recognisable shotgun pattern that's lethal up close and useless
-		// past ~20 m -- exactly the role a pump should fill.
+		// 8 pellets at 6 deg gives a recognisable shotgun pattern that's
+		// lethal up close and useless past ~20 m.
 		PelletsPerShot = 8;
 		PelletConeDegrees = 6.0f;
 	}
-	else if (S.Contains(TEXT("DMR")))        Apply(EQRFireMode::SemiAuto,   240.0f);
-	else if (S.Contains(TEXT("SNIPER")))     Apply(EQRFireMode::SingleShot,  40.0f);
+	else if (S.Contains(TEXT("DMR")))
+	{
+		Apply(EQRFireMode::SemiAuto, 240.0f);
+		bIsPrecisionWeapon = true;
+	}
+	else if (S.Contains(TEXT("SNIPER")))
+	{
+		Apply(EQRFireMode::SingleShot, 40.0f);
+		bIsPrecisionWeapon = true;
+	}
 	else if (S.Contains(TEXT("PISTOL")))     Apply(EQRFireMode::SemiAuto,   360.0f);
 	else                                     Apply(EQRFireMode::SemiAuto,   360.0f);
 }
@@ -278,10 +295,19 @@ void UQRWeaponComponent::ApplyPelletDamage(AActor* HitActor, const FHitResult& H
 
 float UQRWeaponComponent::GetEffectiveSpreadDegrees(bool bIsAimed, bool bIsMoving) const
 {
+	// Precision weapons (DMR + the two snipers) are tack-drivers on ADS:
+	// zero spread, no fouling effect, no movement penalty. The trade is
+	// they still have the per-weapon slow RPM and a full hip-fire penalty
+	// when not aimed, so they're only accurate at the cost of being slow
+	// and requiring a stop-aim discipline.
+	if (bIsPrecisionWeapon && bIsAimed)
+	{
+		return 0.0f;
+	}
+
 	float Spread = BaseSpreadDegrees;
 	if (!bIsAimed) Spread *= HipFireSpreadMult;
 	if (bIsMoving) Spread *= MovingSpreadMult;
-	// Fouling lerps spread up to FoulingSpreadMult at full fouling.
 	const float FoulMult = FMath::Lerp(1.0f, FoulingSpreadMult, FoulingFactor);
 	Spread *= FoulMult;
 	return Spread;
@@ -318,6 +344,7 @@ FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector T
 	FHitResult BestHit;          // for the cosmetic FX origin
 	FVector    BestDir = TraceForward;
 	int32      Hits    = 0;
+	Result.PelletEnds.Reserve(NumPellets);
 
 	for (int32 p = 0; p < NumPellets; ++p)
 	{
@@ -348,6 +375,10 @@ FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector T
 		{
 			ApplyPelletDamage(HitActor, Hit);
 		}
+
+		// Record this pellet's endpoint (impact if it hit, otherwise the
+		// far end of the trace) so the firer can draw N tracer lines.
+		Result.PelletEnds.Add(bHit ? Hit.ImpactPoint : TraceEnd);
 
 		if (bHit)
 		{
