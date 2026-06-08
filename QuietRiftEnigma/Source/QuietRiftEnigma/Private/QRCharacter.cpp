@@ -505,12 +505,17 @@ void AQRCharacter::Look(const FInputActionValue& Value)
 {
 	FVector2D LookVector = Value.Get<FVector2D>();
 
-	// Slow the mouse when aiming so precision shots feel precise. Uses the
-	// FP view component's ADSLookSensitivityMult; falls back to no scaling
-	// if the component isn't ready yet.
-	if (FPView && FPView->IsADS())
+	// Slow the mouse when aiming. Resolve the view component the SAME way
+	// SetADS does (FindComponentByClass), so we read the exact instance the
+	// ADS state was set on -- reading the C++ FPView member could be a
+	// different component than a BP-added one, which is why the slowdown
+	// wasn't applying even though the FOV zoom (driven by that other
+	// component) was.
+	UQRFPViewComponent* View = CachedView;
+	if (!View) View = FindComponentByClass<UQRFPViewComponent>();
+	if (View && View->IsADS())
 	{
-		LookVector *= FPView->ADSLookSensitivityMult;
+		LookVector *= View->ADSLookSensitivityMult;
 	}
 
 	AddControllerYawInput(LookVector.X);

@@ -314,6 +314,27 @@ void AQRWildlifeAIController::Think()
 	const EQRWildlifeAIState CurState = WildlifePawn->AIState;
 	const bool bAmbient = IsAmbientRole();
 
+	// Drop a target the instant it dies, otherwise the predator stands on
+	// the corpse swinging forever (the "animal won't die" log spam was a
+	// dead target still being attacked). Works for wildlife prey and the
+	// player alike.
+	if (CurrentTarget)
+	{
+		bool bTargetDead = false;
+		if (const AQRWildlifeBase* TargetWildlife = Cast<AQRWildlifeBase>(CurrentTarget))
+		{
+			bTargetDead = TargetWildlife->IsDead();
+		}
+		if (bTargetDead)
+		{
+			CurrentTarget = nullptr;
+			StopMovement();
+			SetState(EQRWildlifeAIState::Idle);
+			DwellUntilSec = Now + FMath::FRandRange(IdleDwellMin, IdleDwellMax);
+			return;
+		}
+	}
+
 	// Perception step: refresh CurrentTarget for non-ambient roles.
 	// Ambient animals (bone lantern drifters, lantern mite swarms) just
 	// wander; they don't react to anything.

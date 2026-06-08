@@ -1,4 +1,4 @@
-"""
+r"""
 qr_generate_crude_arsenal_assets.py -- Blender generators for the crude
 survival arsenal: daggers, swords, axes, spears, picks, clubs, bows,
 crossbow, sling, and the shield ladder. One FBX per item id, exported
@@ -312,7 +312,10 @@ SHIELD_GENERATORS = {
 
 def _finalize_and_export(name):
     add_socket("Grip", location=(0, 0, 0))
-    finalize_asset(name=name, generate_uvs=True, lod_ratios=(0.40,))
+    finalize_asset(name,
+                   bevel_width=0.0025, bevel_angle_deg=30,
+                   smooth_angle_deg=55, collision="convex",
+                   lods=[0.50], pivot="geometry_center")
     out_path = os.path.join(OUTPUT_DIR, "{}.fbx".format(name))
     export_fbx(name, out_path)
     print("  -> {}".format(out_path))
