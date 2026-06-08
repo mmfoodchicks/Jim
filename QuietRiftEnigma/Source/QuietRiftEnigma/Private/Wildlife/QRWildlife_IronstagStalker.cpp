@@ -17,6 +17,7 @@ AQRWildlife_IronstagStalker::AQRWildlife_IronstagStalker()
 	BodyLengthMeters   = 3.2f;
 	BodyHeightMeters   = 2.3f;
 	AttackDamage       = 40.0f;
+	bArmoredHead       = true;   // iron chest plate + ferric antlers -- hit the flank
 
 	DeathDrops.Add({ FName("FOD_IRONSTAG_MEAT"),    4, 7, 1.0f });
 	DeathDrops.Add({ FName("MAT_FERRIC_ANTLER"),     2, 2, 1.0f });

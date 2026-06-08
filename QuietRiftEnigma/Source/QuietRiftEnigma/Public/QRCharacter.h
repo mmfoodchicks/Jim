@@ -202,6 +202,12 @@ public:
 		meta = (ClampMin = "1", ClampMax = "30"))
 	float WeaponRecoilRecoverySpeed = 9.0f;
 
+	// Multiplier from a weapon's RecoilPitch to the camera/view kick (in
+	// controller pitch input units). Higher = bigger screen punch per shot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil",
+		meta = (ClampMin = "0", ClampMax = "2"))
+	float CameraRecoilScale = 0.18f;
+
 	// ── State ────────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Character")
 	bool bIsSprinting = false;

@@ -80,6 +80,34 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife")
 	float MassKg = 50.0f;
 
+	// ── Critical-hit zone (headshots / weak spots) ──
+	// Local-space (actor-relative, cm) centre of the weak point. If
+	// bAutoCritFromBody is true this is recomputed in BeginPlay to the
+	// head position (front + up) from the body dims. Armoured species
+	// override it to a flank / underbelly in their constructor and set a
+	// lower multiplier so the head is NOT the soft spot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat")
+	FVector CritZoneCenterLocal = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat", meta = (ClampMin = "5"))
+	float CritZoneRadiusCm = 35.0f;
+
+	// Damage multiplier when a shot lands in the crit zone. 2.0 = double.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat", meta = (ClampMin = "1.0"))
+	float CritDamageMultiplier = 2.0f;
+
+	// If true, BeginPlay auto-places CritZoneCenterLocal at the head
+	// (front-upper) from the body dims. Turn off (or set the offset in a
+	// ctor) for armoured species whose weak point isn't the head.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat")
+	bool bAutoCritFromBody = true;
+
+	// Armoured-head species: the skull/plating is too tough, so the auto
+	// crit zone moves to the soft underbelly (lower, slightly rear)
+	// instead of the head. Set true in the species constructor.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat")
+	bool bArmoredHead = false;
+
 	// ── Physical size (real-world) ────────────
 	// Nose-to-tail length and ground-to-back height, in metres. These
 	// drive the collision capsule and (when bAutoFitMeshToBody is true)

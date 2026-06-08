@@ -668,6 +668,16 @@ void AQRCharacter::TryFireWeapon()
 		ApplyWeaponRecoilKick(
 			Weapon->RecoilPitch * AimMult,
 			FMath::FRandRange(-Weapon->RecoilYawRandomRange, Weapon->RecoilYawRandomRange) * AimMult);
+
+		// View kick — punch the camera up so each shot moves the screen.
+		// Snipers (high RecoilPitch) kick hard; the bigger the round, the
+		// bigger the climb. ADS keeps the full kick (you feel the recoil
+		// through the scope); hip-fire is scaled a touch lower so spray
+		// weapons stay controllable. AddControllerPitchInput is negative
+		// for "up". A little random yaw adds life.
+		const float ViewKick = Weapon->RecoilPitch * CameraRecoilScale * (bAimed ? 1.0f : 0.8f);
+		AddControllerPitchInput(-ViewKick);
+		AddControllerYawInput(FMath::FRandRange(-ViewKick, ViewKick) * 0.25f);
 	}
 
 	if (!HasAuthority())

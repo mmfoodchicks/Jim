@@ -18,6 +18,7 @@ AQRWildlife_PillarbackHauler::AQRWildlife_PillarbackHauler()
 	BodyHeightMeters   = 5.5f;
 	AttackDamage       = 55.0f;
 	AttackRange        = 500.0f;
+	bArmoredHead       = true;   // bone-plated megafauna -- flank/belly only
 
 	DeathDrops.Add({ FName("FOD_HAULER_MEAT_LARGE"), 8, 16, 1.0f });
 	DeathDrops.Add({ FName("MAT_PILLAR_BONE"),        4,  8, 0.9f });

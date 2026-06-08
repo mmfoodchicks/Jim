@@ -13,6 +13,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Sound/SoundBase.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/DamageEvents.h"
 
 UQRWeaponComponent::UQRWeaponComponent()
 {
@@ -76,47 +77,58 @@ void UQRWeaponComponent::ConfigureForWeaponId(FName WeaponId)
 	PelletConeDegrees = 0.0f;
 	bIsPrecisionWeapon = false;
 
-	auto Apply = [this](EQRFireMode Mode, float Rpm)
+	// One place to set every per-weapon stat. EffRange = the distance out
+	// to which damage is full; past it ComputeEffectiveDamage falls off.
+	// Snipers/DMR get huge EffRange so there's no falloff at normal combat
+	// distances (only "mega far"). Recoil is the per-shot view kick.
+	auto Apply = [this](EQRFireMode Mode, float Rpm, float Dmg,
+	                    float EffRangeM, float MaxRangeM, float Recoil)
 	{
 		FireMode = Mode;
 		RoundsPerMinute = Rpm;
+		BaseDamage = Dmg;
+		EffectiveRangeMeters = EffRangeM;
+		MaxRangeMeters = MaxRangeM;
+		RecoilPitch = Recoil;
 	};
 
-	// RPMs widened so SMG and Carbine feel meaningfully different:
-	// the SMG sprays (~15 rps), the carbine taps (~8.3 rps). Numbers loosely
-	// track DT_ArmoryWeapons but are tuned for "different in the hand".
-	if      (S.Contains(TEXT("SMG")))        Apply(EQRFireMode::FullAuto,   900.0f);
-	else if (S.Contains(TEXT("CARBINE")))    Apply(EQRFireMode::FullAuto,   500.0f);
+	//        mode                    RPM    dmg  eff   max   recoil
+	if      (S.Contains(TEXT("SMG")))
+		Apply(EQRFireMode::FullAuto,  900.f, 28.f, 120.f, 300.f, 0.8f);
+	else if (S.Contains(TEXT("CARBINE")))
+		Apply(EQRFireMode::FullAuto,  500.f, 44.f, 200.f, 400.f, 1.4f);
 	else if (S.Contains(TEXT("LONGRANGE")))
 	{
-		Apply(EQRFireMode::SingleShot, 35.0f);
+		Apply(EQRFireMode::SingleShot, 35.f, 150.f, 1200.f, 2000.f, 6.5f);
 		bIsPrecisionWeapon = true;
 	}
 	else if (S.Contains(TEXT("BOLT")))
 	{
-		Apply(EQRFireMode::SingleShot, 40.0f);
+		Apply(EQRFireMode::SingleShot, 40.f, 120.f, 900.f, 1500.f, 5.5f);
 		bIsPrecisionWeapon = true;
 	}
 	else if (S.Contains(TEXT("PUMP")) || S.Contains(TEXT("SHOTGUN")))
 	{
-		Apply(EQRFireMode::SingleShot, 90.0f);
-		// 8 pellets at 6 deg gives a recognisable shotgun pattern that's
-		// lethal up close and useless past ~20 m.
+		// Per-pellet damage is modest; 8 pellets stack up close, fall off
+		// hard past the short effective range.
+		Apply(EQRFireMode::SingleShot, 90.f, 12.f, 15.f, 60.f, 4.0f);
 		PelletsPerShot = 8;
 		PelletConeDegrees = 6.0f;
 	}
 	else if (S.Contains(TEXT("DMR")))
 	{
-		Apply(EQRFireMode::SemiAuto, 240.0f);
+		Apply(EQRFireMode::SemiAuto,  240.f, 72.f, 600.f, 1200.f, 3.0f);
 		bIsPrecisionWeapon = true;
 	}
 	else if (S.Contains(TEXT("SNIPER")))
 	{
-		Apply(EQRFireMode::SingleShot, 40.0f);
+		Apply(EQRFireMode::SingleShot, 40.f, 120.f, 900.f, 1500.f, 5.5f);
 		bIsPrecisionWeapon = true;
 	}
-	else if (S.Contains(TEXT("PISTOL")))     Apply(EQRFireMode::SemiAuto,   360.0f);
-	else                                     Apply(EQRFireMode::SemiAuto,   360.0f);
+	else if (S.Contains(TEXT("PISTOL")))
+		Apply(EQRFireMode::SemiAuto,  360.f, 38.f, 80.f, 200.f, 1.0f);
+	else
+		Apply(EQRFireMode::SemiAuto,  360.f, 30.f, 150.f, 300.f, 1.2f);
 }
 
 float UQRWeaponComponent::GetFoulingIncrement(bool bIsDirtyAmmo, bool bUseSuppressor) const
@@ -289,7 +301,14 @@ void UQRWeaponComponent::ApplyPelletDamage(AActor* HitActor, const FHitResult& H
 		{
 			InstigatorController = MyOwner->GetInstigatorController();
 		}
-		UGameplayStatics::ApplyDamage(HitActor, Damage, InstigatorController, GetOwner(), nullptr);
+		// Point damage so the hit LOCATION flows to the target's TakeDamage
+		// override -- AQRWildlifeBase uses it to detect headshots / crit
+		// zones. ShotDir is just the trace direction for impulse / FX.
+		const FVector ShotDir = Hit.TraceEnd != Hit.TraceStart
+			? (Hit.TraceEnd - Hit.TraceStart).GetSafeNormal()
+			: FVector::ForwardVector;
+		UGameplayStatics::ApplyPointDamage(HitActor, Damage, ShotDir, Hit,
+			InstigatorController, GetOwner(), nullptr);
 	}
 }
 
@@ -360,21 +379,18 @@ FQRFireResult UQRWeaponComponent::TryFireFromTrace(FVector TraceStart, FVector T
 		const bool bHit = W->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
 		AActor* HitActor = bHit ? Hit.GetActor() : nullptr;
 
-		// Each pellet routes its own damage via TryFire. The first pellet
-		// also handles the per-shot fouling + cadence stamp; subsequent
-		// pellets bypass the cadence/jam check via bIsAdditional=true so
-		// they don't gate themselves out.
+		// First pellet runs the gun mechanics (cadence, jam, ammo, fouling)
+		// with a null target -- damage for EVERY pellet (including this one)
+		// is applied below through ApplyPelletDamage, which carries the hit
+		// location so the target can resolve a headshot / crit zone.
 		if (p == 0)
 		{
-			if (!TryFire(HitActor, AmmoInstance))
+			if (!TryFire(nullptr, AmmoInstance))
 			{
 				return Result;   // jam / out-of-ammo / cadence: bail
 			}
 		}
-		else
-		{
-			ApplyPelletDamage(HitActor, Hit);
-		}
+		ApplyPelletDamage(HitActor, Hit);
 
 		// Record this pellet's endpoint (impact if it hit, otherwise the
 		// far end of the trace) so the firer can draw N tracer lines.

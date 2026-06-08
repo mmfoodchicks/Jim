@@ -86,6 +86,23 @@ void AQRWildlifeBase::ApplyBodySizing()
 	// stays geometrically valid (UE requires radius <= half-height).
 	const float Radius = FMath::Clamp(LengthCm * 0.25f, 10.0f, HalfHeight - 1.0f);
 
+	// Auto crit zone. Default = the head (forward + up). Armoured-head
+	// species put the weak point at the soft underbelly instead (lower,
+	// slightly rear) so you have to flank them, not just aim for the face.
+	if (bAutoCritFromBody)
+	{
+		if (bArmoredHead)
+		{
+			CritZoneCenterLocal = FVector(-LengthCm * 0.10f, 0.0f, -HeightCm * 0.28f);
+			CritZoneRadiusCm = FMath::Max(HeightCm * 0.20f, 18.0f);
+		}
+		else
+		{
+			CritZoneCenterLocal = FVector(LengthCm * 0.42f, 0.0f, HeightCm * 0.30f);
+			CritZoneRadiusCm = FMath::Max(HeightCm * 0.22f, 20.0f);
+		}
+	}
+
 	UCapsuleComponent* Capsule = GetCapsuleComponent();
 	if (Capsule)
 	{
@@ -322,12 +339,30 @@ float AQRWildlifeBase::TakeDamage(float DamageAmount, const FDamageEvent& Damage
 
 	if (HasAuthority() && DamageAmount > 0.0f)
 	{
+		float FinalDamage = DamageAmount;
+
+		// Headshot / crit zone: point-damage events carry the hit location.
+		// Transform it into actor-local space and check the distance to the
+		// species' crit zone; a hit inside multiplies the damage.
+		if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
+		{
+			const FPointDamageEvent& Pt = static_cast<const FPointDamageEvent&>(DamageEvent);
+			const FVector LocalHit = GetActorTransform().InverseTransformPosition(Pt.HitInfo.ImpactPoint);
+			const float DistToCrit = FVector::Dist(LocalHit, CritZoneCenterLocal);
+			if (DistToCrit <= CritZoneRadiusCm)
+			{
+				FinalDamage *= CritDamageMultiplier;
+				UE_LOG(LogTemp, Log, TEXT("[Wildlife] %s CRIT HIT x%.1f (%.0f -> %.0f)"),
+					*GetName(), CritDamageMultiplier, DamageAmount, FinalDamage);
+			}
+		}
+
 		AActor* Causer = DamageCauser;
 		if (!Causer && EventInstigator)
 		{
 			Causer = EventInstigator->GetPawn();
 		}
-		TakeDamage_Wildlife(DamageAmount, Causer);
+		TakeDamage_Wildlife(FinalDamage, Causer);
 	}
 	return Actual;
 }
