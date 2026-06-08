@@ -321,6 +321,17 @@ enum class EQRSpoilState : uint8
 //  SURVIVAL ENUMS
 // ─────────────────────────────────────────────
 
+// Worn-armour slot. Three layered pieces (helm + chest + legs) feed a
+// total damage-reduction on the survival component.
+UENUM(BlueprintType)
+enum class EQRArmourSlot : uint8
+{
+	None    UMETA(DisplayName = "None"),
+	Helm    UMETA(DisplayName = "Helm / Head"),
+	Chest   UMETA(DisplayName = "Chest"),
+	Legs    UMETA(DisplayName = "Legs"),
+};
+
 UENUM(BlueprintType)
 enum class EQRInjuryType : uint8
 {

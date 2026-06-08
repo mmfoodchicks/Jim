@@ -1299,9 +1299,14 @@ void AQRCharacter::RefreshArmour()
 	float HeadCov = 0.0f, ChestCov = 0.0f, LegsCov = 0.0f;
 	float HeadCap = 0.0f, ChestCap = 0.0f, LegsCap = 0.0f;
 
-	const TArray<UQRItemInstance*> Clothes =
-		Inventory->GetItemsByCategory(EQRItemCategory::Clothing);
-	for (UQRItemInstance* Inst : Clothes)
+	// Only count armour in dedicated worn slots; loose pieces in the body
+	// grid don't protect (you have to actually equip them).
+	TArray<UQRItemInstance*> Worn;
+	Worn.Reserve(3);
+	if (UQRItemInstance* H = Inventory->GetEquippedArmour(EQRArmourSlot::Helm))  Worn.Add(H);
+	if (UQRItemInstance* C = Inventory->GetEquippedArmour(EQRArmourSlot::Chest)) Worn.Add(C);
+	if (UQRItemInstance* L = Inventory->GetEquippedArmour(EQRArmourSlot::Legs))  Worn.Add(L);
+	for (UQRItemInstance* Inst : Worn)
 	{
 		if (!Inst || !Inst->Definition) continue;
 		const FString Id = Inst->Definition->ItemId.ToString().ToUpper();

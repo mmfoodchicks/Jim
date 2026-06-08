@@ -75,15 +75,37 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTextBlock> StatusText = nullptr;
 
+	// Equipment-slot strip at the top: Helm / Chest armour / Legs armour /
+	// Chest rig / Backpack. Each is a 64x64 border button. Click an empty
+	// slot to drop in whatever is grabbed; click an occupied slot to
+	// unequip (double-click on a container slot opens its grid).
+	UPROPERTY()
+	TObjectPtr<UHorizontalBox> EquipStrip = nullptr;
+
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> GrabbedItem = nullptr;
 	bool bGrabbedRotation = false;
 
 	UFUNCTION() void HandleInventoryChanged();
 
+	// State for double-click container open. When the user clicks a rig
+	// or backpack slot once, this records (slot, time); a second click in
+	// the same slot within DoubleClickWindowSec toggles the corresponding
+	// grid visibility. Single click = (un)equip / equip-from-grab.
+	enum class EEquipKind : uint8 { None, Helm, Chest, Legs, Rig, Backpack };
+	EEquipKind LastClickedEquip = EEquipKind::None;
+	double LastClickedTime = 0.0;
+	static constexpr double DoubleClickWindowSec = 0.35;
+
+	// Per-container visibility -- the rig grid is hidden by default until
+	// the user double-clicks the rig slot; same for the backpack grid.
+	bool bShowChestGrid = true;
+	bool bShowBackpackGrid = true;
+
 public:
 	// Called from sub-button click handlers (UQRInventoryCellButton / UQRInventoryItemButton).
 	UFUNCTION() void HandleCellClicked(int32 PackedKey);
+	UFUNCTION() void HandleEquipSlotClicked(int32 KindIndex);
 	void HandleItemClicked(UQRItemInstance* Item);
 
 private:
@@ -92,6 +114,7 @@ private:
 	void AddCellGrid(UCanvasPanel* Panel, EQRContainerKind Kind);
 	void AddItem(UCanvasPanel* Panel, EQRContainerKind Kind, UQRItemInstance* Item);
 	void RefreshHeader();
+	void RebuildEquipStrip();
 };
 
 /**
@@ -111,6 +134,29 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> Item = nullptr;
+
+	UFUNCTION() void HandleClicked();
+};
+
+/**
+ * Equipment-slot button. Click toggles equip/unequip; double-click on a
+ * container slot (Rig / Backpack) toggles whether its grid is visible.
+ */
+UCLASS()
+class QUIETRIFTENIGMA_API UQRInventoryEquipButton : public UButton
+{
+	GENERATED_BODY()
+
+public:
+	UQRInventoryEquipButton();
+
+	UPROPERTY()
+	TWeakObjectPtr<UQRInventoryGridWidget> OwnerWidget;
+
+	// 1=Helm 2=Chest armour 3=Legs armour 4=Rig 5=Backpack. Matches
+	// UQRInventoryGridWidget::EEquipKind.
+	UPROPERTY()
+	int32 KindIndex = 0;
 
 	UFUNCTION() void HandleClicked();
 };

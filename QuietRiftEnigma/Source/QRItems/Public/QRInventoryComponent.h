@@ -88,6 +88,19 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedContainers, Category = "Inventory|Equipment")
 	TObjectPtr<UQRItemInstance> EquippedBackpack = nullptr;
 
+	// ── Worn armour (Clothing category, no container payload) ──────
+	// Three dedicated slots that hold a single ARM_<METAL>_<SLOT> item
+	// each. They contribute to UQRSurvivalComponent::ArmourDamageReduction
+	// via AQRCharacter::RefreshArmour. Equip via TryEquipArmour.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedArmour, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedHelm = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedArmour, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedChestArmour = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedArmour, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedLegsArmour = nullptr;
+
 	// Player's base STR-derived carry capacity, separate from the container bonus.
 	// MaxCarryWeightKg is recomputed as BaseCarryWeightKg + sum of container bonuses
 	// every time a container is equipped/unequipped or STR changes.
@@ -150,6 +163,18 @@ public:
 	// somewhere (returned in OutRemovedContainer).
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
 	EQRInventoryResult TryUnequipContainer(EQRContainerSlotType Slot, UQRItemInstance*& OutRemovedContainer);
+
+	// Worn-armour slots: Helm / Chest / Legs. Equips a Clothing-category
+	// item whose id encodes the slot (ARM_<METAL>_HELM / CHEST / LEGS).
+	// Anything already in that slot returns to the body grid first.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
+	bool TryEquipArmour(UQRItemInstance* Item);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
+	bool TryUnequipArmour(EQRArmourSlot Slot, UQRItemInstance*& OutRemoved);
+
+	UFUNCTION(BlueprintPure, Category = "Inventory|Equipment")
+	UQRItemInstance* GetEquippedArmour(EQRArmourSlot Slot) const;
 
 	// Read-only query — current container in a slot (null if empty).
 	UFUNCTION(BlueprintPure, Category = "Inventory|Equipment")
@@ -247,6 +272,10 @@ private:
 
 	UQRItemInstance* FindExistingStack(FName ItemId, int32 MaxStack) const;
 
+	// Internal helper: reference into the right EquippedHelm / Chest / Legs
+	// slot. Returns EquippedHelm for None (caller pre-checks).
+	TObjectPtr<UQRItemInstance>& _ArmourRef(EQRArmourSlot Slot);
+
 	UFUNCTION()
 	void OnRep_Items();
 
@@ -255,6 +284,9 @@ private:
 
 	UFUNCTION()
 	void OnRep_EquippedContainers();
+
+	UFUNCTION()
+	void OnRep_EquippedArmour();
 
 	// Recompute MaxCarryWeightKg / MaxVolumeLiters / MaxSlots from
 	// BaseCarryWeightKg + BaseVolumeLiters + BaseSlots plus the bonuses

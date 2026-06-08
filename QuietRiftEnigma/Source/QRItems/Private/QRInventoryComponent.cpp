@@ -23,6 +23,9 @@ void UQRInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME(UQRInventoryComponent, MaxSlots);
 	DOREPLIFETIME(UQRInventoryComponent, EquippedChestRig);
 	DOREPLIFETIME(UQRInventoryComponent, EquippedBackpack);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedHelm);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedChestArmour);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedLegsArmour);
 	DOREPLIFETIME(UQRInventoryComponent, BaseCarryWeightKg);
 	DOREPLIFETIME(UQRInventoryComponent, BaseVolumeLiters);
 	DOREPLIFETIME(UQRInventoryComponent, BaseSlots);
@@ -628,4 +631,76 @@ void UQRInventoryComponent::OnRep_EquippedContainers()
 	// Server is authoritative on Max* values, but recompute on clients too so
 	// local prediction sees the same totals during the rep window.
 	RecomputeCapacityFromContainers();
+}
+
+// ── Worn-armour slots ──────────────────────────────────────────────
+
+static EQRArmourSlot _SlotFromItemId(const FName& Id)
+{
+	const FString S = Id.ToString().ToUpper();
+	if (!S.StartsWith(TEXT("ARM_"))) return EQRArmourSlot::None;
+	if (S.Contains(TEXT("HELM")))  return EQRArmourSlot::Helm;
+	if (S.Contains(TEXT("CHEST"))) return EQRArmourSlot::Chest;
+	if (S.Contains(TEXT("LEGS")))  return EQRArmourSlot::Legs;
+	return EQRArmourSlot::None;
+}
+
+TObjectPtr<UQRItemInstance>& UQRInventoryComponent::_ArmourRef(EQRArmourSlot Slot)
+{
+	switch (Slot)
+	{
+	case EQRArmourSlot::Helm:  return EquippedHelm;
+	case EQRArmourSlot::Chest: return EquippedChestArmour;
+	case EQRArmourSlot::Legs:  return EquippedLegsArmour;
+	default: return EquippedHelm; // unreachable for callers that pre-check
+	}
+}
+
+UQRItemInstance* UQRInventoryComponent::GetEquippedArmour(EQRArmourSlot Slot) const
+{
+	switch (Slot)
+	{
+	case EQRArmourSlot::Helm:  return EquippedHelm;
+	case EQRArmourSlot::Chest: return EquippedChestArmour;
+	case EQRArmourSlot::Legs:  return EquippedLegsArmour;
+	default: return nullptr;
+	}
+}
+
+bool UQRInventoryComponent::TryEquipArmour(UQRItemInstance* Item)
+{
+	if (!Item || !Item->Definition) return false;
+	if (Item->Definition->Category != EQRItemCategory::Clothing) return false;
+
+	const EQRArmourSlot Slot = _SlotFromItemId(Item->Definition->ItemId);
+	if (Slot == EQRArmourSlot::None) return false;
+
+	// Bounce the current occupant back to the loose body grid.
+	TObjectPtr<UQRItemInstance>& SlotRef = _ArmourRef(Slot);
+	if (UQRItemInstance* Prev = SlotRef)
+	{
+		Items.AddUnique(Prev);
+	}
+	Items.Remove(Item);
+	SlotRef = Item;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+bool UQRInventoryComponent::TryUnequipArmour(EQRArmourSlot Slot, UQRItemInstance*& OutRemoved)
+{
+	OutRemoved = nullptr;
+	if (Slot == EQRArmourSlot::None) return false;
+	TObjectPtr<UQRItemInstance>& SlotRef = _ArmourRef(Slot);
+	if (!SlotRef) return false;
+	OutRemoved = SlotRef;
+	Items.AddUnique(SlotRef);
+	SlotRef = nullptr;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+void UQRInventoryComponent::OnRep_EquippedArmour()
+{
+	OnInventoryChanged.Broadcast();
 }
