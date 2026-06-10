@@ -89,6 +89,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical")
 	bool bIsBulkItem = false;
 
+	// True for items that need both hands (rifles, two-handed melee, logs).
+	// Equipping a two-handed primary clears the offhand slot; trying to put
+	// anything in the offhand while a two-handed primary is held is rejected
+	// by UQRInventoryComponent::TryEquipToOffhand.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical")
+	bool bIsTwoHanded = false;
+
 	// ── Durability ────────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Durability", meta = (ClampMin = "0"))
 	float MaxDurability = 0.0f;   // 0 = indestructible / consumable

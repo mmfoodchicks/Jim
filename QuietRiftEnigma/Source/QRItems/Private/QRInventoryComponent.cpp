@@ -16,6 +16,7 @@ void UQRInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UQRInventoryComponent, Items);
 	DOREPLIFETIME(UQRInventoryComponent, HandSlot);
+	DOREPLIFETIME(UQRInventoryComponent, OffhandSlot);
 	DOREPLIFETIME(UQRInventoryComponent, HandsSlotState);
 	DOREPLIFETIME(UQRInventoryComponent, ShoulderStackMax);
 	DOREPLIFETIME(UQRInventoryComponent, MaxCarryWeightKg);
@@ -201,8 +202,53 @@ bool UQRInventoryComponent::TryEquipToHandSlot(UQRItemInstance* Item)
 
 	HandSlot = Item;
 	HandsSlotState = EQRHandsSlotState::Occupied;
+
+	// Two-handed primary forces the offhand back into the grid -- you can't
+	// hold a shield while wielding a rifle. Return it to Items so it's still
+	// in the inventory, just no longer wielded.
+	if (Item->Definition && Item->Definition->bIsTwoHanded && OffhandSlot)
+	{
+		if (OffhandSlot->IsValid()) Items.Add(OffhandSlot);
+		OffhandSlot = nullptr;
+	}
+
 	OnInventoryChanged.Broadcast();
 	return true;
+}
+
+bool UQRInventoryComponent::TryEquipToOffhand(UQRItemInstance* Item)
+{
+	if (!Item || !Item->IsValid()) return false;
+	// Block when the primary is two-handed.
+	if (HandSlot && HandSlot->Definition && HandSlot->Definition->bIsTwoHanded)
+	{
+		return false;
+	}
+	if (OffhandSlot == Item) return true;
+
+	if (OffhandSlot && OffhandSlot->IsValid())
+	{
+		Items.Add(OffhandSlot);
+	}
+	const int32 SlotIdx = Items.IndexOfByKey(Item);
+	if (SlotIdx != INDEX_NONE)
+	{
+		Items.RemoveAt(SlotIdx);
+	}
+	OffhandSlot = Item;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+void UQRInventoryComponent::ClearOffhand()
+{
+	if (OffhandSlot && OffhandSlot->IsValid())
+	{
+		int32 Remainder = 0;
+		TryAddItem(OffhandSlot, Remainder);
+	}
+	OffhandSlot = nullptr;
+	OnInventoryChanged.Broadcast();
 }
 
 void UQRInventoryComponent::ClearHandSlot()

@@ -14,6 +14,7 @@
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Components/Image.h"
+#include "Components/SizeBox.h"
 #include "Engine/Texture2D.h"
 #include "Styling/SlateBrush.h"
 
@@ -149,31 +150,84 @@ TSharedRef<SWidget> UQRInventoryGridWidget::RebuildWidget()
 		WeightText->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.7f, 0.7f, 1.0f)));
 		Column->AddChildToVerticalBox(WeightText);
 
-		// Equip strip: 5 square slots laid out left-to-right above the grids.
-		EquipStrip = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		UVerticalBoxSlot* StripSlot = Column->AddChildToVerticalBox(EquipStrip);
-		if (StripSlot) StripSlot->SetPadding(FMargin(0, 8, 0, 8));
+		// Main row: paper-doll on the left, the three container grids stacked
+		// on the right (Tarkov GEAR-tab layout).
+		UHorizontalBox* MainRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UVerticalBoxSlot* RowSlot = Column->AddChildToVerticalBox(MainRow);
+		if (RowSlot) RowSlot->SetPadding(FMargin(0, 8, 0, 8));
 
-		auto AddLabeledGrid = [&](const FString& Label, TObjectPtr<UCanvasPanel>& OutGrid)
+		// Left column: "Equipment" label + the paper-doll canvas.
 		{
-			UTextBlock* L = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-			L->SetText(FText::FromString(Label));
-			L->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+			UVerticalBox* DollCol = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			UHorizontalBoxSlot* DollColSlot = MainRow->AddChildToHorizontalBox(DollCol);
+			if (DollColSlot)
 			{
-				FSlateFontInfo Font = L->GetFont();
-				Font.Size = 14;
-				L->SetFont(Font);
+				DollColSlot->SetPadding(FMargin(0, 0, 18, 0));
+				DollColSlot->SetVerticalAlignment(VAlign_Top);
 			}
-			UVerticalBoxSlot* LS = Column->AddChildToVerticalBox(L);
-			if (LS) LS->SetPadding(FMargin(0, 10, 0, 4));
 
-			OutGrid = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
-			UVerticalBoxSlot* GS = Column->AddChildToVerticalBox(OutGrid);
-			if (GS) GS->SetPadding(FMargin(0, 0, 0, 6));
-		};
-		AddLabeledGrid(TEXT("Body"),     BodyGrid);
-		AddLabeledGrid(TEXT("Chest Rig"),ChestGrid);
-		AddLabeledGrid(TEXT("Backpack"), BackpackGrid);
+			UTextBlock* DollLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+			DollLabel->SetText(FText::FromString(TEXT("Equipment")));
+			DollLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+			{
+				FSlateFontInfo Font = DollLabel->GetFont();
+				Font.Size = 14;
+				DollLabel->SetFont(Font);
+			}
+			UVerticalBoxSlot* DLS = DollCol->AddChildToVerticalBox(DollLabel);
+			if (DLS) DLS->SetPadding(FMargin(0, 0, 0, 4));
+
+			// Fixed-size canvas the silhouette + slots are positioned into. A
+			// bare UCanvasPanel reports no desired size, so a SizeBox pins the
+			// paper-doll footprint and the Border draws the backing panel.
+			UBorder* DollFrame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+			DollFrame->SetBrushColor(FLinearColor(0.06f, 0.07f, 0.09f, 0.85f));
+			UVerticalBoxSlot* DFS = DollCol->AddChildToVerticalBox(DollFrame);
+			if (DFS) DFS->SetPadding(FMargin(0));
+
+			USizeBox* DollSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			DollSize->SetWidthOverride(PaperDollWidth);
+			DollSize->SetHeightOverride(PaperDollHeight);
+			DollFrame->SetContent(DollSize);
+
+			PaperDoll = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+			DollSize->SetContent(PaperDoll);
+		}
+
+		// Right column: the three labeled grids stacked.
+		{
+			UVerticalBox* GridCol = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			UHorizontalBoxSlot* GridColSlot = MainRow->AddChildToHorizontalBox(GridCol);
+			if (GridColSlot) GridColSlot->SetVerticalAlignment(VAlign_Top);
+
+			auto AddLabeledGrid = [&](const FString& Label, TObjectPtr<UCanvasPanel>& OutGrid,
+				TObjectPtr<UVerticalBox>* OutWrapper)
+			{
+				// Wrap label + grid so a container's whole block collapses
+				// together when it isn't equipped.
+				UVerticalBox* Wrapper = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+				GridCol->AddChildToVerticalBox(Wrapper);
+				if (OutWrapper) *OutWrapper = Wrapper;
+
+				UTextBlock* L = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+				L->SetText(FText::FromString(Label));
+				L->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+				{
+					FSlateFontInfo Font = L->GetFont();
+					Font.Size = 14;
+					L->SetFont(Font);
+				}
+				UVerticalBoxSlot* LS = Wrapper->AddChildToVerticalBox(L);
+				if (LS) LS->SetPadding(FMargin(0, 10, 0, 4));
+
+				OutGrid = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+				UVerticalBoxSlot* GS = Wrapper->AddChildToVerticalBox(OutGrid);
+				if (GS) GS->SetPadding(FMargin(0, 0, 0, 6));
+			};
+			AddLabeledGrid(TEXT("Body"),      BodyGrid,     nullptr);
+			AddLabeledGrid(TEXT("Chest Rig"), ChestGrid,    &ChestGridBox);
+			AddLabeledGrid(TEXT("Backpack"),  BackpackGrid, &BackpackGridBox);
+		}
 
 		StatusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		StatusText->SetText(FText::FromString(TEXT("Left-click to grab, R rotates, click cell to place, Esc to close")));
@@ -223,91 +277,144 @@ void UQRInventoryGridWidget::HandleInventoryChanged()
 void UQRInventoryGridWidget::Rebuild()
 {
 	if (!Inventory) return;
-	RebuildEquipStrip();
+	RebuildPaperDoll();
 	RebuildKind(BodyGrid,     EQRContainerKind::Body);
 	RebuildKind(ChestGrid,    EQRContainerKind::ChestRig);
 	RebuildKind(BackpackGrid, EQRContainerKind::Backpack);
-	// Hide container grids until the user double-clicks the slot.
-	if (ChestGrid)    ChestGrid->SetVisibility(
-		bShowChestGrid ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-	if (BackpackGrid) BackpackGrid->SetVisibility(
-		bShowBackpackGrid ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	RefreshHeader();
 }
 
-void UQRInventoryGridWidget::RebuildEquipStrip()
+void UQRInventoryGridWidget::RebuildPaperDoll()
 {
-	if (!EquipStrip) return;
-	EquipStrip->ClearChildren();
+	if (!PaperDoll || !Inventory) return;
+	PaperDoll->ClearChildren();
 
-	// Five slots. KindIndex: 1=Helm 2=ChestArm 3=LegsArm 4=Rig 5=Backpack.
-	struct FSlotInfo { const TCHAR* Label; int32 Kind; UQRItemInstance* Item; };
-	const FSlotInfo Slots[5] = {
-		{ TEXT("Helm"),     1, Inventory ? Inventory->GetEquippedArmour(EQRArmourSlot::Helm)  : nullptr },
-		{ TEXT("Chest"),    2, Inventory ? Inventory->GetEquippedArmour(EQRArmourSlot::Chest) : nullptr },
-		{ TEXT("Legs"),     3, Inventory ? Inventory->GetEquippedArmour(EQRArmourSlot::Legs)  : nullptr },
-		{ TEXT("Rig"),      4, Inventory ? Inventory->EquippedChestRig.Get()                  : nullptr },
-		{ TEXT("Backpack"), 5, Inventory ? Inventory->EquippedBackpack.Get()                  : nullptr },
+	AddSilhouette();
+
+	// Slot positions in PaperDoll-local coordinates. Layout mirrors Tarkov's
+	// GEAR tab: head up top, body armour mid-chest, legs lower, rig + pack
+	// on the flanks, both hands at the bottom. Sizes anchor to PaperDollSlot.
+	const float CX  = PaperDollWidth  * 0.5f;
+	const float Sz  = PaperDollSlot;
+	const float Pad = Sz * 0.5f;
+
+	UQRItemInstance* Helm  = Inventory->GetEquippedArmour(EQRArmourSlot::Helm);
+	UQRItemInstance* Chest = Inventory->GetEquippedArmour(EQRArmourSlot::Chest);
+	UQRItemInstance* Legs  = Inventory->GetEquippedArmour(EQRArmourSlot::Legs);
+	UQRItemInstance* Rig   = Inventory->EquippedChestRig.Get();
+	UQRItemInstance* Pack  = Inventory->EquippedBackpack.Get();
+	UQRItemInstance* Hand  = Inventory->HandSlot.Get();
+	UQRItemInstance* Off   = Inventory->OffhandSlot.Get();
+
+	// Head, body, legs run down the vertical centerline.
+	AddPaperDollSlot(TEXT("Helm"),  1, Helm,  CX - Pad,  10.0f);
+	AddPaperDollSlot(TEXT("Chest"), 2, Chest, CX - Pad,  10.0f + Sz + 12.0f);
+	AddPaperDollSlot(TEXT("Legs"),  3, Legs,  CX - Pad,  10.0f + (Sz + 12.0f) * 2.0f);
+
+	// Rig sits over the right shoulder, backpack over the left -- matches
+	// the Tarkov GEAR tab's rig-right / pack-left arrangement.
+	AddPaperDollSlot(TEXT("Rig"),      4, Rig,  CX + Sz * 0.9f,  10.0f + Sz + 12.0f);
+	AddPaperDollSlot(TEXT("Backpack"), 5, Pack, CX - Sz * 2.9f,  10.0f + Sz + 12.0f);
+
+	// Primary + offhand at the bottom, centered.
+	const float HandY = PaperDollHeight - Sz - 12.0f;
+	AddPaperDollSlot(TEXT("Hand"),    6, Hand, CX - Sz - 6.0f, HandY);
+	AddPaperDollSlot(TEXT("Offhand"), 7, Off,  CX + 6.0f,      HandY);
+}
+
+void UQRInventoryGridWidget::AddSilhouette()
+{
+	if (!PaperDoll) return;
+
+	if (BodySilhouette)
+	{
+		UImage* Img = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
+		Img->SetBrushFromTexture(BodySilhouette, /*bMatchSize*/ false);
+		Img->SetColorAndOpacity(FLinearColor(0.85f, 0.85f, 0.90f, 0.35f));
+		UCanvasPanelSlot* S = PaperDoll->AddChildToCanvas(Img);
+		if (S)
+		{
+			S->SetAnchors(FAnchors(0, 0, 1, 1));
+			S->SetOffsets(FMargin(0));
+			S->SetZOrder(0);
+		}
+		return;
+	}
+
+	// Fallback: schematic humanoid drawn from three rounded Borders so the
+	// paper-doll still reads as a body when no silhouette texture is set.
+	auto AddShape = [&](float X, float Y, float W, float H, FLinearColor Tint)
+	{
+		UBorder* B = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		B->SetBrushColor(Tint);
+		UCanvasPanelSlot* S = PaperDoll->AddChildToCanvas(B);
+		if (S)
+		{
+			S->SetPosition(FVector2D(X, Y));
+			S->SetSize(FVector2D(W, H));
+			S->SetZOrder(0);
+		}
 	};
 
-	for (const FSlotInfo& S : Slots)
+	const float CX = PaperDollWidth * 0.5f;
+	const FLinearColor Skin(0.30f, 0.32f, 0.36f, 0.55f);
+
+	// Head.
+	AddShape(CX - 26, 14, 52, 56, Skin);
+	// Torso.
+	AddShape(CX - 60, 80, 120, 150, Skin);
+	// Legs.
+	AddShape(CX - 50, 235, 44, 200, Skin);
+	AddShape(CX +  6, 235, 44, 200, Skin);
+}
+
+void UQRInventoryGridWidget::AddPaperDollSlot(const TCHAR* Label, int32 KindIndex,
+	UQRItemInstance* Item, float X, float Y)
+{
+	if (!PaperDoll) return;
+
+	UQRInventoryEquipButton* Btn = WidgetTree->ConstructWidget<UQRInventoryEquipButton>(UQRInventoryEquipButton::StaticClass());
+	Btn->OwnerWidget = this;
+	Btn->KindIndex = KindIndex;
+	Btn->SlotItem = Item;
+
+	FButtonStyle Style = Btn->GetStyle();
+	const FLinearColor Fill = Item
+		? FLinearColor(0.20f, 0.45f, 0.35f, 0.92f)
+		: FLinearColor(0.10f, 0.11f, 0.14f, 0.82f);
+	Style.Normal.TintColor   = FSlateColor(Fill);
+	Style.Hovered.TintColor  = FSlateColor(Fill * 1.25f);
+	Style.Pressed.TintColor  = FSlateColor(Fill * 0.85f);
+	Btn->SetStyle(Style);
+
+	UTextBlock* Lbl = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+	const FString Display = Item && Item->Definition
+		? FString::Printf(TEXT("%s\n%s"), Label, *Item->Definition->ItemId.ToString())
+		: FString(Label);
+	Lbl->SetText(FText::FromString(Display));
+	Lbl->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	{
-		UQRInventoryEquipButton* Btn = WidgetTree->ConstructWidget<UQRInventoryEquipButton>(UQRInventoryEquipButton::StaticClass());
-		Btn->OwnerWidget = this;
-		Btn->KindIndex = S.Kind;
-		Btn->SlotItem = S.Item;
-		FButtonStyle Style = Btn->GetStyle();
-		const FLinearColor Fill = S.Item
-			? FLinearColor(0.20f, 0.45f, 0.35f, 1.0f)   // occupied
-			: FLinearColor(0.12f, 0.12f, 0.14f, 1.0f);   // empty
-		Style.Normal.TintColor   = FSlateColor(Fill);
-		Style.Hovered.TintColor  = FSlateColor(Fill * 1.25f);
-		Style.Pressed.TintColor  = FSlateColor(Fill * 0.85f);
-		Btn->SetStyle(Style);
+		FSlateFontInfo Font = Lbl->GetFont();
+		Font.Size = 9;
+		Lbl->SetFont(Font);
+	}
+	Btn->SetContent(Lbl);
 
-		UTextBlock* Lbl = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-		const FString Display = S.Item && S.Item->Definition
-			? FString::Printf(TEXT("%s\n%s"), S.Label, *S.Item->Definition->ItemId.ToString())
-			: FString(S.Label);
-		Lbl->SetText(FText::FromString(Display));
-		Lbl->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-		{
-			FSlateFontInfo Font = Lbl->GetFont();
-			Font.Size = 10;
-			Lbl->SetFont(Font);
-		}
-		Btn->SetContent(Lbl);
-
-		UHorizontalBoxSlot* BoxSlot = EquipStrip->AddChildToHorizontalBox(Btn);
-		if (BoxSlot)
-		{
-			BoxSlot->SetPadding(FMargin(4));
-			BoxSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		}
+	UCanvasPanelSlot* S = PaperDoll->AddChildToCanvas(Btn);
+	if (S)
+	{
+		S->SetPosition(FVector2D(X, Y));
+		// Rig + backpack icons are a bit wider, to read as containers.
+		const bool bWide = (KindIndex == 4 || KindIndex == 5);
+		S->SetSize(FVector2D(bWide ? PaperDollSlot * 1.4f : PaperDollSlot, PaperDollSlot));
+		S->SetZOrder(5);
 	}
 }
 
 void UQRInventoryGridWidget::HandleEquipSlotClicked(int32 KindIndex)
 {
 	if (!Inventory) return;
-
-	// Detect a double-click for container slots (Rig=4, Backpack=5) to
-	// toggle the corresponding grid visibility. Single-click on any slot
-	// equips-from-grab or unequips back to the body grid.
-	const double Now = FPlatformTime::Seconds();
 	const EEquipKind Kind = static_cast<EEquipKind>(KindIndex);
-	const bool bDouble = (LastClickedEquip == Kind) &&
-	                     (Now - LastClickedTime < DoubleClickWindowSec);
-	LastClickedEquip = Kind;
-	LastClickedTime  = Now;
-
-	if (bDouble && (Kind == EEquipKind::Rig || Kind == EEquipKind::Backpack))
-	{
-		if (Kind == EEquipKind::Rig)      bShowChestGrid    = !bShowChestGrid;
-		else                              bShowBackpackGrid = !bShowBackpackGrid;
-		Rebuild();
-		return;
-	}
 
 	// Single-click: equip the grabbed item (if it matches this slot), or
 	// unequip whatever is in the slot back to the body grid.
@@ -326,6 +433,12 @@ void UQRInventoryGridWidget::HandleEquipSlotClicked(int32 KindIndex)
 			bEquipped = (Inventory->TryEquipContainer(GrabbedItem)
 				== EQRInventoryResult::Success);
 			break;
+		case EEquipKind::Hand:
+			bEquipped = Inventory->TryEquipToHandSlot(GrabbedItem);
+			break;
+		case EEquipKind::Offhand:
+			bEquipped = Inventory->TryEquipToOffhand(GrabbedItem);
+			break;
 		default: break;
 		}
 		if (bEquipped)
@@ -336,7 +449,7 @@ void UQRInventoryGridWidget::HandleEquipSlotClicked(int32 KindIndex)
 		}
 	}
 
-	// Nothing grabbed -- unequip and dump back into the body grid.
+	// Nothing grabbed (or it didn't fit) -- unequip what's in the slot.
 	UQRItemInstance* Removed = nullptr;
 	switch (Kind)
 	{
@@ -345,6 +458,8 @@ void UQRInventoryGridWidget::HandleEquipSlotClicked(int32 KindIndex)
 	case EEquipKind::Legs:     Inventory->TryUnequipArmour(EQRArmourSlot::Legs, Removed); break;
 	case EEquipKind::Rig:      Inventory->TryUnequipContainer(EQRContainerSlotType::ChestRig, Removed); break;
 	case EEquipKind::Backpack: Inventory->TryUnequipContainer(EQRContainerSlotType::Backpack, Removed); break;
+	case EEquipKind::Hand:     Inventory->ClearHandSlot(); break;
+	case EEquipKind::Offhand:  Inventory->ClearOffhand();  break;
 	default: break;
 	}
 	Rebuild();
@@ -563,6 +678,7 @@ bool UQRInventoryGridWidget::IsItemEquipped(UQRItemInstance* Item) const
 {
 	if (!Item || !Inventory) return false;
 	if (Inventory->HandSlot                       == Item) return true;
+	if (Inventory->OffhandSlot                    == Item) return true;
 	if (Inventory->EquippedHelm                   == Item) return true;
 	if (Inventory->EquippedChestArmour            == Item) return true;
 	if (Inventory->EquippedLegsArmour             == Item) return true;
@@ -612,55 +728,51 @@ void UQRInventoryGridWidget::OpenContextMenu(UQRItemInstance* Item, FVector2D Sc
 
 	ContextTarget = Item;
 
-	// Lazy-create the menu panel parented to the root canvas.
 	UCanvasPanel* Root = Cast<UCanvasPanel>(WidgetTree->RootWidget);
 	if (!Root) return;
 
-	ContextMenu = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
-
-	// Full-screen invisible backdrop button as the FIRST child of the menu
-	// panel: any click outside the visible menu lands on it and closes the
-	// menu (ActionId 6). The menu's own buttons sit on top and intercept
-	// their own clicks. This replaces the fragile parent-widget mouse-down
-	// close, which fought the action buttons.
+	// Full-screen invisible backdrop that intercepts off-menu clicks. It's a
+	// real UQRInventoryActionButton with ActionId=6 -> CloseContextMenu.
 	{
 		UQRInventoryActionButton* Backdrop = WidgetTree->ConstructWidget<UQRInventoryActionButton>(UQRInventoryActionButton::StaticClass());
 		Backdrop->OwnerWidget = this;
 		Backdrop->ActionId = 6;
 		FButtonStyle BStyle = Backdrop->GetStyle();
-		const FLinearColor Clear(0, 0, 0, 0.01f);   // near-invisible but hit-testable
-		BStyle.Normal.TintColor = FSlateColor(Clear);
+		const FLinearColor Clear(0, 0, 0, 0.01f);   // hit-testable but invisible
+		BStyle.Normal.TintColor  = FSlateColor(Clear);
 		BStyle.Hovered.TintColor = FSlateColor(Clear);
 		BStyle.Pressed.TintColor = FSlateColor(Clear);
 		Backdrop->SetStyle(BStyle);
 		UCanvasPanelSlot* BD = Root->AddChildToCanvas(Backdrop);
-		if (BD) { BD->SetAnchors(FAnchors(0, 0, 1, 1)); BD->SetOffsets(FMargin(0)); }
-		// Keep a handle so CloseContextMenu can tear it down with the menu.
+		if (BD)
+		{
+			BD->SetAnchors(FAnchors(0, 0, 1, 1));
+			BD->SetOffsets(FMargin(0));
+			BD->SetZOrder(100);   // above grids, below the menu itself
+		}
 		ContextBackdrop = Backdrop;
 	}
+
+	// Menu body: a Border that auto-sizes to its VerticalBox content. The old
+	// version was an autosize UCanvasPanel wrapping a fill-anchored child --
+	// fill anchors contribute zero to autosize, so the canvas collapsed to
+	// 0x0 and every action button's hit-testing was dead. A plain Border
+	// adopts its content's desired size correctly.
+	ContextMenu = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	ContextMenu->SetBrushColor(FLinearColor(0.08f, 0.08f, 0.10f, 0.96f));
+	ContextMenu->SetPadding(FMargin(2));
 
 	UCanvasPanelSlot* RootSlot = Root->AddChildToCanvas(ContextMenu);
 	if (RootSlot)
 	{
-		// Convert screen pos to local. With the root canvas anchored to
-		// fullscreen and 0 offset, screen px == local px (close enough).
 		RootSlot->SetAnchors(FAnchors(0, 0));
 		RootSlot->SetAutoSize(true);
 		RootSlot->SetPosition(ScreenPos);
-	}
-
-	// Solid background border.
-	UBorder* Bg = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	Bg->SetBrushColor(FLinearColor(0.08f, 0.08f, 0.10f, 0.95f));
-	UCanvasPanelSlot* BgSlot = ContextMenu->AddChildToCanvas(Bg);
-	if (BgSlot)
-	{
-		BgSlot->SetAnchors(FAnchors(0, 0, 1, 1));
-		BgSlot->SetOffsets(FMargin(0));
+		RootSlot->SetZOrder(101);   // above the backdrop
 	}
 
 	UVerticalBox* List = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	Bg->SetContent(List);
+	ContextMenu->SetContent(List);
 
 	// Header: item id, dim.
 	{
@@ -671,23 +783,31 @@ void UQRInventoryGridWidget::OpenContextMenu(UQRItemInstance* Item, FVector2D Sc
 		Font.Size = 11;
 		Header->SetFont(Font);
 		UVerticalBoxSlot* HS = List->AddChildToVerticalBox(Header);
-		if (HS) HS->SetPadding(FMargin(8, 6, 8, 8));
+		if (HS) HS->SetPadding(FMargin(10, 6, 10, 8));
 	}
 
-	// Helper to add one action row using the proven button-subclass pattern
-	// (OnClicked bound in the button's own ctor -- binding a plain UButton
-	// to a widget method at runtime never fired).
+	// Helper -- the proven button-subclass pattern (bind in the button's
+	// own ctor). The previous fix had this but the autosize-collapse bug
+	// killed the hit area; now that ContextMenu is a Border the buttons
+	// get real geometry.
 	auto AddRow = [&](const FString& Label, int32 ActionId)
 	{
 		UQRInventoryActionButton* B = WidgetTree->ConstructWidget<UQRInventoryActionButton>(UQRInventoryActionButton::StaticClass());
 		B->OwnerWidget = this;
 		B->ActionId = ActionId;
-		B->SetContent(_MakeMenuLabel(WidgetTree, Label));
+
+		// Pad the label inside the button so the row has a sane minimum width.
+		UTextBlock* T = _MakeMenuLabel(WidgetTree, Label);
+		USizeBox* Sz = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		Sz->SetMinDesiredWidth(140.0f);
+		Sz->SetContent(T);
+		B->SetContent(Sz);
+
 		UVerticalBoxSlot* S = List->AddChildToVerticalBox(B);
 		if (S) S->SetPadding(FMargin(2));
 	};
 
-	// Conditional rows. ActionId: 1=Equip 2=Remove 3=Inspect 4=Destroy 5=Cancel.
+	// ActionId: 1=Equip 2=Remove 3=Inspect 4=Destroy 5=Cancel.
 	if (CanEquipItem(Item) && !IsItemEquipped(Item)) AddRow(TEXT("Equip"),  1);
 	if (IsItemEquipped(Item))                         AddRow(TEXT("Remove"), 2);
 	AddRow(TEXT("Inspect"), 3);
@@ -779,17 +899,23 @@ void UQRInventoryGridWidget::ShowInspectPopup(UQRItemInstance* Item)
 
 	UCanvasPanel* Root = Cast<UCanvasPanel>(WidgetTree->RootWidget);
 	if (!Root) return;
-	InspectPopup = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
-	UCanvasPanelSlot* RS = Root->AddChildToCanvas(InspectPopup);
-	if (RS) { RS->SetAnchors(FAnchors(0.5f, 0.5f)); RS->SetAlignment(FVector2D(0.5f, 0.5f)); RS->SetAutoSize(true); }
 
-	UBorder* Bg = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	Bg->SetBrushColor(FLinearColor(0.04f, 0.05f, 0.07f, 0.98f));
-	UCanvasPanelSlot* BgS = InspectPopup->AddChildToCanvas(Bg);
-	if (BgS) { BgS->SetAnchors(FAnchors(0, 0, 1, 1)); BgS->SetOffsets(FMargin(0)); }
+	// Border directly (not a canvas wrapping a border) for the same reason as
+	// the context menu -- autosize canvases collapse around fill-anchored
+	// children and kill hit-testing on the close button.
+	InspectPopup = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	InspectPopup->SetBrushColor(FLinearColor(0.04f, 0.05f, 0.07f, 0.98f));
+	UCanvasPanelSlot* RS = Root->AddChildToCanvas(InspectPopup);
+	if (RS)
+	{
+		RS->SetAnchors(FAnchors(0.5f, 0.5f));
+		RS->SetAlignment(FVector2D(0.5f, 0.5f));
+		RS->SetAutoSize(true);
+		RS->SetZOrder(200);
+	}
 
 	UVerticalBox* Col = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	Bg->SetContent(Col);
+	InspectPopup->SetContent(Col);
 
 	const UQRItemDefinition* Def = Item->Definition;
 	auto Field = [&](const FString& Label, const FString& Value)

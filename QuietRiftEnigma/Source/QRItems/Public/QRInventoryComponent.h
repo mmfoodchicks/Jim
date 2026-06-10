@@ -68,6 +68,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
 	TObjectPtr<UQRItemInstance> HandSlot = nullptr;
 
+	// Offhand slot -- shield, torch, secondary tool. Cleared whenever the
+	// primary HandSlot holds an item with bIsTwoHanded; TryEquipToOffhand
+	// rejects new items while the primary is two-handed.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
+	TObjectPtr<UQRItemInstance> OffhandSlot = nullptr;
+
 	// v1.17: Hands slot occupancy FSM, tracks bulk-item carry state separately from HandSlot ptr
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
 	EQRHandsSlotState HandsSlotState = EQRHandsSlotState::Empty;
@@ -145,6 +151,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	void ClearHandSlot();
+
+	// Offhand: shield / torch / secondary tool. Fails if the current primary
+	// HandSlot is two-handed -- caller should swap the primary first.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	bool TryEquipToOffhand(UQRItemInstance* Item);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	void ClearOffhand();
 
 	// Equip a chest rig or backpack. Item must have ContainerSlot != None.
 	// On success the slot is filled and capacity is recomputed; the item is

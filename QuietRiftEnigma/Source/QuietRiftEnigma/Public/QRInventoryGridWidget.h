@@ -11,6 +11,8 @@ class UCanvasPanelSlot;
 class UHorizontalBox;
 class UVerticalBox;
 class UBorder;
+class UImage;
+class UTexture2D;
 class UTextBlock;
 class UQRInventoryComponent;
 class UQRItemInstance;
@@ -73,18 +75,31 @@ private:
 	UPROPERTY()
 	TObjectPtr<UCanvasPanel> BackpackGrid = nullptr;
 
+	// Label+grid wrappers for the container grids, so the whole block
+	// (heading included) collapses when the container isn't equipped.
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> ChestGridBox = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> BackpackGridBox = nullptr;
+
 	UPROPERTY()
 	TObjectPtr<UTextBlock> WeightText = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> StatusText = nullptr;
 
-	// Equipment-slot strip at the top: Helm / Chest armour / Legs armour /
-	// Chest rig / Backpack. Each is a 64x64 border button. Click an empty
-	// slot to drop in whatever is grabbed; click an occupied slot to
-	// unequip (double-click on a container slot opens its grid).
+	// Tarkov-style paper-doll: a character silhouette with equip slots
+	// (Helm / Body armour / Legs / Chest rig / Backpack / Hand) anchored over
+	// the matching body locations. Built into PaperDoll each Rebuild().
 	UPROPERTY()
-	TObjectPtr<UHorizontalBox> EquipStrip = nullptr;
+	TObjectPtr<UCanvasPanel> PaperDoll = nullptr;
+
+	// Optional silhouette texture drawn behind the slots. If unset, a neutral
+	// humanoid is drawn from simple shapes so the panel still reads as a body.
+	// Designer can assign /Game/QuietRift/UI/T_BodySilhouette to swap it in.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "QR|UI")
+	TObjectPtr<UTexture2D> BodySilhouette = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> GrabbedItem = nullptr;
@@ -95,9 +110,11 @@ private:
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> HoveredItem = nullptr;
 
-	// Right-click context menu (built lazily). Holds 1-4 action buttons.
+	// Right-click context menu (built lazily). A content-sized Border holding
+	// a vertical list of action buttons -- NOT an autosize canvas, which
+	// collapses to 0x0 around fill-anchored children and kills hit-testing.
 	UPROPERTY()
-	TObjectPtr<UCanvasPanel> ContextMenu = nullptr;
+	TObjectPtr<UBorder> ContextMenu = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> ContextTarget = nullptr;
@@ -107,25 +124,22 @@ private:
 	UPROPERTY()
 	TObjectPtr<UButton> ContextBackdrop = nullptr;
 
-	// One-off inspect popup -- text dump of the item's metadata.
+	// One-off inspect popup -- text dump of the item's metadata. A Border
+	// (not a canvas) for the same hit-test reasons as ContextMenu.
 	UPROPERTY()
-	TObjectPtr<UCanvasPanel> InspectPopup = nullptr;
+	TObjectPtr<UBorder> InspectPopup = nullptr;
 
 	UFUNCTION() void HandleInventoryChanged();
 
-	// State for double-click container open. When the user clicks a rig
-	// or backpack slot once, this records (slot, time); a second click in
-	// the same slot within DoubleClickWindowSec toggles the corresponding
-	// grid visibility. Single click = (un)equip / equip-from-grab.
-	enum class EEquipKind : uint8 { None, Helm, Chest, Legs, Rig, Backpack };
-	EEquipKind LastClickedEquip = EEquipKind::None;
-	double LastClickedTime = 0.0;
-	static constexpr double DoubleClickWindowSec = 0.35;
+	// Paper-doll slot identity. KindIndex on UQRInventoryEquipButton maps to
+	// this: 1=Helm 2=Body armour 3=Legs 4=Chest rig 5=Backpack 6=Primary hand
+	// 7=Offhand.
+	enum class EEquipKind : uint8 { None, Helm, Chest, Legs, Rig, Backpack, Hand, Offhand };
 
-	// Per-container visibility -- the rig grid is hidden by default until
-	// the user double-clicks the rig slot; same for the backpack grid.
-	bool bShowChestGrid = true;
-	bool bShowBackpackGrid = true;
+	// Paper-doll canvas footprint and slot square size (pixels).
+	static constexpr float PaperDollWidth  = 300.0f;
+	static constexpr float PaperDollHeight = 480.0f;
+	static constexpr float PaperDollSlot   = 66.0f;
 
 public:
 	// Called from sub-button click handlers (UQRInventoryCellButton / UQRInventoryItemButton).
@@ -151,7 +165,14 @@ private:
 	void AddCellGrid(UCanvasPanel* Panel, EQRContainerKind Kind);
 	void AddItem(UCanvasPanel* Panel, EQRContainerKind Kind, UQRItemInstance* Item);
 	void RefreshHeader();
-	void RebuildEquipStrip();
+
+	// Paper-doll construction. RebuildPaperDoll lays the six slots over the
+	// silhouette; AddSilhouette draws the body (texture or shape fallback);
+	// AddPaperDollSlot places one equip button at a canvas offset.
+	void RebuildPaperDoll();
+	void AddSilhouette();
+	void AddPaperDollSlot(const TCHAR* Label, int32 KindIndex,
+		UQRItemInstance* Item, float X, float Y);
 
 	// Build + show / hide the context menu. ScreenPos is in absolute
 	// screen pixels; the menu is positioned just below that point.

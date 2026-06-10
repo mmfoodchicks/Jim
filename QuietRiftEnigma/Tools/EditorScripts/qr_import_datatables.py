@@ -31,8 +31,13 @@ import unreal
 
 
 DATA_PKG  = "/Game/QuietRift/Data"
+
+# NOTE: when this file is run via `exec(open(...).read())` in the UE Python
+# console, __file__ is NOT defined, so os.path.dirname(__file__) throws
+# NameError. Derive the data folder from the project content dir instead --
+# that always resolves regardless of how the script was launched.
 DATA_DISK = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "Content", "QuietRift", "Data"))
+    os.path.join(unreal.Paths.project_content_dir(), "QuietRift", "Data"))
 
 
 # (csv_basename, asset_name, row_struct_python_class_name)

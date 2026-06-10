@@ -158,6 +158,21 @@ def _resolve_category(cat_name):
             "Clothing": 11, "ChestRig": 16, "Backpack": 17}.get(cat_name, 0)
 
 
+# Two-handed weapons: holding one of these clears the offhand slot, and
+# nothing can be equipped to the offhand while one is in the primary hand.
+# Substring-matched against ItemId.upper() in _is_two_handed below.
+TWO_HANDED_TOKENS = (
+    "BOW",            # SHORTBOW / RECURVE_BOW / CROSSBOW (yes, shooting a bow needs both hands)
+    "SPEAR",          # WPN_STONE_SPEAR, WPN_<METAL>_SPEAR
+    "RIFLE", "SNIPER",# future long-arm ids
+)
+
+
+def _is_two_handed(item_id):
+    upper = item_id.upper()
+    return any(tok in upper for tok in TWO_HANDED_TOKENS)
+
+
 # container spec: None, or dict(slot=1|2, grid=(w,h), carry=kg, vol=L)
 def _make_def(item_id, bucket, cat_name, mass, def_class, overwrite, container=None):
     dest_dir = "{}/{}".format(ITEMS_PKG_ROOT, bucket)
@@ -189,6 +204,12 @@ def _make_def(item_id, bucket, cat_name, mass, def_class, overwrite, container=N
     _set(asset, "grid_footprint_w", 2)
     _set(asset, "grid_footprint_h", 1)
     _set(asset, "max_durability",   120.0)
+
+    # Two-handed flag drives the offhand-clear rule on TryEquipToHandSlot
+    # (UQRInventoryComponent). Bows + spears need both hands; shields and
+    # daggers don't, so they remain offhand-friendly.
+    if cat_name == CAT_WEAPON and _is_two_handed(item_id):
+        _set(asset, "is_two_handed", True)
 
     # Container payload (chest rig / backpack) -- without these fields set,
     # TryEquipContainer rejects the item with WrongSlot.
