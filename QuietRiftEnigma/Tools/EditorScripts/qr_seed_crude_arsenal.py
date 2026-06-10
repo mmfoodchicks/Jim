@@ -27,10 +27,14 @@ import unreal
 ITEMS_PKG_ROOT = "/Game/QuietRift/Data/Items"
 MESH_PKG_ROOT  = "/Game/Meshes/weapons_assets"   # where a baked SM_<id> would live
 
-# Category enum ints (match EQRItemCategory). Weapon=8, Clothing=11.
-CAT_WEAPON   = 8
-CAT_CLOTHING = 11
-CAT_AMMO     = 4
+# Category names (resolved to the EQRItemCategory enum by name in
+# _make_def -- name-based avoids the int-mismatch bug that previously set
+# weapons to category 8 = Resource).
+CAT_WEAPON   = "Weapon"
+CAT_CLOTHING = "Clothing"
+CAT_AMMO     = "Ammo"
+CAT_CHESTRIG = "ChestRig"
+CAT_BACKPACK = "Backpack"
 
 
 # ── The arsenal ────────────────────────────────────────────────────
@@ -98,6 +102,22 @@ for m in METALS:
     ARMOR.append("ARM_{}_CHEST".format(m))
     ARMOR.append("ARM_{}_LEGS".format(m))
 
+# Chest rigs + backpacks. container slot: 1=ChestRig, 2=Backpack (matches
+# EQRContainerSlotType). grid = the inner storage grid; carry/vol = the
+# capacity bonus the container adds. These need the container fields set
+# or TryEquipContainer rejects them.
+# (id, category, mass, container_spec)
+CONTAINERS = [
+    ("RIG_SCRAP_CHESTRIG", CAT_CHESTRIG, 1.4,
+     {"slot": 1, "grid": (4, 3), "carry": 6.0,  "vol": 8.0,  "fp": (3, 2)}),
+    ("RIG_TACTICAL_RIG",   CAT_CHESTRIG, 1.8,
+     {"slot": 1, "grid": (5, 4), "carry": 9.0,  "vol": 12.0, "fp": (3, 2)}),
+    ("PACK_FIELD_BACKPACK", CAT_BACKPACK, 2.0,
+     {"slot": 2, "grid": (5, 5), "carry": 14.0, "vol": 22.0, "fp": (3, 3)}),
+    ("PACK_HAULER_BACKPACK", CAT_BACKPACK, 2.8,
+     {"slot": 2, "grid": (6, 6), "carry": 22.0, "vol": 35.0, "fp": (3, 3)}),
+]
+
 
 def _find_def_class():
     cls = getattr(unreal, "QRItemDefinition", None)
@@ -125,7 +145,21 @@ def _humanize(item_id):
     return s.replace("_", " ").title()
 
 
-def _make_def(item_id, bucket, cat_int, mass, def_class, overwrite):
+def _resolve_category(cat_name):
+    """EQRItemCategory enum value from its name, e.g. 'Weapon' -> the
+    enum member. UE Python exposes enum members UPPERCASE."""
+    enum = getattr(unreal, "QRItemCategory", None)
+    if enum is not None:
+        member = getattr(enum, cat_name.upper(), None)
+        if member is not None:
+            return member
+    # Fallback ints if the enum isn't reflected (shouldn't happen).
+    return {"None": 0, "Food": 1, "Tool": 2, "Weapon": 3, "Ammo": 4,
+            "Clothing": 11, "ChestRig": 16, "Backpack": 17}.get(cat_name, 0)
+
+
+# container spec: None, or dict(slot=1|2, grid=(w,h), carry=kg, vol=L)
+def _make_def(item_id, bucket, cat_name, mass, def_class, overwrite, container=None):
     dest_dir = "{}/{}".format(ITEMS_PKG_ROOT, bucket)
     asset_path = "{}/{}".format(dest_dir, item_id)
 
@@ -148,18 +182,31 @@ def _make_def(item_id, bucket, cat_int, mass, def_class, overwrite):
     _set(asset, "item_id",          unreal.Name(item_id))
     _set(asset, "display_name",     unreal.Text(_humanize(item_id)))
     _set(asset, "description",      unreal.Text("{} (crude arsenal)".format(_humanize(item_id))))
-    # category is an enum; try the int then the enum object.
-    if not _set(asset, "category", cat_int):
-        enum = getattr(unreal, "QRItemCategory", None)
-        if enum is not None:
-            name = "WEAPON" if cat_int == CAT_WEAPON else "CLOTHING"
-            _set(asset, "category", getattr(enum, name, cat_int))
+    _set(asset, "category",         _resolve_category(cat_name))
     _set(asset, "mass_kg",          float(mass))
     _set(asset, "volume_liters",    float(max(mass * 0.6, 0.2)))
     _set(asset, "max_stack_size",   1)
     _set(asset, "grid_footprint_w", 2)
     _set(asset, "grid_footprint_h", 1)
     _set(asset, "max_durability",   120.0)
+
+    # Container payload (chest rig / backpack) -- without these fields set,
+    # TryEquipContainer rejects the item with WrongSlot.
+    if container:
+        slot_enum = getattr(unreal, "QRContainerSlotType", None)
+        slot_val = int(container["slot"])
+        if slot_enum is not None:
+            slot_name = {1: "CHEST_RIG", 2: "BACKPACK"}.get(slot_val)
+            member = getattr(slot_enum, slot_name, None) if slot_name else None
+            if member is not None:
+                slot_val = member
+        _set(asset, "container_slot",                 slot_val)
+        _set(asset, "container_grid_w",               int(container["grid"][0]))
+        _set(asset, "container_grid_h",               int(container["grid"][1]))
+        _set(asset, "container_carry_bonus_kg",       float(container.get("carry", 0.0)))
+        _set(asset, "container_volume_bonus_liters",  float(container.get("vol", 0.0)))
+        _set(asset, "grid_footprint_w",               int(container.get("fp", (3, 2))[0]))
+        _set(asset, "grid_footprint_h",               int(container.get("fp", (3, 2))[1]))
 
     # Wire a baked mesh if one happens to exist (firearms-style pipeline).
     mesh_path = "{}/SM_{}".format(MESH_PKG_ROOT, item_id)
@@ -178,24 +225,26 @@ def run(overwrite=False):
 
     made = 0
     skipped = 0
+    # (id, bucket, category, mass, container_spec)
     plan = (
-        [(i, "Weapons",          CAT_WEAPON,   1.2) for i in CRUDE_MELEE]  +
-        [(i, "Weapons",          CAT_WEAPON,   2.0) for i in METAL_BLADES] +
-        [(i, "Weapons",          CAT_WEAPON,   1.6) for i in BOWS]         +
-        [(i, "Weapons",          CAT_WEAPON,   5.0) for i in SHIELDS]      +
-        [(i, "Clothing",         CAT_CLOTHING, 3.0) for i in ARMOR]        +
-        [(i, "AmmoAttachments",  CAT_AMMO,     0.05) for i in ARROWS]
+        [(i, "Weapons",          CAT_WEAPON,   1.2,  None) for i in CRUDE_MELEE]  +
+        [(i, "Weapons",          CAT_WEAPON,   2.0,  None) for i in METAL_BLADES] +
+        [(i, "Weapons",          CAT_WEAPON,   1.6,  None) for i in BOWS]         +
+        [(i, "Weapons",          CAT_WEAPON,   5.0,  None) for i in SHIELDS]      +
+        [(i, "Clothing",         CAT_CLOTHING, 3.0,  None) for i in ARMOR]        +
+        [(i, "AmmoAttachments",  CAT_AMMO,     0.05, None) for i in ARROWS]       +
+        [(i, "Containers",       cat,  m, c) for (i, cat, m, c) in CONTAINERS]
     )
-    for item_id, bucket, cat, mass in plan:
-        if _make_def(item_id, bucket, cat, mass, def_class, overwrite):
+    for item_id, bucket, cat, mass, container in plan:
+        if _make_def(item_id, bucket, cat, mass, def_class, overwrite, container):
             made += 1
         else:
             skipped += 1
 
     print("[arsenal] created {} item defs, skipped {} existing.".format(made, skipped))
-    print("[arsenal] {} melee, {} metal blades, {} bows, {} shields, {} armour, {} arrows."
+    print("[arsenal] {} melee, {} metal blades, {} bows, {} shields, {} armour, {} arrows, {} containers."
           .format(len(CRUDE_MELEE), len(METAL_BLADES), len(BOWS), len(SHIELDS),
-                  len(ARMOR), len(ARROWS)))
+                  len(ARMOR), len(ARROWS), len(CONTAINERS)))
     print("[arsenal] Equip from the creative browser (Tab). Held mesh is empty")
     print("[arsenal] until qr_generate_weapons_assets bakes one -- the weapon")
     print("[arsenal] LOGIC works now (swing/draw/block + damage).")

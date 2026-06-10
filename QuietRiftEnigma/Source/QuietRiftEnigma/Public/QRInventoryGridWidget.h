@@ -102,6 +102,11 @@ private:
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> ContextTarget = nullptr;
 
+	// Full-screen click-catcher behind the context menu (closes on outside
+	// click). Torn down together with the menu.
+	UPROPERTY()
+	TObjectPtr<UButton> ContextBackdrop = nullptr;
+
 	// One-off inspect popup -- text dump of the item's metadata.
 	UPROPERTY()
 	TObjectPtr<UCanvasPanel> InspectPopup = nullptr;
@@ -133,14 +138,12 @@ public:
 	void HandleItemHovered(UQRItemInstance* Item);
 	void HandleItemUnhovered(UQRItemInstance* Item);
 
-	// Context menu actions. Each is a UFUNCTION so a sub-button can fire
-	// it; each shows itself only when it's actually applicable.
-	UFUNCTION() void ContextActionEquip();
-	UFUNCTION() void ContextActionUnequip();
-	UFUNCTION() void ContextActionDestroy();
-	UFUNCTION() void ContextActionInspect();
-	UFUNCTION() void ContextActionClose();
-	UFUNCTION() void InspectActionClose();
+	// Single dispatch for context-menu action buttons (UQRInventoryAction
+	// Button). ActionId: 1=Equip 2=Remove 3=Inspect 4=Destroy 5=Cancel
+	// 6=CloseBackdrop 7=InspectClose.
+	void HandleContextAction(int32 ActionId);
+	// Right-click on an equipped slot -> open the menu against its item.
+	void OpenContextMenuForEquipped(UQRItemInstance* Item, FVector2D ScreenPos);
 
 private:
 	void Rebuild();
@@ -204,6 +207,37 @@ public:
 	// UQRInventoryGridWidget::EEquipKind.
 	UPROPERTY()
 	int32 KindIndex = 0;
+
+	// The item currently in this slot (null when empty) -- lets right-click
+	// open the context menu against an equipped item.
+	UPROPERTY()
+	TObjectPtr<UQRItemInstance> SlotItem = nullptr;
+
+	UFUNCTION() void HandleClicked();
+	UFUNCTION() void HandleHovered();
+	UFUNCTION() void HandleUnhovered();
+};
+
+/**
+ * Context-menu action button. Carries an action id + owner back-ref and
+ * binds OnClicked in its constructor (the pattern the cell/item buttons
+ * use, which works reliably -- binding a plain UButton to a widget method
+ * at runtime did not fire). ActionId: 1=Equip 2=Remove 3=Inspect
+ * 4=Destroy 5=Cancel 6=CloseBackdrop 7=InspectClose.
+ */
+UCLASS()
+class QUIETRIFTENIGMA_API UQRInventoryActionButton : public UButton
+{
+	GENERATED_BODY()
+
+public:
+	UQRInventoryActionButton();
+
+	UPROPERTY()
+	TWeakObjectPtr<UQRInventoryGridWidget> OwnerWidget;
+
+	UPROPERTY()
+	int32 ActionId = 0;
 
 	UFUNCTION() void HandleClicked();
 };
