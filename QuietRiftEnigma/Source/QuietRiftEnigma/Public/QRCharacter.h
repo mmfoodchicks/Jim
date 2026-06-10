@@ -490,6 +490,21 @@ private:
 	UFUNCTION()
 	void RefreshHeldItemMesh();
 
+	// Left-handed players: mirror the held mesh's position, rotation, and
+	// geometry (via negative Y scale) across the camera's XZ plane so the
+	// weapon reads as being held in the left hand. Default is right-handed.
+	// Surface in the settings widget; bound to a per-profile save later.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Controls")
+	bool bIsLeftHanded = false;
+
+	// Apply bIsLeftHanded to HeldItemMesh -- mirrors position/rotation and
+	// flips Y scale. Called from RefreshHeldItemMesh (after the mesh is
+	// loaded + scaled) and from SetLeftHanded.
+	void ApplyHandednessToHeldMesh();
+
+	UFUNCTION(BlueprintCallable, Category = "QR|Controls")
+	void SetLeftHanded(bool bLeft);
+
 	// Walks every Clothing-category item in the inventory, sums the metal-
 	// tier protection from each ARM_<METAL>_<SLOT> id, and stamps the total
 	// onto Survival->ArmourDamageReduction. Subscribed to OnInventoryChanged.

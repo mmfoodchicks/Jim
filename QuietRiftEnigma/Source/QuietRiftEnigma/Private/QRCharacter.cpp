@@ -46,6 +46,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Net/UnrealNetwork.h"
+#include "Misc/ConfigCacheIni.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/HitResult.h"
 #include "Engine/DamageEvents.h"
@@ -211,6 +212,18 @@ void AQRCharacter::BeginPlay()
 
 	// Cache the view component for lean routing.
 	CachedView = FindComponentByClass<UQRFPViewComponent>();
+
+	// Restore the persisted handedness so a fresh session picks up what the
+	// player set in the settings widget last time. Same config block the
+	// sliders use; key is "LeftHanded".
+	{
+		bool bLeftCfg = false;
+		if (GConfig->GetBool(TEXT("/Script/QuietRiftEnigma.UserSettings"),
+		                     TEXT("LeftHanded"), bLeftCfg, GGameUserSettingsIni))
+		{
+			bIsLeftHanded = bLeftCfg;
+		}
+	}
 
 	// Held-item mesh follows the inventory's HandSlot. Refresh once on
 	// spawn and whenever the inventory changes.
@@ -1267,6 +1280,47 @@ void AQRCharacter::RefreshHeldItemMesh()
 				 || Id.Contains(TEXT("SCOPE"));
 	}
 	if (CachedView) CachedView->SetScopeAvailable(bHasScope);
+
+	// Handedness applied last so the negative-Y scale flip composes with
+	// the uniform bounds-based scale set above. Position + rotation are
+	// mirrored too -- the recoil delta in Tick adds atop the mirrored base.
+	ApplyHandednessToHeldMesh();
+}
+
+void AQRCharacter::ApplyHandednessToHeldMesh()
+{
+	if (!HeldItemMesh) return;
+
+	// Right-handed defaults -- camera-local: +X forward, +Y right, +Z up.
+	// Kept in sync with the constructor's initial values for HeldItemBase*.
+	// Mirroring across the XZ plane (negate Y) flips the gun to the left
+	// hand and inverts Yaw + Roll so e.g. the muzzle still points away.
+	HeldItemBaseLocation = FVector(38.0f, 9.0f, -14.0f);
+	HeldItemBaseRotation = FRotator(-2.0f, -3.0f, 0.0f);
+
+	if (bIsLeftHanded)
+	{
+		HeldItemBaseLocation.Y    = -HeldItemBaseLocation.Y;
+		HeldItemBaseRotation.Yaw  = -HeldItemBaseRotation.Yaw;
+		HeldItemBaseRotation.Roll = -HeldItemBaseRotation.Roll;
+	}
+
+	HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation);
+	HeldItemMesh->SetRelativeRotation(HeldItemBaseRotation);
+
+	// Mirror the geometry itself so the ejection port, charging handle,
+	// scope offset etc. land on the visually-correct side. Preserves the
+	// uniform scale magnitude set above; only flips the sign on Y.
+	FVector Scale = HeldItemMesh->GetRelativeScale3D();
+	Scale.Y = FMath::Abs(Scale.Y) * (bIsLeftHanded ? -1.0f : 1.0f);
+	HeldItemMesh->SetRelativeScale3D(Scale);
+}
+
+void AQRCharacter::SetLeftHanded(bool bLeft)
+{
+	if (bIsLeftHanded == bLeft) return;
+	bIsLeftHanded = bLeft;
+	RefreshHeldItemMesh();
 }
 
 void AQRCharacter::RefreshArmour()

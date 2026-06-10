@@ -8,6 +8,7 @@ class USlider;
 class UTextBlock;
 class UButton;
 class UVerticalBox;
+class UCheckBox;
 
 /**
  * Minimal settings panel — three sliders (Mouse Sensitivity / FOV /
@@ -54,9 +55,16 @@ private:
 	UPROPERTY()
 	TObjectPtr<UButton> CloseButton = nullptr;
 
+	// Left-handed toggle. Mirrors the held weapon mesh to the player's left
+	// hand. Persisted in the same config block as the sliders, and pushed
+	// live to AQRCharacter::SetLeftHanded on the local pawn.
+	UPROPERTY()
+	TObjectPtr<UCheckBox> LeftHandedCheck = nullptr;
+
 	UFUNCTION() void HandleSensitivity(float NewValue);
 	UFUNCTION() void HandleFOV(float NewValue);
 	UFUNCTION() void HandleVolume(float NewValue);
+	UFUNCTION() void HandleLeftHanded(bool bNew);
 	UFUNCTION() void HandleClose();
 
 	void MakeSliderRow(UVerticalBox* Parent, const FString& Label,
