@@ -296,7 +296,7 @@ void UQRInventoryGridWidget::HandleEquipSlotClicked(int32 KindIndex)
 		case EEquipKind::Rig:
 		case EEquipKind::Backpack:
 			bEquipped = (Inventory->TryEquipContainer(GrabbedItem)
-				== EQRInventoryResult::Ok);
+				== EQRInventoryResult::Success);
 			break;
 		default: break;
 		}
@@ -682,7 +682,7 @@ void UQRInventoryGridWidget::ContextActionEquip()
 	bool bOk = false;
 	if      (Cat == EQRItemCategory::Clothing)  bOk = Inventory->TryEquipArmour(Item);
 	else if (Cat == EQRItemCategory::ChestRig
-	      || Cat == EQRItemCategory::Backpack)  bOk = (Inventory->TryEquipContainer(Item) == EQRInventoryResult::Ok);
+	      || Cat == EQRItemCategory::Backpack)  bOk = (Inventory->TryEquipContainer(Item) == EQRInventoryResult::Success);
 	else if (Cat == EQRItemCategory::Weapon)    bOk = Inventory->TryEquipToHandSlot(Item);
 	CloseContextMenu();
 	Rebuild();
