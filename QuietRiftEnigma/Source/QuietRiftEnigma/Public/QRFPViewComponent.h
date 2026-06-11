@@ -209,6 +209,9 @@ private:
 	float LeanInput = 0.0f;
 	float CurrentLean = 0.0f;
 
+	// Wall-clamp smoothing state (anti-shake) -- see TickComponent.
+	float SmoothedLeanClamp = 0.0f;
+
 	// Read bIsSprinting reflectively so we don't have a hard dep on AQRCharacter.
 	bool QueryIsSprinting() const;
 

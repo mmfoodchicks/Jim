@@ -59,10 +59,16 @@ float UQRFPViewComponent::ComputeLeanWallClamp(float DesiredLean) const
 		return FMath::Abs(DesiredLean);
 	}
 
-	// Trace from the camera straight sideways for the full lean reach. If
-	// blocked, scale lean by hit distance so the camera stops just short
-	// of the surface instead of clipping through it.
-	const FVector Origin = CameraTarget->GetComponentLocation();
+	// Trace sideways for the full lean reach -- from the UNLEANED camera
+	// base position, not the current (already-leaned) one. Tracing from
+	// the leaned position creates a feedback loop: clamp pulls the camera
+	// back -> next frame's trace starts further from the wall -> clamp
+	// releases -> camera leans into the wall again -> rapid shake.
+	FVector Origin = CameraTarget->GetComponentLocation();
+	if (USceneComponent* Parent = CameraTarget->GetAttachParent())
+	{
+		Origin = Parent->GetComponentTransform().TransformPosition(BaseCameraRelLocation);
+	}
 	const FVector Right  = CameraTarget->GetRightVector();
 	const float   Reach  = MaxLeanOffsetY + 6.0f; // small skin margin
 	const FVector End    = Origin + Right * (DesiredLean > 0.0f ? Reach : -Reach);
@@ -186,9 +192,18 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	if (FMath::Abs(CurrentLean) > KINDA_SMALL_NUMBER)
 	{
 		const float Sign = FMath::Sign(CurrentLean);
-		EffectiveLean = Sign * ComputeLeanWallClamp(CurrentLean);
+		// Smooth the wall clamp so a moving obstruction (or trace noise)
+		// eases the camera instead of snapping it -- the second half of
+		// the lean-shake fix.
+		const float RawClamp = ComputeLeanWallClamp(CurrentLean);
+		SmoothedLeanClamp = FMath::FInterpTo(SmoothedLeanClamp, RawClamp, DeltaTime, 8.0f);
+		EffectiveLean = Sign * SmoothedLeanClamp;
 		RelLoc.Y += EffectiveLean * MaxLeanOffsetY;
 		RelLoc.X += -FMath::Abs(EffectiveLean) * MaxLeanOffsetX;
+	}
+	else
+	{
+		SmoothedLeanClamp = 0.0f;
 	}
 
 	if (AController* C = OwnerCharacter->GetController())

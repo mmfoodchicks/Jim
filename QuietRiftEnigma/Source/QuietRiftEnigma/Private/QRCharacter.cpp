@@ -337,6 +337,25 @@ void AQRCharacter::Tick(float DeltaTime)
 		HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation + WeaponRecoilLoc);
 	}
 
+	// View-recoil recovery — after the burst pauses, walk the camera pitch
+	// back down by the accumulated climb (Tarkov-style). The grace delay
+	// stops recovery from fighting the climb mid-burst; the recovery rate
+	// eases the muzzle home instead of snapping. If the player moves the
+	// mouse during recovery their input still applies on top — we only
+	// remove what the recoil added.
+	if (IsLocallyControlled() && AccumulatedViewRecoilPitch > KINDA_SMALL_NUMBER)
+	{
+		TimeSinceLastShot += DeltaTime;
+		if (TimeSinceLastShot >= ViewRecoilRecoveryDelay)
+		{
+			const float Step = FMath::Min(
+				AccumulatedViewRecoilPitch,
+				ViewRecoilRecoverySpeed * DeltaTime);
+			AddControllerPitchInput(Step);   // positive = down
+			AccumulatedViewRecoilPitch -= Step;
+		}
+	}
+
 	// Update encumbrance state
 	if (Inventory)
 	{
@@ -718,6 +737,13 @@ void AQRCharacter::TryFireWeapon()
 		const float ViewKick = Weapon->RecoilPitch * CameraRecoilScale * (bAimed ? 1.0f : 0.8f);
 		AddControllerPitchInput(-ViewKick);
 		AddControllerYawInput(FMath::FRandRange(-ViewKick, ViewKick) * 0.25f);
+
+		// Track the accumulated climb so Tick can pull the muzzle back
+		// down after the burst ends (Tarkov-style recoil recovery).
+		// Without this, sustained fire walks the camera up permanently
+		// and the player ends up staring at the sky.
+		AccumulatedViewRecoilPitch += ViewKick;
+		TimeSinceLastShot = 0.0f;
 	}
 
 	if (!HasAuthority())

@@ -544,6 +544,24 @@ private:
 	FRotator WeaponRecoilRot = FRotator::ZeroRotator;
 	FVector  WeaponRecoilLoc = FVector::ZeroVector;
 
+	// View-recoil recovery (camera climb walked back after the burst).
+	float AccumulatedViewRecoilPitch = 0.0f;
+	float TimeSinceLastShot = 0.0f;
+
+public:
+	// Seconds after the last shot before the camera starts recovering.
+	UPROPERTY(EditAnywhere, Category = "QR|Weapon|Recoil",
+		meta = (ClampMin = "0", ClampMax = "2"))
+	float ViewRecoilRecoveryDelay = 0.18f;
+
+	// Recovery rate in pitch-input units per second. ~8 brings a long
+	// burst home in under a second without feeling like aim assist.
+	UPROPERTY(EditAnywhere, Category = "QR|Weapon|Recoil",
+		meta = (ClampMin = "0.5", ClampMax = "50"))
+	float ViewRecoilRecoverySpeed = 8.0f;
+
+private:
+
 	// Kick the held weapon mesh on fire — local cosmetic only.
 	void ApplyWeaponRecoilKick(float PitchUnits, float YawUnits);
 };

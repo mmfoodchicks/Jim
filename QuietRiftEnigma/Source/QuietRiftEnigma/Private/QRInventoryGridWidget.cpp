@@ -209,22 +209,30 @@ TSharedRef<SWidget> UQRInventoryGridWidget::RebuildWidget()
 				GridCol->AddChildToVerticalBox(Wrapper);
 				if (OutWrapper) *OutWrapper = Wrapper;
 
+				// Tarkov-style section header: dark strip, uppercase label,
+				// slight letterspacing feel via padding.
+				UBorder* HeaderStrip = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+				HeaderStrip->SetBrushColor(FLinearColor(0.10f, 0.10f, 0.085f, 0.95f));
+				HeaderStrip->SetPadding(FMargin(8.0f, 3.0f));
 				UTextBlock* L = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-				L->SetText(FText::FromString(Label));
-				L->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+				L->SetText(FText::FromString(Label.ToUpper()));
+				L->SetColorAndOpacity(FSlateColor(FLinearColor(0.78f, 0.76f, 0.68f, 1.0f)));
 				{
 					FSlateFontInfo Font = L->GetFont();
-					Font.Size = 14;
+					Font.Size = 11;
 					L->SetFont(Font);
 				}
-				UVerticalBoxSlot* LS = Wrapper->AddChildToVerticalBox(L);
-				if (LS) LS->SetPadding(FMargin(0, 10, 0, 4));
+				HeaderStrip->SetContent(L);
+				UVerticalBoxSlot* LS = Wrapper->AddChildToVerticalBox(HeaderStrip);
+				if (LS) LS->SetPadding(FMargin(0, 10, 0, 2));
 
 				OutGrid = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
 				UVerticalBoxSlot* GS = Wrapper->AddChildToVerticalBox(OutGrid);
 				if (GS) GS->SetPadding(FMargin(0, 0, 0, 6));
 			};
-			AddLabeledGrid(TEXT("Body"),      BodyGrid,     nullptr);
+			// Tarkov layout: bare body = POCKETS only (4x1). Rig/backpack
+			// sections appear when their container is equipped.
+			AddLabeledGrid(TEXT("Pockets"),   BodyGrid,     nullptr);
 			AddLabeledGrid(TEXT("Chest Rig"), ChestGrid,    &ChestGridBox);
 			AddLabeledGrid(TEXT("Backpack"),  BackpackGrid, &BackpackGridBox);
 		}
@@ -281,6 +289,17 @@ void UQRInventoryGridWidget::Rebuild()
 	RebuildKind(BodyGrid,     EQRContainerKind::Body);
 	RebuildKind(ChestGrid,    EQRContainerKind::ChestRig);
 	RebuildKind(BackpackGrid, EQRContainerKind::Backpack);
+
+	// Tarkov behavior: an unequipped container contributes NO section to
+	// the items panel (the GEAR slot on the paper-doll is its only UI).
+	// Equipping the rig/backpack makes its grid section appear.
+	const bool bRig  = Inventory->EquippedChestRig  != nullptr;
+	const bool bPack = Inventory->EquippedBackpack  != nullptr;
+	if (ChestGridBox)    ChestGridBox->SetVisibility(
+		bRig  ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (BackpackGridBox) BackpackGridBox->SetVisibility(
+		bPack ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+
 	RefreshHeader();
 }
 
@@ -507,8 +526,10 @@ void UQRInventoryGridWidget::AddCellGrid(UCanvasPanel* Panel, EQRContainerKind K
 			CellBtn->X = X;
 			CellBtn->Y = Y;
 
-			// Light tint so cells are visible while empty.
-			CellBtn->SetBackgroundColor(FLinearColor(0.10f, 0.11f, 0.13f, 0.85f));
+			// Tarkov palette: near-black cell with a faint warm border read
+			// (the 1px gap between cells against the panel acts as the
+			// grid line).
+			CellBtn->SetBackgroundColor(FLinearColor(0.055f, 0.058f, 0.052f, 0.95f));
 
 			UCanvasPanelSlot* S = Panel->AddChildToCanvas(CellBtn);
 			if (S)

@@ -45,14 +45,17 @@ public:
 	float MaxVolumeLiters = 60.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Inventory")
-	int32 MaxSlots = 30;
+	int32 MaxSlots = 4;   // pockets-only until a rig/pack is equipped
 
-	// Spatial grid dimensions for UI layout (W columns × H rows)
+	// Spatial grid dimensions for UI layout (W columns × H rows).
+	// Tarkov-style: the body is POCKETS ONLY (4×1). Real storage space
+	// comes from an equipped chest rig / backpack — without one, four
+	// pocket cells is all you carry. (Design call 2026-06-11.)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
-	int32 InventoryGridW = 6;
+	int32 InventoryGridW = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
-	int32 InventoryGridH = 5;
+	int32 InventoryGridH = 1;
 
 	// Sprint is blocked when CurrentWeightKg / MaxCarryWeightKg >= 0.85
 	// (enforced by owning character movement component)
@@ -117,7 +120,7 @@ public:
 	float BaseVolumeLiters = 60.0f;
 
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Inventory")
-	int32 BaseSlots = 30;
+	int32 BaseSlots = 4;  // pockets
 
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")

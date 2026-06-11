@@ -225,6 +225,13 @@ bool AQRProceduralScatterActor::TryPlaceOne(
 			HISM->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
 			HISM->SetStaticMesh(Mesh);
 			HISM->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			// Per-instance distance culling — the FPS lifeline for large
+			// worlds. Instances fade out between Start..End so a 64 km map
+			// only renders the vegetation bubble around the player. 0 on
+			// either knob disables that bound.
+			HISM->SetCullDistances(
+				FMath::RoundToInt(CullStartDistance),
+				FMath::RoundToInt(CullEndDistance));
 			MeshInstances.Add(Mesh, HISM);
 		}
 		const FTransform InstanceXform(Rot, Loc, FVector(Scale));
