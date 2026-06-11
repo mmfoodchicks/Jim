@@ -39,7 +39,7 @@ BP_PATH = "{}/{}".format(BP_DIR, BP_NAME)
 # actually loads wins. Priorities chosen from qr_fab_audit.md verdicts
 # (read the pack's `Verdicts` block to see anim count + broken-dep count).
 #
-# Both /Game/<Pack>/ and /Game/Fabs/<Pack>/ variants are listed because
+# Both /Game/<Pack>/ and /Game/<Pack>/ variants are listed because
 # qr_repoint_fab_packs.py moves files between them — whichever location
 # the project happens to be in, we pick it up.
 SK_CANDIDATES = [
@@ -53,22 +53,22 @@ SK_CANDIDATES = [
     # ─── RamsterZ_FreeAnims_Volume1 (audit's cleanest pack) ──────────
     # 44 anims, UE4_Mannequin_Skeleton (UE5-compatible), 1 broken dep.
     "/Game/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
-    "/Game/Fabs/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
+    "/Game/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
 
     # ─── FreeAnimsMixPack (UE5 SK_Mannequin native, 38 anims) ────────
     "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Manny",
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Manny",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Manny",
     "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Quinn",
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Quinn",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Quinn",
 
     # ─── DeadBodies_Poses_nikoff (Manny_Simple + 30 death poses) ─────
     # Complements the above mannequin pick with corpse poses.
     "/Game/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SKM_Manny_Simple",
-    "/Game/Fabs/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SKM_Manny_Simple",
+    "/Game/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SKM_Manny_Simple",
 
     # ─── DynamicFalling (Manny_Simple + 10 roll anims) ──────────────
     "/Game/DynamicFalling/Demo/Characters/Mannequins/Meshes/SKM_Manny_Simple",
-    "/Game/Fabs/DynamicFalling/Demo/Characters/Mannequins/Meshes/SKM_Manny_Simple",
+    "/Game/DynamicFalling/Demo/Characters/Mannequins/Meshes/SKM_Manny_Simple",
 
     # ─── FuturisticWarrior (37 SK_armor_* costume meshes, custom rig) ─
     # Last-resort: custom SK_FuturisticWarrior_Skeleton won't share
@@ -77,11 +77,11 @@ SK_CANDIDATES = [
     # there is no canonical "SK_FuturisticWarrior" — pick the first
     # armor piece as a renderable fallback.
     "/Game/FuturisticWarrior/Mesh/armor/SK_armor_1",
-    "/Game/Fabs/FuturisticWarrior/Mesh/armor/SK_armor_1",
+    "/Game/FuturisticWarrior/Mesh/armor/SK_armor_1",
 ]
 
 
-# AnimBlueprint candidates — first that loads wins. Same /Game/ + /Game/Fabs/
+# AnimBlueprint candidates — first that loads wins. Same /Game/ + /Game/
 # pairing as SK_CANDIDATES. ABP_QRPlayer (created by qr_create_anim_blueprint.py)
 # is always preferred when present because that's the one with the QR-native
 # UQRPlayerAnimInstance parent class.
@@ -95,9 +95,9 @@ ANIM_BP_CANDIDATES = [
 
     # FreeAnimsMixPack post-process AnimBPs (UE5 Mannequin)
     "/Game/FreeAnimsMixPack/Demo/Mannequins/Rigs/ABP_Manny_PostProcess",
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Rigs/ABP_Manny_PostProcess",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Rigs/ABP_Manny_PostProcess",
     "/Game/FreeAnimsMixPack/Demo/Mannequins/Rigs/ABP_Quinn_PostProcess",
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Rigs/ABP_Quinn_PostProcess",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Rigs/ABP_Quinn_PostProcess",
 ]
 
 

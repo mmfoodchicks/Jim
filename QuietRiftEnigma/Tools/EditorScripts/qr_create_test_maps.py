@@ -211,8 +211,8 @@ def _spawn_floor():
     # checkerboard. Try a few well-known paths from Fab packs we have;
     # fall back silently if none are present.
     candidate_materials = [
-        "/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
-        "/Game/Fabs/ScifiJungle/Materials/M_Ground_Forest",
+        "/Game/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
+        "/Game/ScifiJungle/Materials/M_Ground_Forest",
         "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial",  # always available
     ]
     for path in candidate_materials:

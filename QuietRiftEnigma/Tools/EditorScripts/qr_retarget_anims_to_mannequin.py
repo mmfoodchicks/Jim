@@ -22,7 +22,7 @@ What this script does (in one run):
      across mixamo-style, UE-style, and custom naming.
   4. Creates an IKRetargeter asset that pairs the two rigs.
   5. Batch-retargets every AnimSequence under
-     /Game/Fabs/FuturisticWarrior/Animation/ into
+     /Game/FuturisticWarrior/Animation/ into
      /Game/QuietRift/Animations/Retargeted/, naming each
      A_QR_<original_name>.
 
@@ -44,9 +44,9 @@ import unreal
 
 # ─── Inputs ───────────────────────────────────────────────────────────
 
-SOURCE_SKELETON_PATH = "/Game/Fabs/FuturisticWarrior/Mesh/SK_FuturisticWarrior_Skeleton.SK_FuturisticWarrior_Skeleton"
-SOURCE_MESH_PATH     = "/Game/Fabs/FuturisticWarrior/Mesh/SK_FuturisticWarrior.SK_FuturisticWarrior"
-SOURCE_ANIMS_PATH    = "/Game/Fabs/FuturisticWarrior/Animation"
+SOURCE_SKELETON_PATH = "/Game/FuturisticWarrior/Mesh/SK_FuturisticWarrior_Skeleton.SK_FuturisticWarrior_Skeleton"
+SOURCE_MESH_PATH     = "/Game/FuturisticWarrior/Mesh/SK_FuturisticWarrior.SK_FuturisticWarrior"
+SOURCE_ANIMS_PATH    = "/Game/FuturisticWarrior/Animation"
 
 # Where to look for the UE5 Mannequin in the user's project. The Third
 # Person template imports under /Game/Characters/Mannequins/Meshes/.
@@ -62,13 +62,13 @@ TARGET_MESH_CANDIDATES = [
     "/Game/ThirdPerson/Characters/Mannequins/Meshes/SKM_Manny",
     "/Game/ThirdPerson/Characters/Mannequins/Meshes/SKM_Quinn",
     # Bundled inside Fab anim packs.
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Manny",
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Quinn",
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SK_Mannequin",
-    "/Game/Fabs/DynamicFalling/Demo/Characters/Mannequins/Meshes/SKM_Manny_Simple",
-    "/Game/Fabs/DynamicFalling/Demo/Characters/Mannequins/Meshes/SK_Mannequin",
-    "/Game/Fabs/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
-    "/Game/Fabs/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SK_Mannequin",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Manny",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Quinn",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SK_Mannequin",
+    "/Game/DynamicFalling/Demo/Characters/Mannequins/Meshes/SKM_Manny_Simple",
+    "/Game/DynamicFalling/Demo/Characters/Mannequins/Meshes/SK_Mannequin",
+    "/Game/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
+    "/Game/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SK_Mannequin",
 ]
 
 # Output locations.

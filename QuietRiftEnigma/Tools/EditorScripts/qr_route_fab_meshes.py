@@ -1,5 +1,5 @@
 """
-qr_route_fab_meshes.py -- look at every Fab pack already in /Game/Fabs/
+qr_route_fab_meshes.py -- look at every Fab pack already in /Game/
 and stamp appropriate meshes into the existing item definitions and
 DT_BuildCatalog rows so the game stops dropping invisible items and
 ghost building pieces.
@@ -65,14 +65,14 @@ BUILD_CATALOG_PATH = "/Game/QuietRift/Data/Build/DT_BuildCatalog"
 MESH_RULES = [
     # ── Weapons ──────────────────────────────────────────────────
     (r"\bLONGRANGE\b|\bSNIPER\b|\bDMR\b", [
-        "/Game/Fabs/WeaponSniper/Meshes/SM_Weapon_Sniper_4",
-        "/Game/Fabs/WeaponSniper/Meshes/SM_Weapon_Sniper_1",
+        "/Game/WeaponSniper/Meshes/SM_Weapon_Sniper_4",
+        "/Game/WeaponSniper/Meshes/SM_Weapon_Sniper_1",
     ]),
     (r"\bBULLPUP\b|\bCARBINE\b|\bSMG\b|\bASSAULT\b", [
-        "/Game/Fabs/MPMECH/Meshes/SM_BULLPUP_LOD0",
+        "/Game/MPMECH/Meshes/SM_BULLPUP_LOD0",
     ]),
     (r"\bMAG\b", [
-        "/Game/Fabs/MPMECH/Meshes/SM_BULLPUPMAG_LOD0",
+        "/Game/MPMECH/Meshes/SM_BULLPUPMAG_LOD0",
     ]),
     # Melee / bow / shield -- no perfect Fab match yet; defer until a
     # melee/bow pack arrives. Stays empty silently.
@@ -80,152 +80,192 @@ MESH_RULES = [
     # ── Ammo / arrows ────────────────────────────────────────────
     # No bespoke Fab; use a small carton as a placeholder ammo box.
     (r"^AMO_|\bAMMO\b|\bROUND\b|\bBOLT\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonBox01",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonBox02",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonBox01",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonBox02",
     ]),
 
     # ── Containers / rigs / packs ────────────────────────────────
     (r"^RIG_|\bCHESTRIG\b|\bRIG\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonBox03",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Box01",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonBox03",
+        "/Game/IndustryPropsPack6/Meshes/SM_Box01",
     ]),
     (r"^PACK_|\bBACKPACK\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Box02",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonBox02",
+        "/Game/IndustryPropsPack6/Meshes/SM_Box02",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonBox02",
     ]),
 
     # ── Resources / generic loose items ──────────────────────────
     (r"\bBARREL\b|\bDRUM\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Barrel01",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Barrel02",
+        "/Game/IndustryPropsPack6/Meshes/SM_Barrel01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Barrel02",
     ]),
     (r"\bPALLET\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Pallet01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Pallet01",
     ]),
     (r"\bRACK\b|\bSHELF\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Rack01",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Rack02",
+        "/Game/IndustryPropsPack6/Meshes/SM_Rack01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Rack02",
     ]),
     (r"\bCRATE\b|\bBOX\b|\bCASE\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Box01",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Box02",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonBox01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Box01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Box02",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonBox01",
     ]),
     (r"\bTARP\b|\bCLOTH\b|\bSHEET\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Tarp01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Tarp01",
     ]),
     (r"\bSCRAP\b|\bGARBAGE\b|\bTRASH\b|\bWASTE\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonGarbage02",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonGarbage04",
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_CartonGarbage06",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonGarbage02",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonGarbage04",
+        "/Game/IndustryPropsPack6/Meshes/SM_CartonGarbage06",
     ]),
     (r"\bTRAFFIC\b|\bBARRIER\b|\bROADBLOCK\b|\bCONE\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_TrafficBarrel01",
+        "/Game/IndustryPropsPack6/Meshes/SM_TrafficBarrel01",
     ]),
 
     # ── Station / interior props (Remnant / crash interiors) ─────
     (r"\bTERMINAL\b|\bCONSOLE\b|\bCOMPUTER\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Terminal01",
+        "/Game/DeepWaterStation/Meshes/SM_Terminal01",
     ]),
     (r"\bBED\b|\bBUNK\b|\bCOT\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_BedBase01",
+        "/Game/DeepWaterStation/Meshes/SM_BedBase01",
     ]),
     (r"\bPILLOW\b|\bCUSHION\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Pillows01",
+        "/Game/DeepWaterStation/Meshes/SM_Pillows01",
     ]),
     (r"\bCHAIR\b|\bSTOOL\b|\bSEAT\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_ChairA04",
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_DecompChairA01",
+        "/Game/DeepWaterStation/Meshes/SM_ChairA04",
+        "/Game/DeepWaterStation/Meshes/SM_DecompChairA01",
     ]),
     (r"\bLAMP\b|\bLIGHT\b|\bLANTERN\b|\bTORCH\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_LampA02",
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Lamp05",
+        "/Game/DeepWaterStation/Meshes/SM_LampA02",
+        "/Game/DeepWaterStation/Meshes/SM_Lamp05",
     ]),
     (r"\bOXYGEN\b|\bTANK\b|\bCYLINDER\b|\bO2\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_OxygenCylinder01",
+        "/Game/DeepWaterStation/Meshes/SM_OxygenCylinder01",
     ]),
     (r"\bROPE\b|\bCABLE\b|\bCORD\b|\bWIRE\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_MetalRope01",
+        "/Game/DeepWaterStation/Meshes/SM_MetalRope01",
     ]),
     (r"\bANTENNA\b|\bANTENA\b|\bRADIO\b|\bBEACON\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Antena01",
+        "/Game/DeepWaterStation/Meshes/SM_Antena01",
     ]),
     (r"\bBRIDGE\b|\bRAMP\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Bridge01",
+        "/Game/DeepWaterStation/Meshes/SM_Bridge01",
     ]),
     (r"\bFISH\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Fish02",
+        "/Game/DeepWaterStation/Meshes/SM_Fish02",
     ]),
 
     # ── Rocks / minerals as held items ───────────────────────────
     (r"\bROCK\b|\bSTONE\b|\bORE\b|\bMINERAL\b|\bMETAL_SCRAP\b", [
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock01",
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock02",
-        "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03",
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_RockPart12",
+        "/Game/Rock_Collection_04/Meshes/SM_Rock01",
+        "/Game/Rock_Collection_04/Meshes/SM_Rock02",
+        "/Game/Rock_Collection_04/Meshes/SM_Rock03",
+        "/Game/DeepWaterStation/Meshes/SM_RockPart12",
     ]),
     (r"\bICE\b|\bFROST\b|\bSNOW\b", [
-        "/Game/Fabs/Polar/Meshes/SM_Polar_Ice_01",
+        "/Game/Polar/Meshes/SM_Polar_Ice_01",
     ]),
 
     # ── Construction_VOL1 (73 SM) — raw materials + tools ────────
     (r"\bBRICK\b|\bMASONRY\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_BrickPaletteStack_01a",
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_BrickPaletteStack_01b",
+        "/Game/Construction_VOL1/Meshes/SM_BrickPaletteStack_01a",
+        "/Game/Construction_VOL1/Meshes/SM_BrickPaletteStack_01b",
     ]),
     (r"\bCINDER\b|\bCEMENT\b|\bBLOCK\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_CinderStack_01b",
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_CinderStack_Single_01a",
+        "/Game/Construction_VOL1/Meshes/SM_CinderStack_01b",
+        "/Game/Construction_VOL1/Meshes/SM_CinderStack_Single_01a",
     ]),
     (r"\bCONCRETE\b|\bSAG\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConcreteBag_02a",
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConcretePipe_02",
+        "/Game/Construction_VOL1/Meshes/SM_ConcreteBag_02a",
+        "/Game/Construction_VOL1/Meshes/SM_ConcretePipe_02",
     ]),
     (r"\bDRYWALL\b|\bPLASTER\b|\bSHEETROCK\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_Drywall_01a",
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_Drywall_01b",
+        "/Game/Construction_VOL1/Meshes/SM_Drywall_01a",
+        "/Game/Construction_VOL1/Meshes/SM_Drywall_01b",
     ]),
     (r"\bREBAR\b|\bSTEEL_BAR\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_Rebar_01a",
+        "/Game/Construction_VOL1/Meshes/SM_Rebar_01a",
     ]),
     (r"\bPYLON\b|\bMARKER\b|\bCONE\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConstructionPylons_01c",
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConstructionPylons_01e",
+        "/Game/Construction_VOL1/Meshes/SM_ConstructionPylons_01c",
+        "/Game/Construction_VOL1/Meshes/SM_ConstructionPylons_01e",
     ]),
     (r"\bDUMPSTER\b|\bSKIP\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_Dumpster",
+        "/Game/Construction_VOL1/Meshes/SM_Dumpster",
     ]),
     (r"\bPORTAPOTTY\b|\bOUTHOUSE\b|\bPRIVY\b|\bLATRINE\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_Portapotty_02",
+        "/Game/Construction_VOL1/Meshes/SM_Portapotty_02",
     ]),
     (r"\bSPOOL\b|\bREEL\b|\bWIRE_REEL\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_Spool_01a",
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_CableReel",
+        "/Game/Construction_VOL1/Meshes/SM_Spool_01a",
+        "/Game/Construction_VOL1/Meshes/SM_CableReel",
     ]),
     (r"\bGENERATOR\b|\bGEN\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_LightGenerator_Base_01a",
+        "/Game/Construction_VOL1/Meshes/SM_LightGenerator_Base_01a",
     ]),
     (r"\bFREIGHT\b|\bCONTAINER\b|\bSHIPCRATE\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_FreightContainer_01",
+        "/Game/Construction_VOL1/Meshes/SM_FreightContainer_01",
     ]),
     (r"\bFENCE\b|\bPERIMETER\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_construction_fence_support_01a",
+        "/Game/Construction_VOL1/Meshes/SM_construction_fence_support_01a",
     ]),
 
     # ── Tool-gated crash entry tools (mapped to existing item ids
     # we just authored in QRWorldGenSubsystem). Placeholder meshes
     # for now -- swap to bespoke when art arrives.
     (r"\bCUTTING_TORCH\b|\bTORCH\b|\bCUTTER\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_LightGenerator_Lights_01a",
+        "/Game/Construction_VOL1/Meshes/SM_LightGenerator_Lights_01a",
     ]),
     (r"\bPRY_BAR\b|\bCROWBAR\b|\bPRYBAR\b", [
-        "/Game/Fabs/Construction_VOL1/Meshes/SM_Rebar_01a",
+        "/Game/Construction_VOL1/Meshes/SM_Rebar_01a",
     ]),
     (r"\bDECRYPT\b|\bSPIKE\b|\bKEY\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Terminal01",
+        "/Game/DeepWaterStation/Meshes/SM_Terminal01",
     ]),
     (r"\bPOWER_COUPLER\b|\bCOUPLER\b|\bJUNCTION\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Antena01",
+        "/Game/DeepWaterStation/Meshes/SM_Antena01",
+    ]),
+
+    # ── ModularSciFiStation (318 assets, 2026-06-11 upload) ──────
+    # The "free sci-fi modular station score". Tunnels/floors/doors/
+    # railings/scaffolds/control panels -- the Remnant + hero-crash
+    # interior kit. Layout: Environment/<Category>/SM_*. Item-shaped
+    # picks below; the structural panels go in BUILD_RULES.
+    (r"\bCONTROL_PANEL\b|\bSWITCHBOARD\b|\bPANEL\b", [
+        "/Game/ModularSciFiStation/Environment/Props/WallAttachments/SM_control_panel_01",
+        "/Game/ModularSciFiStation/Environment/Props/WallAttachments/SM_control_panel_02",
+    ]),
+    (r"\bCAMERA\b|\bSENTRY_CAM\b|\bSURVEIL", [
+        "/Game/ModularSciFiStation/Environment/Props/WallAttachments/SM_camera_wall_01",
+    ]),
+    (r"\bLADDER\b", [
+        "/Game/ModularSciFiStation/Environment/Ladders/SM_ladder_100_01",
+        "/Game/ModularSciFiStation/Environment/Ladders/SM_ladder_200_01",
+    ]),
+    (r"\bAIR_PIPE\b|\bVENT\b|\bDUCT\b", [
+        "/Game/ModularSciFiStation/Environment/Pipes/Meshes/SM_air_pipe",
+    ]),
+    (r"\bHYDRAULIC\b|\bPISTON\b|\bACTUATOR\b", [
+        "/Game/ModularSciFiStation/Environment/Scaffold/SM_hydraulic_pillar_200_01",
+    ]),
+
+    # ── WinterTown (727 assets) — colony town-kit props ──────────
+    (r"\bLAMPPOST\b|\bSTREETLIGHT\b|\bLAMP_POST\b", [
+        "/Game/WinterTown/Meshes/SM_LampPost01",
+    ]),
+    (r"\bLIGHTBULB\b|\bBULB\b", [
+        "/Game/WinterTown/Meshes/SM_Lightbulb01",
+    ]),
+    (r"\bBOARD\b|\bPLANK\b|\bLUMBER\b|\bTIMBER\b", [
+        "/Game/WinterTown/Meshes/SM_Board01",
+        "/Game/WinterTown/Meshes/SM_Board02",
+        "/Game/WinterTown/Meshes/SM_Board06",
+    ]),
+    (r"\bPIPE\b|\bTUBING\b", [
+        "/Game/WinterTown/Meshes/SM_Pipe3m",
+        "/Game/Construction_VOL1/Meshes/SM_ConcretePipe_02",
     ]),
 ]
 
@@ -235,39 +275,60 @@ BUILD_RULES = [
     # Walls (modular sci-fi panels are perfect for a "deep" tier; for
     # a primitive/wood tier they're a stand-in until a wood-wall pack
     # arrives).
+    # ModularSciFiStation panels first (purpose-built modular kit with
+    # snap-friendly 100/200/400 sizing); DeepWaterStation as fallback.
     (r"\bWALL\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Mod07WallA01",
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Mod07WallA02",
+        "/Game/ModularSciFiStation/Environment/Walls/B/SM_wall_200_b_01",
+        "/Game/DeepWaterStation/Meshes/SM_Mod07WallA01",
+        "/Game/DeepWaterStation/Meshes/SM_Mod07WallA02",
     ]),
     (r"\bFLOOR\b|\bDECK\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Mod02OUT01",
+        "/Game/ModularSciFiStation/Environment/Floor/SM_floor_200x200_01",
+        "/Game/DeepWaterStation/Meshes/SM_Mod02OUT01",
     ]),
     (r"\bCEILING\b|\bROOF\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Ceiling06",
+        "/Game/DeepWaterStation/Meshes/SM_Ceiling06",
     ]),
     (r"\bFOUNDATION\b|\bBASE\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_ModA03",
+        "/Game/ModularSciFiStation/Environment/Floor/SM_floor_400x400_01",
+        "/Game/DeepWaterStation/Meshes/SM_ModA03",
     ]),
     (r"\bDOOR\b|\bGATE\b|\bAIRLOCK\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Transition01",
+        "/Game/ModularSciFiStation/Environment/Door/Meshes/SM_door_mid_01",
+        "/Game/DeepWaterStation/Meshes/SM_Transition01",
+    ]),
+    (r"\bRAILING\b|\bHANDRAIL\b|\bGUARD_RAIL\b", [
+        "/Game/ModularSciFiStation/Environment/Railing/SM_railing_200_01",
+    ]),
+    (r"\bSCAFFOLD\b|\bPLATFORM\b", [
+        "/Game/ModularSciFiStation/Environment/Scaffold/SM_scaffold_200x200_01",
+    ]),
+    (r"\bTUNNEL\b|\bCORRIDOR\b|\bPASSAGE\b", [
+        "/Game/ModularSciFiStation/Environment/Tunnel/SM_tunnel_200_01",
+    ]),
+    (r"\bLADDER\b", [
+        "/Game/ModularSciFiStation/Environment/Ladders/SM_ladder_200_01",
+    ]),
+    (r"\bLAMPPOST\b|\bSTREETLIGHT\b", [
+        "/Game/WinterTown/Meshes/SM_LampPost01",
     ]),
     (r"\bBARRIER\b|\bROADBLOCK\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_TrafficBarrel01",
+        "/Game/IndustryPropsPack6/Meshes/SM_TrafficBarrel01",
     ]),
     (r"\bSTORAGE\b|\bDEPOT\b|\bCRATE\b|\bBOX\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Box01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Box01",
     ]),
     (r"\bRACK\b|\bSHELF\b", [
-        "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Rack01",
+        "/Game/IndustryPropsPack6/Meshes/SM_Rack01",
     ]),
     (r"\bBED\b|\bBUNK\b|\bSLEEP\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_BedBase01",
+        "/Game/DeepWaterStation/Meshes/SM_BedBase01",
     ]),
     (r"\bSTATION\b|\bWORKBENCH\b|\bBENCH\b|\bFORGE\b|\bSMELTER\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_Terminal01",
+        "/Game/DeepWaterStation/Meshes/SM_Terminal01",
     ]),
     (r"\bLAMP\b|\bLIGHT\b", [
-        "/Game/Fabs/DeepWaterStation/Meshes/SM_LampA02",
+        "/Game/DeepWaterStation/Meshes/SM_LampA02",
     ]),
 ]
 
@@ -360,7 +421,7 @@ def _route_items(overwrite, dry_run):
                 print("[fab-route]   FAILED to stamp {}: {}".format(item_id, e))
                 continue
         stamped += 1
-        pack = path.split("/")[3] if path.startswith("/Game/Fabs/") else "other"
+        pack = path.split("/")[3] if path.startswith("/Game/") else "other"
         by_pack[pack] = by_pack.get(pack, 0) + 1
 
     print("[fab-route] items: stamped={}, kept-existing={}, no-match={}".format(

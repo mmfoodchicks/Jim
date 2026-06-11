@@ -251,9 +251,14 @@ reference dangling recipes.
 
 ## Don't touch
 
-- `Content/Fabs/**` and `FabsHierarchy.txt` — borrowed/generated Fab pack
-  content. The `qr_audit_fabs.py` / `qr_wire_fab_packs.py` /
-  `qr_repoint_fab_packs.py` scripts manage it.
+- **Fab pack layout (since 2026-06-11):** the full library lives at
+  `Content/<PackName>/` (i.e. `/Game/<PackName>` in asset paths) — the
+  user re-uploaded everything to content root. `Content/Fabs/` holds
+  only `LED_Generator` + `StampIt` (no root copies). Don't recreate
+  the old `Content/Fabs/<Pack>` layout; all qr_*.py scripts and
+  QRUISound.cpp reference root paths (the C++ sound loader retries
+  the legacy Fabs prefix as fallback). Pack *contents* are
+  borrowed assets — reference them, don't edit them.
 - `GDD_Dictionaries/*.docx`, `*.xlsx`, `*.pdf` — source-of-truth design
   artifacts owned by the human.
 - `.gitignore`, `.gitattributes` — LFS config; don't reconfigure.

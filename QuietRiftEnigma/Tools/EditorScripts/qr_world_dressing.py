@@ -41,14 +41,14 @@ import unreal
 # ─── Asset paths ─────────────────────────────────────────────────────
 
 # Biome materials -- the actual Fab content the project already ships.
-SOIL_MTL = ("/Game/Fabs/ScifiJungle/Materials/Nature/Ground/"
+SOIL_MTL = ("/Game/ScifiJungle/Materials/Nature/Ground/"
             "MI_Soil_Jungle.MI_Soil_Jungle")
-ROCK_MTL = ("/Game/Fabs/ScifiJungle/Materials/Nature/Rock/"
+ROCK_MTL = ("/Game/ScifiJungle/Materials/Nature/Rock/"
             "MI_Rock_Jungle_Large.MI_Rock_Jungle_Large")
 
 # Fallback: MWLandscapeAutoMaterial example -- always present in the
 # auto-material pack and works on any static-mesh ground.
-FALLBACK_GROUND_MTL = ("/Game/Fabs/MWLandscapeAutoMaterial/Materials/Landscape/"
+FALLBACK_GROUND_MTL = ("/Game/MWLandscapeAutoMaterial/Materials/Landscape/"
                        "MTL_MWAM_Landscape_IslandExample.MTL_MWAM_Landscape_IslandExample")
 
 BIOME_DIR = "/Game/QuietRift/Data/Biomes"

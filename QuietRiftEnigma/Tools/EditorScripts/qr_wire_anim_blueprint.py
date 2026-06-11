@@ -57,11 +57,11 @@ ANIM_SEARCH_PATHS = [
     "/Game/Characters/Mannequins/Animations",             # Third Person Template fallback
     "/Game/ThirdPerson/Blueprints",                       # UE5 TPS sometimes here too
     "/Game/QuietRift/Animations/Retargeted",              # our retarget output
-    "/Game/Fabs/FreeAnimsMixPack/Animation",
-    "/Game/Fabs/RamsterZ_FreeAnims_Volume1/AnimationSequence",
-    "/Game/Fabs/FuturisticWarrior/Animation",
-    "/Game/Fabs/DynamicFalling/Animation",
-    "/Game/Fabs/DeadBodies_Poses_nikoff/Animations",
+    "/Game/FreeAnimsMixPack/Animation",
+    "/Game/RamsterZ_FreeAnims_Volume1/AnimationSequence",
+    "/Game/FuturisticWarrior/Animation",
+    "/Game/DynamicFalling/Animation",
+    "/Game/DeadBodies_Poses_nikoff/Animations",
 ]
 
 # Locomotion state -> token list (first match wins, case-insensitive).
@@ -181,7 +181,7 @@ def run():
         print("\n[abp-wire] WARNING: no anim resolved for: {}".format(", ".join(missing)))
         print("[abp-wire]   Likely cause: qr_retarget_anims_to_mannequin.py hasn't")
         print("[abp-wire]   been run, or the FuturisticWarrior pack isn't in")
-        print("[abp-wire]   /Game/Fabs/. Run that first, then re-run this script.")
+        print("[abp-wire]   /Game/. Run that first, then re-run this script.")
 
     print("\n--- Manual follow-up checklist ---")
     print("UE 5.x Python cannot author Anim Graph state-machine nodes.")

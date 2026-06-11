@@ -41,25 +41,38 @@ PLT_IRONBRINE_CUPS = "/Game/Meshes/Flora/Flora/SM_PLT_IRONBRINE_CUPS"
 PLT_CINDER_THORN   = "/Game/Meshes/Flora/Flora/SM_PLT_CINDER_THORN"
 
 # Rocks / ice — no bespoke QR meshes yet; Fab packs stand in.
-ROCK_1       = "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01"
-ROCK_2       = "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02"
-ROCK_3       = "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03"
-POLAR_ICE_1  = "/Game/Fabs/Polar/Meshes/SM_Polar_Ice_01.SM_Polar_Ice_01"
-POLAR_ROCK_1 = "/Game/Fabs/Polar/Meshes/SM_Polar_Rock_01.SM_Polar_Rock_01"
+ROCK_1       = "/Game/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01"
+ROCK_2       = "/Game/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02"
+ROCK_3       = "/Game/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03"
+POLAR_ICE_1  = "/Game/Polar/Meshes/SM_Polar_Ice_01.SM_Polar_Ice_01"
+POLAR_ROCK_1 = "/Game/Polar/Meshes/SM_Polar_Rock_01.SM_Polar_Rock_01"
 
 # Wreckage / construction debris -- sparse scatter in surface biomes
 # near player-start sells "crashed colony ship" baseline. From
 # Ruined_Modern_Buildings + IndustryPropsPack6 the user already has.
-WRECKAGE_1   = "/Game/Fabs/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_01.SM_Destroyed_Skyscraper_01"
-WRECKAGE_2   = "/Game/Fabs/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_05.SM_Destroyed_Skyscraper_05"
-SCRAP_BARREL = "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Barrel01.SM_Barrel01"
-SCRAP_PALLET = "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Pallet01.SM_Pallet01"
-SCRAP_BOX    = "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Box01.SM_Box01"
+WRECKAGE_1   = "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_01.SM_Destroyed_Skyscraper_01"
+WRECKAGE_2   = "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_05.SM_Destroyed_Skyscraper_05"
+SCRAP_BARREL = "/Game/IndustryPropsPack6/Meshes/SM_Barrel01.SM_Barrel01"
+SCRAP_PALLET = "/Game/IndustryPropsPack6/Meshes/SM_Pallet01.SM_Pallet01"
+SCRAP_BOX    = "/Game/IndustryPropsPack6/Meshes/SM_Box01.SM_Box01"
+
+# OWD_Plants_Pack (483 assets, 2026-06-11 upload) -- dozens of ground-
+# cover plant variants. The suffix is a color code (G / GR / GRY / Y);
+# greens go in the wet biomes, yellows in the dry ones. These layer
+# UNDER the crystalline QR flora, filling the ground plane so biomes
+# don't read as sparse.
+OWD_G_1  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_01_2_G.SM_Plant_01_2_G"
+OWD_G_2  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_05_3_G.SM_Plant_05_3_G"
+OWD_G_3  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_07_3_G.SM_Plant_07_3_G"
+OWD_G_4  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_02_2_G.SM_Plant_02_2_G"
+OWD_Y_1  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_07_7_Y.SM_Plant_07_7_Y"
+OWD_GR_1 = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_09_1_GR.SM_Plant_09_1_GR"
+OWD_GR_2 = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_03_4_GR.SM_Plant_03_4_GR"
 
 # Sound + landscape material stand-ins.
-AMBIENT_WIND   = "/Game/Fabs/Free_Sounds_Pack/cue/Ambient_Wind_Loop_1_Cue.Ambient_Wind_Loop_1_Cue"
-AMBIENT_BIRDS  = "/Game/Fabs/Free_Sounds_Pack/cue/Ambient_Birds_Loop_04_Cue.Ambient_Birds_Loop_04_Cue"
-LANDSCAPE_AUTO = "/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_MWAM_Landscape.M_MWAM_Landscape"
+AMBIENT_WIND   = "/Game/Free_Sounds_Pack/cue/Ambient_Wind_Loop_1_Cue.Ambient_Wind_Loop_1_Cue"
+AMBIENT_BIRDS  = "/Game/Free_Sounds_Pack/cue/Ambient_Birds_Loop_04_Cue.Ambient_Birds_Loop_04_Cue"
+LANDSCAPE_AUTO = "/Game/MWLandscapeAutoMaterial/Materials/M_MWAM_Landscape.M_MWAM_Landscape"
 
 
 # Each biome entry follows GDD §4 Biome Catalog mapping. Palette is
@@ -87,6 +100,8 @@ BIOMES = {
             # POI sites (2 major + ~6 small tool-gated, set in
             # UQRWorldGenSubsystem::PlacePOIs), not in the biome
             # background. Keeps the world looking pretty.
+            (OWD_G_1,  4.0, 0.6, 1.1, 0.0, True),
+            (OWD_G_4,  4.0, 0.6, 1.1, 0.0, True),
         ],
     },
     "BP_WindPlains": {
@@ -100,6 +115,8 @@ BIOMES = {
             (PLT_SPIRAL_REED, 5.0, 0.6, 1.1,  0.0, False),
             (TRE_GLASSBARK,   0.6, 0.9, 1.4,  0.0, False),  # rare canopy
             (ROCK_1,          0.7, 0.5, 1.0, -5.0, True),
+            (OWD_Y_1,  6.0, 0.6, 1.2, 0.0, True),
+            (OWD_GR_1, 3.0, 0.6, 1.1, 0.0, True),
         ],
     },
     "BP_MeltlineEdges": {
@@ -114,6 +131,8 @@ BIOMES = {
             (PLT_LATTICE_BULB, 4.0, 0.7, 1.3,   0.0, False),
             (PLT_MAWCAP_BLOOM, 4.0, 0.7, 1.3,   0.0, False),
             (ROCK_3,           1.0, 0.7, 1.4, -15.0, True),
+            (OWD_G_2,  5.0, 0.7, 1.2, 0.0, True),
+            (OWD_G_3,  5.0, 0.7, 1.2, 0.0, True),
         ],
     },
     "BP_CraterFloors": {
@@ -144,6 +163,8 @@ BIOMES = {
             (PLT_LATTICE_BULB,   4.0, 0.7, 1.4,   0.0, False),
             (TRE_SLAGROOT,       2.5, 1.0, 1.7,   0.0, False),
             (ROCK_3,             0.8, 0.6, 1.2, -10.0, True),
+            (OWD_G_1,  6.0, 0.7, 1.3, 0.0, True),
+            (OWD_G_2,  6.0, 0.7, 1.3, 0.0, True),
         ],
     },
     "BP_ShallowFens": {
@@ -157,6 +178,8 @@ BIOMES = {
             (PLT_MAWCAP_BLOOM, 5.0, 0.7, 1.3, 0.0, False),
             (PLT_LATTICE_BULB, 5.0, 0.7, 1.3, 0.0, False),
             (TRE_SLAGROOT,     1.0, 1.0, 1.6, 0.0, False),
+            (OWD_G_3,  6.0, 0.7, 1.3, 0.0, True),
+            (OWD_G_4,  6.0, 0.7, 1.3, 0.0, True),
         ],
     },
     "BP_ThermalCracks": {
@@ -184,6 +207,8 @@ BIOMES = {
             (ROCK_1,          4.0, 0.5, 1.6, -25.0, True),
             (ROCK_3,          4.0, 0.5, 1.8, -30.0, True),
             (PLT_SPIRAL_REED, 1.0, 0.5, 0.9,   0.0, False),
+            (OWD_Y_1,  3.0, 0.5, 1.0, 0.0, True),
+            (OWD_GR_2, 2.0, 0.5, 1.0, 0.0, True),
         ],
     },
     "BP_MossFields": {
@@ -198,6 +223,9 @@ BIOMES = {
             (PLT_MAWCAP_BLOOM, 6.0, 0.8, 1.3, 0.0, False),
             (PLT_SPIRAL_REED,  5.0, 0.8, 1.3, 0.0, False),
             (TRE_SLAGROOT,     0.5, 1.0, 1.6, 0.0, False),
+            (OWD_G_1,  8.0, 0.8, 1.3, 0.0, True),
+            (OWD_G_2,  8.0, 0.8, 1.3, 0.0, True),
+            (OWD_G_3,  6.0, 0.8, 1.3, 0.0, True),
         ],
     },
 

@@ -49,14 +49,14 @@ import unreal
 
 # Ready-made jungle landscape material instance (auto-blended grass /
 # moss / rock / swamp / sand layers).
-JUNGLE_LANDSCAPE_MTL = ("/Game/Fabs/ScifiJungle/Materials/Nature/Landscape/"
+JUNGLE_LANDSCAPE_MTL = ("/Game/ScifiJungle/Materials/Nature/Landscape/"
                         "MI_LandscapeJungle.MI_LandscapeJungle")
 # Backup landscape material from the MW auto-material pack -- works if
 # the jungle one isn't in the project for some reason.
-FALLBACK_LANDSCAPE_MTL = ("/Game/Fabs/MWLandscapeAutoMaterial/Materials/Landscape/"
+FALLBACK_LANDSCAPE_MTL = ("/Game/MWLandscapeAutoMaterial/Materials/Landscape/"
                           "MTL_MWAM_Landscape_IslandExample.MTL_MWAM_Landscape_IslandExample")
 # Soil instance for the base floor in the static-mesh fallback path.
-GROUND_SOIL_MTL = ("/Game/Fabs/ScifiJungle/Materials/Nature/Ground/"
+GROUND_SOIL_MTL = ("/Game/ScifiJungle/Materials/Nature/Ground/"
                    "MI_Soil_Jungle.MI_Soil_Jungle")
 
 # Hill meshes -- ENGINE BASIC SHAPES only. The ScifiJungle rock meshes

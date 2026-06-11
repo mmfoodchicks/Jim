@@ -41,12 +41,12 @@ MESH_CANDIDATES = [
     "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
     "/Game/Characters/Mannequins/Meshes/SKM_Quinn.SKM_Quinn",
     "/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny",
-    # Fab character packs already in /Game/Fabs/. Tagged with their
+    # Fab character packs already in /Game/. Tagged with their
     # native skeleton in the brain so an override doesn't pair a
     # FuturisticWarrior mesh with a Mannequin anim.
-    "/Game/Fabs/QuantumCharacter/Meshes/SKM_QuantumCharacter.SKM_QuantumCharacter",
-    "/Game/Fabs/QuantumCharacter/Meshes/SKM_QuantumCharacter_NoHead.SKM_QuantumCharacter_NoHead",
-    "/Game/Fabs/FuturisticWarrior/Meshes/SK_FuturisticWarrior.SK_FuturisticWarrior",
+    "/Game/QuantumCharacter/Meshes/SKM_QuantumCharacter.SKM_QuantumCharacter",
+    "/Game/QuantumCharacter/Meshes/SKM_QuantumCharacter_NoHead.SKM_QuantumCharacter_NoHead",
+    "/Game/FuturisticWarrior/Meshes/SK_FuturisticWarrior.SK_FuturisticWarrior",
     "/Engine/EngineMeshes/SkeletalCube.SkeletalCube",   # last-ditch debug placeholder
 ]
 
