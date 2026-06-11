@@ -251,6 +251,17 @@ MESH_RULES = [
         "/Game/ModularSciFiStation/Environment/Scaffold/SM_hydraulic_pillar_200_01",
     ]),
 
+    # ── Horror_Props — crew remains (crash-site storytelling).
+    # NOTE: pack uses Mesh/ (singular), verified on disk.
+    (r"\bCORPSE\b|\bBODY\b|\bREMAINS\b|\bDEAD\b|\bCADAVER\b", [
+        "/Game/Horror_Props/Mesh/SM_Dead_Man",
+        "/Game/Horror_Props/Mesh/SM_Man_under_cloth",
+        "/Game/Horror_Props/Mesh/SM_Man_in_bag",
+    ]),
+    (r"\bBODY_BAG\b|\bBODYBAG\b", [
+        "/Game/Horror_Props/Mesh/SM_Man_in_bag",
+    ]),
+
     # ── WinterTown (727 assets) — colony town-kit props ──────────
     (r"\bLAMPPOST\b|\bSTREETLIGHT\b|\bLAMP_POST\b", [
         "/Game/WinterTown/Meshes/SM_LampPost01",

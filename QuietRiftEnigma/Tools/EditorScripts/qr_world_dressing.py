@@ -493,6 +493,142 @@ def _spawn_tile_scatter(center_x, center_y, half_tile_cm, profile_map, target_co
     return actor
 
 
+# ─── Crash-site decoration ───────────────────────────────────────────
+#
+# The hero crashes need to LOOK like a downed colony ship, not a bare
+# loot ring. This pass finds every spawned AQRCrashSiteActor and
+# decorates: scaled wreckage chunks (Ruined_Modern_Buildings) arranged
+# in a rough debris arc, crew remains (Horror_Props), and burning-
+# wreck fire VFX (Vefects Niagara) on the majors. Minor (tool-gated)
+# sites get a single body + small debris so they read as "something
+# happened here" without stealing the majors' thunder.
+
+CRASH_WRECK_CHUNKS = [
+    "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_01",
+    "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_05",
+    "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_09",
+    "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_12",
+]
+CRASH_BODIES = [
+    "/Game/Horror_Props/Mesh/SM_Dead_Man",
+    "/Game/Horror_Props/Mesh/SM_Man_under_cloth",
+    "/Game/Horror_Props/Mesh/SM_Man_in_bag",
+]
+CRASH_FIRES = [
+    "/Game/Vefects/Free_Fire/Shared/Particles/NS_Fire_Big_Smoke",
+    "/Game/Vefects/Free_Fire/Shared/Particles/NS_Fire_Medium_Smoke",
+    "/Game/Vefects/Free_Fire/Shared/Particles/NS_Fire_Small_Smoke",
+]
+
+
+def _spawn_static_mesh(path, loc, yaw, scale, label):
+    mesh = _maybe_load(path)
+    if not mesh:
+        return None
+    actor = _spawn_actor(unreal.StaticMeshActor,
+        unreal.Vector(loc[0], loc[1], loc[2]),
+        unreal.Rotator(0.0, 0.0, yaw))
+    if not actor:
+        return None
+    actor.set_actor_label(label)
+    try:
+        smc = actor.get_editor_property("static_mesh_component")
+        smc.set_editor_property("static_mesh", mesh)
+        actor.set_actor_scale3d(unreal.Vector(scale, scale, scale))
+    except Exception as e:
+        print("[dress]   mesh stamp failed ({}): {}".format(label, e))
+    return actor
+
+
+def _spawn_fire(path, loc, label):
+    ns = _maybe_load(path)
+    if not ns:
+        return None
+    cls = getattr(unreal, "NiagaraActor", None)
+    if cls is None:
+        return None
+    actor = _spawn_actor(cls, unreal.Vector(loc[0], loc[1], loc[2]))
+    if not actor:
+        return None
+    actor.set_actor_label(label)
+    try:
+        comp = actor.get_editor_property("niagara_component")
+        comp.set_asset(ns)
+    except Exception as e:
+        print("[dress]   fire stamp failed ({}): {}".format(label, e))
+    return actor
+
+
+def decorate_crash_sites():
+    """Dress every spawned crash site. Idempotent -- wipes its own
+    QR_Dress_CrashDecor_* actors first. Call after run_full() (the
+    spawner must have placed the AQRCrashSiteActor instances)."""
+    print("[dress] decorating crash sites")
+    import random
+
+    # Wipe previous decor.
+    for a in _level_actors():
+        try:
+            if (a.get_actor_label() or "").startswith(DRESS_LABEL_PREFIX + "CrashDecor"):
+                _destroy_actor(a)
+        except Exception:
+            continue
+
+    crash_cls = getattr(unreal, "QRCrashSiteActor", None)
+    if crash_cls is None:
+        print("[dress]   QRCrashSiteActor unavailable -- recompile C++")
+        return
+
+    decorated = 0
+    for a in _level_actors():
+        if not a or not isinstance(a, crash_cls):
+            continue
+        try:
+            archetype = str(a.get_editor_property("archetype_id"))
+        except Exception:
+            continue
+        loc = a.get_actor_location()
+        is_major = archetype.startswith("MajorCrash")
+        rng = random.Random(hash(archetype) ^ int(loc.x) ^ int(loc.y))
+
+        if is_major:
+            # Debris arc: 5 scaled chunks sweeping away from the hull
+            # line, 2x..4x scale so the silhouette reads ship-sized.
+            n_chunks, n_bodies, n_fires = 5, 4, 3
+            chunk_scale = (2.0, 4.0)
+            ring = (800.0, 2400.0)
+        else:
+            n_chunks, n_bodies, n_fires = 2, 1, 0
+            chunk_scale = (0.8, 1.5)
+            ring = (300.0, 800.0)
+
+        import math as _m
+        base_ang = rng.uniform(0, 2 * _m.pi)
+        for i in range(n_chunks):
+            ang = base_ang + (i / max(1, n_chunks)) * _m.pi   # half-arc
+            d = rng.uniform(*ring)
+            p = (loc.x + _m.cos(ang) * d, loc.y + _m.sin(ang) * d, loc.z)
+            _spawn_static_mesh(rng.choice(CRASH_WRECK_CHUNKS), p,
+                rng.uniform(0, 360), rng.uniform(*chunk_scale),
+                "{}CrashDecor_{}_chunk{}".format(DRESS_LABEL_PREFIX, archetype, i))
+        for i in range(n_bodies):
+            ang = rng.uniform(0, 2 * _m.pi)
+            d = rng.uniform(200.0, ring[1] * 0.6)
+            p = (loc.x + _m.cos(ang) * d, loc.y + _m.sin(ang) * d, loc.z)
+            _spawn_static_mesh(rng.choice(CRASH_BODIES), p,
+                rng.uniform(0, 360), 1.0,
+                "{}CrashDecor_{}_body{}".format(DRESS_LABEL_PREFIX, archetype, i))
+        for i in range(n_fires):
+            ang = rng.uniform(0, 2 * _m.pi)
+            d = rng.uniform(150.0, ring[0])
+            p = (loc.x + _m.cos(ang) * d, loc.y + _m.sin(ang) * d, loc.z + 20.0)
+            _spawn_fire(CRASH_FIRES[i % len(CRASH_FIRES)], p,
+                "{}CrashDecor_{}_fire{}".format(DRESS_LABEL_PREFIX, archetype, i))
+        decorated += 1
+
+    print("[dress]   decorated {} crash sites".format(decorated))
+
+
 def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
              skip_biomes=False, skip_worldgen=False):
     """Tile a configurable playable radius with worldgen-aware scatter
@@ -548,6 +684,10 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
                 placed += 1
     print("[dress] tiled {} scatter actors across {:.1f} km x {:.1f} km".format(
         placed, n_tiles * tile_m / 1000.0, n_tiles * tile_m / 1000.0))
+
+    # Hero crashes get their debris arcs, crew remains, and fires.
+    decorate_crash_sites()
+
     print("[dress] DONE -- save the level to keep the dressing.")
 
 
