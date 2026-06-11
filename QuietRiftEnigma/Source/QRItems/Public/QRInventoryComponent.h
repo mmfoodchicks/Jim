@@ -258,6 +258,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	float GetCurrentVolumeLiters() const;
 
+	// All currently-equipped instances (hand, offhand, 3 armour, rig, pack)
+	// in a flat list — the slots that live OUTSIDE Items[]. Used by weight
+	// accounting, save capture, and replication.
+	void GetEquippedInstances(TArray<UQRItemInstance*>& Out) const;
+
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	bool IsOverEncumbered() const;
 
@@ -281,8 +286,20 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	// UQRItemInstance is a plain UObject — without this, the replicated
+	// TObjectPtr properties arrive null on co-op clients because the
+	// instances themselves were never sent over the actor channel.
+	virtual bool ReplicateSubobjects(UActorChannel* Channel, FOutBunch* Bunch,
+		FReplicationFlags* RepFlags) override;
+
 private:
 	float SpoilAccumulatedHours = 0.0f;
+
+	// Put an instance that was living in an equip slot back into the flat
+	// Items array: clears its (now stale) grid placement so it can't overlap
+	// whatever was placed in those cells while it was equipped, then
+	// auto-places it fresh.
+	void ReturnInstanceToGrid(UQRItemInstance* Item);
 
 	UQRItemInstance* FindExistingStack(FName ItemId, int32 MaxStack) const;
 
