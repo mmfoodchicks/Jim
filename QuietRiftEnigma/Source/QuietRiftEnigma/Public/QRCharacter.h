@@ -494,7 +494,7 @@ private:
 	// geometry (via negative Y scale) across the camera's XZ plane so the
 	// weapon reads as being held in the left hand. Default is right-handed.
 	// Surface in the settings widget; bound to a per-profile save later.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Controls")
+	UPROPERTY(EditAnywhere, Category = "QR|Controls")
 	bool bIsLeftHanded = false;
 
 	// Apply bIsLeftHanded to HeldItemMesh -- mirrors position/rotation and

@@ -98,7 +98,7 @@ private:
 	// Optional silhouette texture drawn behind the slots. If unset, a neutral
 	// humanoid is drawn from simple shapes so the panel still reads as a body.
 	// Designer can assign /Game/QuietRift/UI/T_BodySilhouette to swap it in.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "QR|UI")
+	UPROPERTY(EditDefaultsOnly, Category = "QR|UI")
 	TObjectPtr<UTexture2D> BodySilhouette = nullptr;
 
 	UPROPERTY()
