@@ -241,21 +241,35 @@ def _paint_terrain_geometry():
             continue
 
         # Walk every StaticMeshComponent on the actor and override its
-        # material slots. CreateDynamicMaterialInstance isn't needed --
-        # we want the real Fab material instance, not a transient copy.
+        # material slots. UE 5.7 Python doesn't expose get_static_mesh()
+        # as a method -- it's an editor property -- and get_num_sections
+        # is similarly version-shaky. Read the property directly, then
+        # treat the mesh's StaticMaterials array as the slot count.
         smcs = a.get_components_by_class(unreal.StaticMeshComponent)
         for smc in (smcs or []):
-            mesh = smc.get_static_mesh()
+            mesh = None
+            try:
+                mesh = smc.get_editor_property("static_mesh")
+            except Exception:
+                pass
             if not mesh:
                 continue
-            slot_count = mesh.get_num_sections(0) or 1
+            slot_count = 1
+            try:
+                mats = mesh.get_editor_property("static_materials") or []
+                slot_count = max(1, len(mats))
+            except Exception:
+                pass
 
             is_hill = "Hill" in label or "_Mound_" in label or "_Mesa_" in label
             target_mtl = rock_mtl if is_hill else soil_mtl
             if not target_mtl:
                 continue
             for slot in range(slot_count):
-                smc.set_material(slot, target_mtl)
+                try:
+                    smc.set_material(slot, target_mtl)
+                except Exception:
+                    pass
             if is_hill:
                 painted_rocks += 1
             else:
