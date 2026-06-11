@@ -29,6 +29,7 @@
 #include "QRLootedRegistry.h"
 #include "QRCodexSubsystem.h"
 #include "QRMountHusbandryComponent.h"
+#include "QRFarmPlotActor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -348,6 +349,16 @@ void AQRGameMode::Tick(float DeltaTime)
 		if (UQRMountHusbandryComponent* H = It->FindComponentByClass<UQRMountHusbandryComponent>())
 		{
 			H->TickGameHours(GameHoursElapsed);
+		}
+	}
+
+	// Advance every farm plot's grow cycle + run the cross-contam
+	// mutation roll.
+	for (TActorIterator<AQRFarmPlotActor> It(GetWorld()); It; ++It)
+	{
+		if (AQRFarmPlotActor* Plot = *It)
+		{
+			Plot->TickGameHours(GameHoursElapsed);
 		}
 	}
 
