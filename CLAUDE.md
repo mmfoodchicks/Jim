@@ -140,6 +140,14 @@ run()             # 8 colonists in a 40 m ring around origin
 run(count=20)     # bigger settlement
 ```
 
+**Fresh-checkout one-button** — sky, nav, biomes, terrain, materials,
+scatter, AND the starter village in one call:
+
+```
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_world_dressing.py').read())
+everything()
+```
+
 ---
 
 ## Read-first docs (project state lives in these, not in your head)

@@ -537,5 +537,14 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
     print("[dress] DONE -- save the level to keep the dressing.")
 
 
+def everything():
+    """Fresh-checkout button: sky + nav + biomes + terrain + ground
+    materials + four biome scatter zones + 8 colonist village. Use
+    when opening a blank dev map for the first time and you want it
+    populated end-to-end without typing five commands."""
+    run()
+    _run_sibling("qr_spawn_starter_village.py")
+
+
 if __name__ == "__main__":
     run()
