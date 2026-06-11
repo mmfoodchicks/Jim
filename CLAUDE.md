@@ -271,18 +271,33 @@ Genuinely-missing gaps, in priority order (see §N of
    working two-way damage exchange (predators hurt the player via
    `AQRCharacter::TakeDamage`→Survival; player weapon + engine damage
    hurt wildlife via `AQRWildlifeBase::TakeDamage`).
-2. **Mission generator + RewardSourceValidation** — director exists,
-   template-instantiator + No-Pocket-OP law not wired.
+2. **Mission generator + RewardSourceValidation** — ✅ closed 2026-06-11.
+   `InstantiateMission` builds live instances with the
+   `MissionLocationFallbackRule` cascade; `GrantRewards` enforces the
+   No-Pocket-OP law per `EQRRewardSource` (Knowledge → codex,
+   FactionStockpile → real depot withdrawal, SiteContainer →
+   `AQRWorldItem` drops, NPCPersonal capped at 3, Morale/Infrastructure
+   strip items). HUD `UQRMissionHUDWidget` surfaces active missions.
 3. **Hauler de-hardcode** — ✅ v1 closed 2026-06-11
    (`GetCurrentDemandItem` drives demand; v2 = deficit weighting
    across multiple stalled stations).
-4. **Long-range optics v8** — `ATT_8X_SCOPE`, `ATT_16X_SCOPE`,
-   `WPN_LONGRANGE_SNIPER` not in attachments/weapons code.
-5. **Cross-contamination farming mutation pipeline.**
-6. **Mount husbandry loop** (taming days, stress pool, panic).
+4. **Long-range optics v8** — ✅ closed 2026-06-11. `WPN_LONGRANGE_SNIPER`
+   already in `ConfigureForWeaponId`; `UQRFPViewComponent::ScopeZoomMultiplier`
+   + name-based detection in `RefreshHeldItemMesh` give 8X/16X tier
+   magnification.
+5. **Cross-contamination farming mutation pipeline** — ✅ closed 2026-06-11.
+   `AQRFarmPlotActor` runs `UQRMath::CrossContamExposure` per grow cycle,
+   branches the yield to `MUT_<original>`, propagates SporeLoad to
+   neighbors.
+6. **Mount husbandry loop** — ✅ closed 2026-06-11.
+   `UQRMountHusbandryComponent` owns BaseTameDays, P_tameFailPerDay,
+   CurrentStressPool, PanicThreshold; Courser + Dray subclassed.
 7. **Leader directive chains + Moral Compass vectors.**
-8. **Faction raid leader experience bands.**
-9. **Civilian Fight mode** — faces threat but doesn't fire.
+8. **Faction raid leader experience bands** — ✅ closed 2026-06-11.
+   `FQRRaidPlan::Experience` set by `DetermineRaidTier`; the raid AI
+   restamps perception/speed/damage/retreat per tier.
+9. **Civilian Fight mode** — ✅ closed 2026-06-11. Fight state acquires
+   the nearest live raider and fires on `FireIntervalSeconds`.
 10. **Codex save persistence** — 🟡 partial 2026-06-11: research-side
     codex states persist via save v2 (`FQRSaveSnapshot`); the game-
     module `UQRCodexSubsystem::Entries` map still doesn't.
@@ -297,7 +312,9 @@ Build-blockers (urgent — gameplay fails without these):
   body is hidden from the owning player (`OwnerNoSee=true`), so the
   player locomotion state machine is invisible in single-player.
   Revisit when co-op is being tested.
-- Buildable + looted-container save/load glue.
+- ~~Buildable + looted-container save/load glue~~ — ✅ closed 2026-06-11
+  via `UQRBuildModeComponent::RestoreFromSave` +
+  `FQRGameSaveData::LootedContainerIds` wiring.
 - 4 starter DataTables (now bulk-seeded by `qr_seed_starter_datatables.py`).
 
 Already-built — DO NOT add these back to the priority list without
