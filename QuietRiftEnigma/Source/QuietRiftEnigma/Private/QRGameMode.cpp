@@ -30,6 +30,8 @@
 #include "QRCodexSubsystem.h"
 #include "QRMountHusbandryComponent.h"
 #include "QRFarmPlotActor.h"
+#include "QRNPCActor.h"
+#include "QRNPCBrainComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -294,6 +296,41 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 			UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d/%d build pieces"),
 				N, PendingLoadedData.ColonyBuildables.Num());
 		}
+
+		// Despawn any AQRNPCActor that's still in the level from the
+		// fresh load, then respawn from the save. Without the wipe,
+		// loading mid-session would double the village.
+		TArray<AActor*> ToKill;
+		for (TActorIterator<AQRNPCActor> It(W); It; ++It) ToKill.Add(*It);
+		for (AActor* A : ToKill) A->Destroy();
+
+		for (const FQRNPCSaveData& N : PendingLoadedData.NPCActors)
+		{
+			UClass* Cls = AQRNPCActor::StaticClass();
+			if (!N.NPCClassPath.IsEmpty())
+			{
+				if (UClass* Loaded = LoadObject<UClass>(nullptr, *N.NPCClassPath))
+				{
+					Cls = Loaded;
+				}
+			}
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			AQRNPCActor* NPC = W->SpawnActor<AQRNPCActor>(Cls, N.Location, N.Rotation, Params);
+			if (!NPC) continue;
+			NPC->SetActorLabel(N.ActorLabel);
+			NPC->DisplayName  = N.DisplayName;
+			if (UQRNPCBrainComponent* Brain = NPC->Brain)
+			{
+				Brain->HomePosition     = N.HomePosition;
+				Brain->AssignedWorkPost = N.AssignedWorkPost;
+				Brain->AssignedBed      = N.AssignedBed;
+				Brain->State            = static_cast<EQRNPCBrainState>(N.BrainState);
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d NPC actors"),
+			PendingLoadedData.NPCActors.Num());
 	}
 
 	// Identity (name + pronouns + voice profile). Appearance lives on
@@ -459,7 +496,8 @@ void AQRGameMode::QuickSave()
 	FQRSaveSnapshot::CaptureResearch(Research, Data.ResearchData);
 
 	// World-state persistence (save v2): placed build pieces, looted-
-	// container registry, and the full codex (SeenCount / FirstSeen).
+	// container registry, the full codex (SeenCount / FirstSeen), and
+	// every brain-carrying NPC actor so colonies survive reload.
 	if (UWorld* W = GetWorld())
 	{
 		for (TActorIterator<AActor> It(W); It; ++It)
@@ -472,6 +510,24 @@ void AQRGameMode::QuickSave()
 				B.Location      = It->GetActorLocation();
 				B.Rotation      = It->GetActorRotation();
 				Data.ColonyBuildables.Add(MoveTemp(B));
+			}
+
+			if (AQRNPCActor* NPC = Cast<AQRNPCActor>(*It))
+			{
+				FQRNPCSaveData N;
+				N.ActorLabel    = NPC->GetActorLabel();
+				N.NPCClassPath  = NPC->GetClass()->GetPathName();
+				N.DisplayName   = NPC->DisplayName;
+				N.Location      = NPC->GetActorLocation();
+				N.Rotation      = NPC->GetActorRotation();
+				if (UQRNPCBrainComponent* Brain = NPC->Brain)
+				{
+					N.HomePosition     = Brain->HomePosition;
+					N.AssignedWorkPost = Brain->AssignedWorkPost;
+					N.AssignedBed      = Brain->AssignedBed;
+					N.BrainState       = static_cast<uint8>(Brain->State);
+				}
+				Data.NPCActors.Add(MoveTemp(N));
 			}
 		}
 

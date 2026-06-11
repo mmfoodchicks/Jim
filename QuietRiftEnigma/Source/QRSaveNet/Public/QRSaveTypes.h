@@ -204,6 +204,28 @@ struct QRSAVENET_API FQRChunkDelta
 	UPROPERTY() TArray<FName> DestroyedActorIds;
 };
 
+// One NPC's mid-game snapshot. AQRNPCActor instances aren't level-
+// authored so saving the class + location means load can respawn them
+// where they walked off to instead of reverting to the spawner ring.
+USTRUCT()
+struct QRSAVENET_API FQRNPCSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FString ActorLabel;          // QR_Village_03_Theo_Beckford etc.
+	UPROPERTY() FString NPCClassPath;        // soft path to subclass; resolved on load
+	UPROPERTY() FText   DisplayName;
+	UPROPERTY() FVector Location = FVector::ZeroVector;
+	UPROPERTY() FRotator Rotation = FRotator::ZeroRotator;
+
+	// Brain memory -- so a colonist who'd walked to their work post
+	// at the moment of save is still standing there on reload.
+	UPROPERTY() FVector HomePosition       = FVector::ZeroVector;
+	UPROPERTY() FVector AssignedWorkPost   = FVector::ZeroVector;
+	UPROPERTY() FVector AssignedBed        = FVector::ZeroVector;
+	UPROPERTY() uint8   BrainState         = 0;   // EQRNPCBrainState
+};
+
 // Top-level save game structure
 USTRUCT()
 struct QRSAVENET_API FQRGameSaveData
@@ -265,6 +287,11 @@ struct QRSAVENET_API FQRGameSaveData
 	// The research component's CodexStates map only carries discovery
 	// states; this is the K-key codex widget's data.
 	UPROPERTY() TArray<FQRCodexEntrySaveData> CodexEntries;
+
+	// SaveVersion 2: every brain-carrying AQRNPCActor in the world. Lets
+	// a saved village survive reload with each colonist where they walked
+	// to, not back at the spawner ring.
+	UPROPERTY() TArray<FQRNPCSaveData> NPCActors;
 
 	// Faction data
 	UPROPERTY() TMap<FName, float> FactionTrustScores;

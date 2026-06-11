@@ -368,35 +368,63 @@ def _build_biome_profile_map():
     return out
 
 
+def _press_button(actor, ufunction_name, snake_fallback):
+    """Trigger a CallInEditor UFUNCTION from Python. Two paths because
+    different UE 5.x builds expose the bindings differently."""
+    if not actor:
+        return False
+    try:
+        actor.call_method(ufunction_name, ())
+        return True
+    except Exception:
+        pass
+    fn = getattr(actor, snake_fallback, None)
+    if callable(fn):
+        try:
+            fn()
+            return True
+        except Exception:
+            pass
+    return False
+
+
+def _ensure_singleton_actor(cls, label, location=None):
+    """Return the first level actor of `cls`, spawning one labeled
+    `label` if absent. Reused for the seed + spawner."""
+    for a in _level_actors():
+        if a and isinstance(a, cls):
+            return a
+    spawned = _spawn_actor(cls, location or unreal.Vector(0, 0, 0))
+    if spawned:
+        spawned.set_actor_label(label)
+        print("[dress]   spawned {} ({})".format(cls.__name__, label))
+    return spawned
+
+
 def _ensure_worldgen_seed():
-    """Make sure an AQRWorldGenSeedActor exists in the level and has
-    a generated grid. Returns the actor or None."""
+    """Spawn the seed actor (if absent) and run its Generate button so
+    UQRWorldGenSubsystem's cell grid + POI list are populated."""
     seed_cls = getattr(unreal, "QRWorldGenSeedActor", None)
     if seed_cls is None:
         print("[dress]   QRWorldGenSeedActor unavailable -- recompile C++")
         return None
+    seed = _ensure_singleton_actor(seed_cls, "QR_Dress_WorldGenSeed")
+    if not _press_button(seed, "Generate", "generate"):
+        print("[dress]   seed Generate() didn't fire (continuing)")
+    return seed
 
-    existing = None
-    for a in _level_actors():
-        if a and isinstance(a, seed_cls):
-            existing = a
-            break
-    if not existing:
-        existing = _spawn_actor(seed_cls, unreal.Vector(0, 0, 0))
-        if existing:
-            existing.set_actor_label("QR_Dress_WorldGenSeed")
-            print("[dress]   spawned WorldGenSeedActor at origin")
 
-    # Press the Generate button. The seed actor exposes Generate() as
-    # CallInEditor; Python sees it as generate() on the actor.
-    try:
-        existing.call_method("Generate", ())
-    except Exception:
-        try:
-            existing.generate()
-        except Exception as e:
-            print("[dress]   seed Generate() didn't fire: {}".format(e))
-    return existing
+def _ensure_worldgen_spawner():
+    """Drop the spawner + press SpawnAll so POIs (faction camps, crash
+    wrecks, fauna, caves) materialize at the cells the seed picked."""
+    spawner_cls = getattr(unreal, "QRWorldGenSpawner", None)
+    if spawner_cls is None:
+        print("[dress]   QRWorldGenSpawner unavailable -- recompile C++")
+        return None
+    spawner = _ensure_singleton_actor(spawner_cls, "QR_Dress_WorldGenSpawner")
+    if not _press_button(spawner, "SpawnAll", "spawn_all"):
+        print("[dress]   spawner SpawnAll() didn't fire (continuing)")
+    return spawner
 
 
 def _spawn_tile_scatter(center_x, center_y, half_tile_cm, profile_map, target_count):
@@ -457,7 +485,9 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
 
     _wipe_previous_dressing()
     if not skip_biomes:   _seed_biomes()
-    if not skip_worldgen: _ensure_worldgen_seed()
+    if not skip_worldgen:
+        _ensure_worldgen_seed()
+        _ensure_worldgen_spawner()   # POIs + fauna + caves
 
     profile_map = _build_biome_profile_map()
     if not profile_map:
