@@ -234,6 +234,15 @@ float UQRWeaponComponent::GetFoulingIncrement(bool bIsDirtyAmmo, bool bUseSuppre
 	return FMath::Clamp(Inc, 0.0f, 1.0f);
 }
 
+void UQRWeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UWorld* W = GetWorld())
+	{
+		W->GetTimerManager().ClearTimer(ReloadTimerHandle);
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
 bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 {
 	if (!CanFire()) return false;
@@ -268,13 +277,20 @@ bool UQRWeaponComponent::TryFire(AActor* Target, UQRItemInstance* AmmoInstance)
 	if (Target && GetOwner())
 		Distance = FVector::Dist(GetOwner()->GetActorLocation(), Target->GetActorLocation()) / 100.0f;
 
-	float Damage = ComputeEffectiveDamage(Distance);
+	// Apply the equipped ammo's damage multiplier + injury type here too —
+	// previously only the trace path (ApplyPelletDamage) resolved ammo, so
+	// poison/cryo/EMP rounds did nothing through this direct path.
+	EQRInjuryType AmmoInjury = EQRInjuryType::Bleeding;
+	float AmmoDamageMult = 1.0f;
+	ResolveAmmoEffect(AmmoInjury, AmmoDamageMult);
+
+	float Damage = ComputeEffectiveDamage(Distance) * AmmoDamageMult;
 
 	if (Target)
 	{
 		if (UQRSurvivalComponent* Survival = Target->FindComponentByClass<UQRSurvivalComponent>())
 		{
-			Survival->ApplyDamage(Damage, EQRInjuryType::Bleeding);
+			Survival->ApplyDamage(Damage, AmmoInjury);
 		}
 		else
 		{

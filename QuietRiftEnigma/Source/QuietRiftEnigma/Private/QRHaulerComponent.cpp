@@ -223,19 +223,19 @@ AActor* UQRHaulerComponent::FindStationWithDemand(FName& OutItemId, int32& OutQu
 
 		UQRCraftingComponent* Crafting = A->FindComponentByClass<UQRCraftingComponent>();
 		if (!Crafting) continue;
-		// CanCraft uses the station's own inventory; if it fails on a
-		// missing ingredient the reason text + RecipeQueue head tell us
-		// what to fetch. v1 takes a shortcut: if there's a queued
-		// recipe but IsCrafting is false, we assume the head is stalled
-		// and try to find anything that recipe needs.
 		if (Crafting->IsCrafting()) continue;
 		if (Crafting->RecipeQueue.Num() == 0) continue;
-		// We don't have a public "what ingredient is missing" API; for
-		// v1 set OutItemId to a generic RAW_METAL_SCRAP demand so the
-		// hauler at least moves SOMETHING. Designer can extend Crafting
-		// Component to expose CurrentDemandItem in a small follow-up.
-		OutItemId = TEXT("RAW_METAL_SCRAP");
-		OutQuantity = CarryCapacity;
+
+		// Ask the station what its head recipe is actually missing —
+		// scarcity-driven demand instead of the old hardcoded
+		// RAW_METAL_SCRAP guess that kept delivering scrap to a station
+		// stalled on copper.
+		int32 MissingQty = 0;
+		const FName Missing = Crafting->GetCurrentDemandItem(MissingQty);
+		if (Missing.IsNone()) continue;   // head is craftable — not stalled on inputs
+
+		OutItemId = Missing;
+		OutQuantity = FMath::Clamp(MissingQty, 1, CarryCapacity);
 		return A;
 	}
 	return nullptr;

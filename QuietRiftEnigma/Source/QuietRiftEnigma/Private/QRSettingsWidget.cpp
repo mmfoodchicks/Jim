@@ -18,6 +18,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Misc/ConfigCacheIni.h"
 #include "QRCharacter.h"
+#include "QRPauseMenuWidget.h"
 
 namespace QRSettingsDefaults
 {
@@ -230,5 +231,32 @@ void UQRSettingsWidget::HandleLeftHanded(bool bNew)
 void UQRSettingsWidget::HandleClose()
 {
 	QRUISound::PlayClick(this);
+
+	// QR_OpenSettings switched the controller to GameAndUI; without undoing
+	// that here, closing Settings opened from gameplay (console command, no
+	// pause menu underneath) left the player stuck in UI input — WASD dead.
+	// If the pause menu is still up, hand focus back to it instead.
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		UQRPauseMenuWidget* Pause = nullptr;
+		if (AQRCharacter* Char = Cast<AQRCharacter>(PC->GetPawn()))
+		{
+			Pause = (Char->PauseMenu && Char->PauseMenu->IsInViewport())
+				? Char->PauseMenu.Get() : nullptr;
+		}
+		if (Pause)
+		{
+			FInputModeGameAndUI Mode;
+			Mode.SetWidgetToFocus(Pause->TakeWidget());
+			PC->SetInputMode(Mode);
+			PC->bShowMouseCursor = true;
+		}
+		else
+		{
+			PC->SetInputMode(FInputModeGameOnly());
+			PC->bShowMouseCursor = false;
+		}
+	}
+
 	RemoveFromParent();
 }

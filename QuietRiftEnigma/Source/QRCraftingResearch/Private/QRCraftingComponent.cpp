@@ -4,6 +4,8 @@
 #include "QRStationBase.h"
 #include "QRDepotComponent.h"
 #include "QRItemInstance.h"
+#include "QRResearchComponent.h"
+#include "GameFramework/GameStateBase.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/UnrealType.h"
 
@@ -119,9 +121,21 @@ bool UQRCraftingComponent::CanCraft(FName RecipeId, FText& OutReason) const
 		}
 	}
 
-	// Tech-node check — TODO once research subsystem exposes a query. For
-	// now we accept any RequiredTechNodeId since the research runtime
-	// hasn't wired Has-Unlocked queries to this module.
+	// Tech-node gate. The research component lives on the GameState. If no
+	// research component exists (bare dev maps), crafting stays open so test
+	// maps don't brick — with one, locked means locked.
+	if (!Row->RequiredTechNodeId.IsNone())
+	{
+		const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+		const UQRResearchComponent* Research = GS
+			? GS->FindComponentByClass<UQRResearchComponent>() : nullptr;
+		if (Research && !Research->IsTechUnlocked(Row->RequiredTechNodeId))
+		{
+			OutReason = FText::FromString(FString::Printf(
+				TEXT("Requires research: %s"), *Row->RequiredTechNodeId.ToString()));
+			return false;
+		}
+	}
 
 	// Ingredient availability.
 	return HasAllIngredients(*Row, OutReason);
@@ -217,19 +231,92 @@ bool UQRCraftingComponent::ConsumeIngredients(const FQRRecipeTableRow& Recipe, F
 		const int32 Got = ConsumeFromInputs(Ing.ItemId, Ing.Quantity);
 		if (Got < Ing.Quantity)
 		{
-			// Rollback already-consumed items by depositing back via TryAdd.
-			// This is best-effort — a fully-rigorous rollback would need an
-			// explicit transaction API. For player-craft mode the cost of an
-			// imperfect rollback is one item disappearing, which is acceptable
-			// given HasAllIngredients should have prevented this path.
+			// Roll back: everything consumed so far goes back, including the
+			// partial take of THIS ingredient. Without this, a mid-recipe
+			// failure (co-op race, depot withdrawn between check and consume)
+			// silently ate the earlier ingredients.
+			if (Got > 0) DepositToInputs(Ing.ItemId, Got);
+			for (const TPair<FName, int32>& Pair : Consumed)
+			{
+				DepositToInputs(Pair.Key, Pair.Value);
+			}
 			OutReason = FText::FromString(FString::Printf(
-				TEXT("Failed to consume %d x %s (got %d) — recipe aborted"),
+				TEXT("Failed to consume %d x %s (got %d) — recipe aborted, ingredients returned"),
 				Ing.Quantity, *Ing.ItemId.ToString(), Got));
 			return false;
 		}
 		Consumed.Add(TPair<FName, int32>(Ing.ItemId, Got));
 	}
 	return true;
+}
+
+void UQRCraftingComponent::DepositToInputs(FName ItemId, int32 Quantity)
+{
+	if (ItemId.IsNone() || Quantity <= 0) return;
+
+	UQRItemDefinition* Def = FindItemDefinition(ItemId);
+	if (!Def)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[QRCraft] Rollback couldn't resolve definition for %d x %s — lost"),
+			Quantity, *ItemId.ToString());
+		return;
+	}
+
+	if (InputInventory)
+	{
+		int32 Remainder = 0;
+		InputInventory->TryAddByDefinition(Def, Quantity, Remainder);
+		if (Remainder > 0)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[QRCraft] Rollback couldn't fit %d x %s back into the input inventory"),
+				Remainder, *ItemId.ToString());
+		}
+		return;
+	}
+
+	if (AQRStationBase* Station = Cast<AQRStationBase>(GetOwner()))
+	{
+		TArray<UQRDepotComponent*> Depots = Station->FindNearbyDepots(FGameplayTag());
+		for (UQRDepotComponent* D : Depots)
+		{
+			if (!D) continue;
+			UQRItemInstance* Inst = NewObject<UQRItemInstance>(this);
+			Inst->Initialize(Def, Quantity);
+			if (D->DepositItem(Inst)) return;
+		}
+		UE_LOG(LogTemp, Warning,
+			TEXT("[QRCraft] Rollback found no depot to take back %d x %s"),
+			Quantity, *ItemId.ToString());
+	}
+}
+
+FName UQRCraftingComponent::FindFirstMissingIngredient(const FQRRecipeTableRow& Recipe, int32& OutMissingQty) const
+{
+	OutMissingQty = 0;
+	const TArray<FQRRecipeIngredient> Ingredients = Recipe.GetIngredients();
+	for (const FQRRecipeIngredient& Ing : Ingredients)
+	{
+		const int32 Avail = CountAvailable(Ing.ItemId);
+		if (Avail < Ing.Quantity)
+		{
+			OutMissingQty = Ing.Quantity - Avail;
+			return Ing.ItemId;
+		}
+	}
+	return NAME_None;
+}
+
+FName UQRCraftingComponent::GetCurrentDemandItem(int32& OutMissingQty) const
+{
+	OutMissingQty = 0;
+	// Head of the queue is what the station is trying to make next; the
+	// in-flight recipe already consumed its inputs.
+	const FName HeadId = RecipeQueue.Num() > 0 ? RecipeQueue[0] : NAME_None;
+	const FQRRecipeTableRow* Row = FindRecipeRow(HeadId);
+	if (!Row) return NAME_None;
+	return FindFirstMissingIngredient(*Row, OutMissingQty);
 }
 
 void UQRCraftingComponent::DeliverOutput(FName ItemId, int32 Quantity, TArray<FName>& OutDelivered)

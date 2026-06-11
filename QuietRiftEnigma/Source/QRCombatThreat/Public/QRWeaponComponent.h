@@ -386,6 +386,10 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	// Clears the reload timer — destroying the owner mid-reload otherwise
+	// leaves the timer firing into a dead component.
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 private:
 	// Drives FinishReload after ReloadTimeSeconds so a reload completes
 	// even when no reload-animation notify is wired up.

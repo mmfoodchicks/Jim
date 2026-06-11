@@ -176,6 +176,25 @@ private:
 	// Take N of an item from the input source. Returns the actual count taken.
 	int32 ConsumeFromInputs(FName ItemId, int32 Quantity);
 
+	// Put N of an item back into the input source — rollback path when a
+	// later ingredient fails to consume. Best-effort: logs anything that
+	// couldn't be returned (e.g. unresolvable definition).
+	void DepositToInputs(FName ItemId, int32 Quantity);
+
+	// First missing ingredient for a recipe (NAME_None when craftable).
+	// Public-facing via GetCurrentDemandItem below for hauler logic.
+	FName FindFirstMissingIngredient(const FQRRecipeTableRow& Recipe, int32& OutMissingQty) const;
+
+public:
+	// What this station's queue is actually stalled on right now — the
+	// first missing ingredient of the head recipe. NAME_None when nothing
+	// is queued or the head is craftable. Drives scarcity-aware hauling
+	// instead of the old hardcoded RAW_METAL_SCRAP guess.
+	UFUNCTION(BlueprintPure, Category = "Crafting")
+	FName GetCurrentDemandItem(int32& OutMissingQty) const;
+
+private:
+
 	// Helpers for delivering an output (one item id + quantity).
 	void DeliverOutput(FName ItemId, int32 Quantity, TArray<FName>& OutDelivered);
 
