@@ -28,6 +28,7 @@
 #include "QRBuildModeComponent.h"
 #include "QRLootedRegistry.h"
 #include "QRCodexSubsystem.h"
+#include "QRMountHusbandryComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -337,6 +338,16 @@ void AQRGameMode::Tick(float DeltaTime)
 		if (AQRFactionCamp* Camp = *It)
 		{
 			if (Camp->Sim) Camp->Sim->AdvanceGameHours(GameHoursElapsed);
+		}
+	}
+
+	// Drive mount husbandry on every tameable animal — taming days
+	// advance, stress decays, panic fires.
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (UQRMountHusbandryComponent* H = It->FindComponentByClass<UQRMountHusbandryComponent>())
+		{
+			H->TickGameHours(GameHoursElapsed);
 		}
 	}
 

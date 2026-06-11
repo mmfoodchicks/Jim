@@ -1,4 +1,5 @@
 #include "Wildlife/QRWildlife_VaultbackDray.h"
+#include "QRMountHusbandryComponent.h"
 #include "Net/UnrealNetwork.h"
 
 AQRWildlife_VaultbackDray::AQRWildlife_VaultbackDray()
@@ -18,6 +19,13 @@ AQRWildlife_VaultbackDray::AQRWildlife_VaultbackDray()
 	BodyHeightMeters   = 3.0f;
 	AttackDamage       = 35.0f;
 	AttackRange        = 350.0f;
+
+	Husbandry = CreateDefaultSubobject<UQRMountHusbandryComponent>(TEXT("Husbandry"));
+	// Drays are placid; longer taming because they're slow learners, but
+	// the stress curve is very forgiving once you're up.
+	Husbandry->BaseTameDays         = 10.0f;
+	Husbandry->P_tameFailPerDay     = 0.08f;
+	Husbandry->StressFromRidingPerHour = 1.5f;
 
 	DeathDrops.Add({ FName("FOD_DRAY_MEAT_LARGE"), 6, 10, 1.0f });
 	DeathDrops.Add({ FName("MAT_VAULT_HIDE"),       3,  5, 0.85f });
@@ -40,5 +48,4 @@ void AQRWildlife_VaultbackDray::GetLifetimeReplicatedProps(TArray<FLifetimePrope
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AQRWildlife_VaultbackDray, CurrentCargoWeightKg);
-	DOREPLIFETIME(AQRWildlife_VaultbackDray, bIsTamed);
 }

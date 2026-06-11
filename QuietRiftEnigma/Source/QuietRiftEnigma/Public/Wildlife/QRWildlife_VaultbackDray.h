@@ -2,6 +2,8 @@
 #include "QRWildlifeBase.h"
 #include "QRWildlife_VaultbackDray.generated.h"
 
+class UQRMountHusbandryComponent;
+
 // ANI_VAULTBACK_DRAY — Primary heavy transport mount; dorsal vault depression with harness ribs
 // Biomes: CraterFloors, BasaltShelf | Role: Heavy Mount / Cargo
 // Elite variant: ANI_VAULTBACK_DRAY_BASTION (alias: Stonevault)
@@ -24,8 +26,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VaultbackDray")
 	bool bIsBastionElite = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "VaultbackDray")
-	bool bIsTamed = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VaultbackDray")
+	TObjectPtr<UQRMountHusbandryComponent> Husbandry;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VaultbackDray")
 	float TamingDifficultyScore = 0.4f;
