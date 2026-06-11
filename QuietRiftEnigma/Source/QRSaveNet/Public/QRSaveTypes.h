@@ -157,6 +157,27 @@ struct QRSAVENET_API FQRBuildableSaveData
 	UPROPERTY() FRotator Rotation = FRotator::ZeroRotator;
 	UPROPERTY() float Health = 1.0f;
 	UPROPERTY() TArray<FQRItemSaveData> StoredItems;
+
+	// SaveVersion 2: row id into DT_BuildCatalog — what kind of piece this
+	// is, so load can respawn the right mesh. Matches UQRBuildPieceTag::PieceId.
+	UPROPERTY() FName PieceId;
+};
+
+// One codex entry snapshot — mirrors the game module's FQRCodexEntry,
+// which can't live here (the game module depends on QRSaveNet, not the
+// reverse). Conversion happens in UQRCodexSubsystem::Export/ImportEntries.
+USTRUCT()
+struct QRSAVENET_API FQRCodexEntrySaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FName Id;
+	UPROPERTY() FName Category;
+	UPROPERTY() EQRCodexDiscoveryState State = EQRCodexDiscoveryState::Undiscovered;
+	UPROPERTY() FText DisplayName;
+	UPROPERTY() FText Description;
+	UPROPERTY() int32 SeenCount = 0;
+	UPROPERTY() FDateTime FirstSeen;
 };
 
 // Research / Tech Node save state
@@ -235,6 +256,11 @@ struct QRSAVENET_API FQRGameSaveData
 	// UQRLootedRegistry exports/imports this set on save / load so emptied
 	// containers stay empty across reloads.
 	UPROPERTY() TArray<FGuid> LootedContainerIds;
+
+	// SaveVersion 2: full codex (SeenCount / FirstSeen / per-entry state).
+	// The research component's CodexStates map only carries discovery
+	// states; this is the K-key codex widget's data.
+	UPROPERTY() TArray<FQRCodexEntrySaveData> CodexEntries;
 
 	// Faction data
 	UPROPERTY() TMap<FName, float> FactionTrustScores;

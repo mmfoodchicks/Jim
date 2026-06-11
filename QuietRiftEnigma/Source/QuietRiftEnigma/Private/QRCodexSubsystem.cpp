@@ -78,3 +78,48 @@ int32 UQRCodexSubsystem::CountByCategoryAndState(FName Category,
 	}
 	return Count;
 }
+
+
+void UQRCodexSubsystem::ExportEntries(TArray<FQRCodexEntrySaveData>& Out) const
+{
+	Out.Reset(Entries.Num());
+	for (const TPair<FName, FQRCodexEntry>& KV : Entries)
+	{
+		const FQRCodexEntry& E = KV.Value;
+		FQRCodexEntrySaveData S;
+		S.Id          = E.Id;
+		S.Category    = E.Category;
+		S.State       = E.State;
+		S.DisplayName = E.DisplayName;
+		S.Description = E.Description;
+		S.SeenCount   = E.SeenCount;
+		S.FirstSeen   = E.FirstSeen;
+		Out.Add(MoveTemp(S));
+	}
+}
+
+
+void UQRCodexSubsystem::ImportEntries(const TArray<FQRCodexEntrySaveData>& In)
+{
+	for (const FQRCodexEntrySaveData& S : In)
+	{
+		if (S.Id.IsNone()) continue;
+		FQRCodexEntry& E = Entries.FindOrAdd(S.Id);
+		if (E.Id.IsNone())
+		{
+			E.Id          = S.Id;
+			E.Category    = S.Category;
+			E.DisplayName = S.DisplayName;
+			E.Description = S.Description;
+			E.FirstSeen   = S.FirstSeen;
+		}
+		// Monotonic merge — discoveries made this session before the save
+		// applied (load happens a few frames into the world) aren't lost.
+		E.SeenCount = FMath::Max(E.SeenCount, S.SeenCount);
+		if (static_cast<uint8>(S.State) > static_cast<uint8>(E.State))
+		{
+			E.State = S.State;
+			OnEntryUpdated.Broadcast(E.Id, E.State);
+		}
+	}
+}

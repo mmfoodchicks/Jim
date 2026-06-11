@@ -24,6 +24,10 @@
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
 #include "QRSaveSnapshotLibrary.h"
+#include "QRBuildPieceTag.h"
+#include "QRBuildModeComponent.h"
+#include "QRLootedRegistry.h"
+#include "QRCodexSubsystem.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -247,6 +251,30 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 	// Research / tech tree / codex — was never restored before v2.
 	FQRSaveSnapshot::ApplyResearch(Research, PendingLoadedData.ResearchData);
 
+	// World-state restore: looted containers stay empty, codex keeps its
+	// discovery history, and the placed base comes back.
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRLootedRegistry* Looted = W->GetSubsystem<UQRLootedRegistry>())
+		{
+			Looted->ImportLootedIds(PendingLoadedData.LootedContainerIds);
+		}
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->ImportEntries(PendingLoadedData.CodexEntries);
+		}
+		if (PendingLoadedData.ColonyBuildables.Num() > 0)
+		{
+			// Catalog comes off the player's build component — same table
+			// placement used, so saved PieceIds resolve identically.
+			UDataTable* Catalog = (Player->Build) ? Player->Build->PieceCatalog.Get() : nullptr;
+			const int32 N = UQRBuildModeComponent::RestoreFromSave(
+				W, Catalog, PendingLoadedData.ColonyBuildables);
+			UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d/%d build pieces"),
+				N, PendingLoadedData.ColonyBuildables.Num());
+		}
+	}
+
 	// Identity (name + pronouns + voice profile). Appearance lives on
 	// the character creator flow and isn't restored mid-session — the
 	// creator runs only at New Game.
@@ -381,6 +409,33 @@ void AQRGameMode::QuickSave()
 	// Research / tech tree / codex — the ResearchData field existed since
 	// v1 but nothing ever filled it, so research was lost on every reload.
 	FQRSaveSnapshot::CaptureResearch(Research, Data.ResearchData);
+
+	// World-state persistence (save v2): placed build pieces, looted-
+	// container registry, and the full codex (SeenCount / FirstSeen).
+	if (UWorld* W = GetWorld())
+	{
+		for (TActorIterator<AActor> It(W); It; ++It)
+		{
+			if (UQRBuildPieceTag* Tag = It->FindComponentByClass<UQRBuildPieceTag>())
+			{
+				FQRBuildableSaveData B;
+				B.BuildableGuid = Tag->PieceGuid;
+				B.PieceId       = Tag->PieceId;
+				B.Location      = It->GetActorLocation();
+				B.Rotation      = It->GetActorRotation();
+				Data.ColonyBuildables.Add(MoveTemp(B));
+			}
+		}
+
+		if (UQRLootedRegistry* Looted = W->GetSubsystem<UQRLootedRegistry>())
+		{
+			Data.LootedContainerIds = Looted->ExportLootedIds();
+		}
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->ExportEntries(Data.CodexEntries);
+		}
+	}
 
 	SaveSystem->SaveGame(Data, AutosaveSlotName, 0);
 	UE_LOG(LogTemp, Log, TEXT("[QR] QuickSave -> '%s' (Day %d)"), *AutosaveSlotName, DayNumber);

@@ -1,12 +1,14 @@
 #include "QRBuildModeComponent.h"
 #include "QRBuildPieceTag.h"
 #include "QRInventoryComponent.h"
+#include "QRSaveTypes.h"
 #include "Camera/CameraComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "Engine/OverlapResult.h"
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 
 UQRBuildModeComponent::UQRBuildModeComponent()
@@ -332,14 +334,29 @@ bool UQRBuildModeComponent::TryConfirmPlacement()
 	UWorld* W = GetWorld();
 	if (!W) return false;
 
+	const FTransform Xform(GhostActor->GetActorRotation(), GhostActor->GetActorLocation());
+	AActor* Piece = SpawnPlacedPiece(W, Mesh, CurrentPieceId, Xform, FGuid::NewGuid());
+	if (!Piece) return false;
+
+	OnPiecePlaced.Broadcast(Piece);
+
+	// Keep ghost up so the player can place another of the same piece
+	// without re-selecting. Validation will re-run next tick.
+	return true;
+}
+
+AActor* UQRBuildModeComponent::SpawnPlacedPiece(UWorld* World, UStaticMesh* Mesh,
+	FName PieceId, const FTransform& Xform, const FGuid& Guid)
+{
+	if (!World || !Mesh) return nullptr;
+
 	// Spawn the placed piece as a generic AActor + mesh component +
 	// UQRBuildPieceTag. Keeps the actor class simple while letting the
 	// build system find pieces later via the tag component.
-	const FTransform Xform(GhostActor->GetActorRotation(), GhostActor->GetActorLocation());
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AActor* Piece = W->SpawnActor<AActor>(AActor::StaticClass(), Xform, Params);
-	if (!Piece) return false;
+	AActor* Piece = World->SpawnActor<AActor>(AActor::StaticClass(), Xform, Params);
+	if (!Piece) return nullptr;
 
 	UStaticMeshComponent* SMC = NewObject<UStaticMeshComponent>(Piece);
 	SMC->RegisterComponent();
@@ -347,15 +364,53 @@ bool UQRBuildModeComponent::TryConfirmPlacement()
 	SMC->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	SMC->SetMobility(EComponentMobility::Static);
 	Piece->SetRootComponent(SMC);
+	SMC->SetWorldTransform(Xform);
 
 	UQRBuildPieceTag* Tag = NewObject<UQRBuildPieceTag>(Piece);
-	Tag->PieceId   = CurrentPieceId;
-	Tag->PieceGuid = FGuid::NewGuid();
+	Tag->PieceId   = PieceId;
+	Tag->PieceGuid = Guid;
 	Tag->RegisterComponent();
 
-	OnPiecePlaced.Broadcast(Piece);
+	return Piece;
+}
 
-	// Keep ghost up so the player can place another of the same piece
-	// without re-selecting. Validation will re-run next tick.
-	return true;
+int32 UQRBuildModeComponent::RestoreFromSave(UWorld* World, UDataTable* Catalog,
+	const TArray<FQRBuildableSaveData>& Saved)
+{
+	if (!World || !Catalog) return 0;
+
+	// Tear down whatever tagged pieces already exist — loading mid-session
+	// must not duplicate the base.
+	TArray<AActor*> ToDestroy;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (It->FindComponentByClass<UQRBuildPieceTag>())
+		{
+			ToDestroy.Add(*It);
+		}
+	}
+	for (AActor* A : ToDestroy) A->Destroy();
+
+	int32 Restored = 0;
+	for (const FQRBuildableSaveData& S : Saved)
+	{
+		if (S.PieceId.IsNone()) continue;
+		const FQRBuildPieceRow* Row = Catalog->FindRow<FQRBuildPieceRow>(S.PieceId, TEXT("QRBuildRestore"), false);
+		if (!Row)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[QRBuild] Saved piece '%s' not in catalog — skipped"),
+				*S.PieceId.ToString());
+			continue;
+		}
+		UStaticMesh* Mesh = Row->Mesh.LoadSynchronous();
+		if (!Mesh) continue;
+
+		const FTransform Xform(S.Rotation, S.Location);
+		if (SpawnPlacedPiece(World, Mesh, S.PieceId, Xform,
+			S.BuildableGuid.IsValid() ? S.BuildableGuid : FGuid::NewGuid()))
+		{
+			++Restored;
+		}
+	}
+	return Restored;
 }

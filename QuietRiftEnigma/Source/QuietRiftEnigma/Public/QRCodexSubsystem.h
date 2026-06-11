@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "QRTypes.h"
+#include "QRSaveTypes.h"
 #include "QRCodexSubsystem.generated.h"
 
 
@@ -76,6 +77,13 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "QR|Codex")
 	int32 CountByCategoryAndState(FName Category, EQRCodexDiscoveryState State) const;
+
+	// Save bridge — FQRCodexEntry can't live in QRSaveNet (module dep is
+	// game→savenet), so the snapshot copies through FQRCodexEntrySaveData.
+	// Import merges monotonically: an entry that advanced this session
+	// isn't regressed by an older save applied late.
+	void ExportEntries(TArray<FQRCodexEntrySaveData>& Out) const;
+	void ImportEntries(const TArray<FQRCodexEntrySaveData>& In);
 
 private:
 	UPROPERTY()
