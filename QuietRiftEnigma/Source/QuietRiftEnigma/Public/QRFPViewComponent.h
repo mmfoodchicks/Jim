@@ -59,12 +59,24 @@ public:
 
 	// True while the held weapon carries a scope attachment. Set by
 	// AQRCharacter when the active hand-slot item changes. ADS while
-	// this is true uses ScopeFOV + shows the scope overlay widget.
+	// this is true uses ScopeFOV / ScopeZoomMultiplier + shows the scope
+	// overlay widget.
 	UPROPERTY(BlueprintReadOnly, Category = "FP View")
 	bool bScopeAvailable = false;
 
+	// Magnification multiplier for the currently-equipped scope. 1.0 is
+	// the baseline (uses ScopeFOV as-is); a 16× optic narrows further by
+	// dividing ScopeFOV by the multiplier above 4× (the v8 patch's 8X
+	// and 16X scopes). Set by AQRCharacter when the held weapon or its
+	// optic changes.
+	UPROPERTY(BlueprintReadOnly, Category = "FP View")
+	float ScopeZoomMultiplier = 1.0f;
+
 	UFUNCTION(BlueprintCallable, Category = "FP View")
 	void SetScopeAvailable(bool bHasScope);
+
+	UFUNCTION(BlueprintCallable, Category = "FP View")
+	void SetScopeZoomMultiplier(float Mult);
 
 	// How fast FOV interpolates between states (units = lerp speed; ~6 is snappy).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",

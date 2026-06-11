@@ -1289,17 +1289,35 @@ void AQRCharacter::RefreshHeldItemMesh()
 	}
 
 	// Scope detection — long-range sniper or any weapon with ItemId
-	// containing SNIPER or with a scope attachment in tags. Designer
-	// can override via per-weapon tags later. For now: name-based.
+	// containing SNIPER / DMR / SCOPE. The v8 patch's long-range sniper
+	// and the 8X / 16X optic attachments drive the magnification tier:
+	//   LONGRANGE  → 4× (ScopeFOV baseline)
+	//   ATT_8X     → 2× ScopeFOV (=10° effective)
+	//   ATT_16X    → 4× ScopeFOV (=5° effective)
+	// Name-based until the attachment runtime exposes EquippedAttachmentIds.
 	bool bHasScope = false;
+	float ScopeZoom = 1.0f;
 	if (Inventory && Inventory->HandSlot && Inventory->HandSlot->Definition)
 	{
-		const FString Id = Inventory->HandSlot->Definition->ItemId.ToString();
+		const FString Id = Inventory->HandSlot->Definition->ItemId.ToString().ToUpper();
 		bHasScope = Id.Contains(TEXT("SNIPER"))
 				 || Id.Contains(TEXT("DMR"))
-				 || Id.Contains(TEXT("SCOPE"));
+				 || Id.Contains(TEXT("SCOPE"))
+				 || Id.Contains(TEXT("LONGRANGE"));
+		if (Id.Contains(TEXT("LONGRANGE")) || Id.Contains(TEXT("16X")))
+		{
+			ScopeZoom = 4.0f;
+		}
+		else if (Id.Contains(TEXT("8X")))
+		{
+			ScopeZoom = 2.0f;
+		}
 	}
-	if (CachedView) CachedView->SetScopeAvailable(bHasScope);
+	if (CachedView)
+	{
+		CachedView->SetScopeAvailable(bHasScope);
+		CachedView->SetScopeZoomMultiplier(ScopeZoom);
+	}
 
 	// Handedness applied last so the negative-Y scale flip composes with
 	// the uniform bounds-based scale set above. Position + rotation are

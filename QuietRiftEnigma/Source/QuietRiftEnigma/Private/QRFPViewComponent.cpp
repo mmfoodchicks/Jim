@@ -100,8 +100,17 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	// ── 1. FOV blend ────────────────────────────
 	// ADS wins over sprint (you can't aim while sprinting in most games anyway).
 	// Scope tier wins over regular ADS when bScopeAvailable is true.
+	// ScopeZoomMultiplier scales beyond the baseline 4× scope by dividing
+	// further -- 8× = ScopeFOV/2, 16× = ScopeFOV/4 (the v8 patch optics).
 	float TargetFOV = BaseFOV;
-	if (bIsADS && bScopeAvailable) TargetFOV = ScopeFOV;
+	if (bIsADS && bScopeAvailable)
+	{
+		TargetFOV = ScopeFOV;
+		if (ScopeZoomMultiplier > 1.0f)
+		{
+			TargetFOV = FMath::Clamp(ScopeFOV / ScopeZoomMultiplier, 2.0f, ScopeFOV);
+		}
+	}
 	else if (bIsADS)               TargetFOV = ADSFOV;
 	else if (bSprinting)           TargetFOV = SprintFOV;
 
@@ -196,4 +205,10 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 void UQRFPViewComponent::SetScopeAvailable(bool bHasScope)
 {
 	bScopeAvailable = bHasScope;
+}
+
+
+void UQRFPViewComponent::SetScopeZoomMultiplier(float Mult)
+{
+	ScopeZoomMultiplier = FMath::Clamp(Mult, 1.0f, 16.0f);
 }
