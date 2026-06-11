@@ -292,7 +292,11 @@ Genuinely-missing gaps, in priority order (see §N of
 6. **Mount husbandry loop** — ✅ closed 2026-06-11.
    `UQRMountHusbandryComponent` owns BaseTameDays, P_tameFailPerDay,
    CurrentStressPool, PanicThreshold; Courser + Dray subclassed.
-7. **Leader directive chains + Moral Compass vectors.**
+7. **Leader directive chains + Moral Compass vectors** — ✅ closed
+   2026-06-11 (chain side). `UQRLeaderComponent::OnQuestIssued` fires
+   at the Escalating→QuestIssued FSM edge; mission director's
+   `IssueDirectiveMission` materializes a family-matched mission.
+   Moral Compass vector math already lived in `UpdateCampAlignment`.
 8. **Faction raid leader experience bands** — ✅ closed 2026-06-11.
    `FQRRaidPlan::Experience` set by `DetermineRaidTier`; the raid AI
    restamps perception/speed/damage/retreat per tier.
