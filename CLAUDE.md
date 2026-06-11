@@ -172,6 +172,13 @@ the reverse). Keep it that way.
 - **Save lifecycle**: `AQRGameMode` autosaves on BeginPlay (load),
   Logout, EndPlay, and every 5 min. Pause menu Save button + Main menu
   Continue both use the QuickSave slot.
+- **Save extension rule** (since save v2, 2026-06-11): all capture/apply
+  logic lives in `FQRSaveSnapshot` (`QRSaveNet/QRSaveSnapshotLibrary`).
+  A system persists iff it has a Capture/Apply pair there — never
+  hand-copy fields in `QuickSave` again; that's how research, armour
+  slots, injuries, and grid layout silently fell out of v1 saves. Bump
+  `QRCurrentSaveVersion` + add a `MigrateToCurrentVersion` step when
+  the structs change.
 
 ---
 
@@ -266,8 +273,9 @@ Genuinely-missing gaps, in priority order (see §N of
    hurt wildlife via `AQRWildlifeBase::TakeDamage`).
 2. **Mission generator + RewardSourceValidation** — director exists,
    template-instantiator + No-Pocket-OP law not wired.
-3. **Hauler de-hardcode** — `UQRHaulerComponent` hardcodes
-   `RAW_METAL_SCRAP`; needs real scarcity-driven demand.
+3. **Hauler de-hardcode** — ✅ v1 closed 2026-06-11
+   (`GetCurrentDemandItem` drives demand; v2 = deficit weighting
+   across multiple stalled stations).
 4. **Long-range optics v8** — `ATT_8X_SCOPE`, `ATT_16X_SCOPE`,
    `WPN_LONGRANGE_SNIPER` not in attachments/weapons code.
 5. **Cross-contamination farming mutation pipeline.**
@@ -275,7 +283,9 @@ Genuinely-missing gaps, in priority order (see §N of
 7. **Leader directive chains + Moral Compass vectors.**
 8. **Faction raid leader experience bands.**
 9. **Civilian Fight mode** — faces threat but doesn't fire.
-10. **Codex save persistence.**
+10. **Codex save persistence** — 🟡 partial 2026-06-11: research-side
+    codex states persist via save v2 (`FQRSaveSnapshot`); the game-
+    module `UQRCodexSubsystem::Entries` map still doesn't.
 11. **Co-op transaction-ID safety net.**
 12. **Programmatic Landscape import.**
 13. **World partition streaming + chunk delta saves.**

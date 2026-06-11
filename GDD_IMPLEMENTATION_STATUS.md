@@ -364,9 +364,12 @@ re-ranked by impact on shipping.
    table + `UQRMissionDirector` exist, but the template-instantiator
    with `MissionLocationFallbackRule` + `RewardSourceValidation` (the
    GDD's No-Pocket-OP law) isn't wired.
-3. **Hauler / depot pull logic** — `UQRHaulerComponent` ticks, but
-   it hardcodes `RAW_METAL_SCRAP` as the demand item. Needs real
-   `StorageDeficitMod` + `PullPriority` scarcity weighting.
+3. **Hauler / depot pull logic** — ✅ v1 closed (2026-06-11).
+   `UQRCraftingComponent::GetCurrentDemandItem` exposes the first
+   missing ingredient of the queue-head recipe; the hauler fetches
+   that instead of the old hardcoded `RAW_METAL_SCRAP`. Still open
+   for v2: `StorageDeficitMod` weighting across multiple stalled
+   stations (currently first-found wins).
 4. **Long-range optics + sniper (patch v8)** — `ATT_8X_SCOPE`,
    `ATT_16X_SCOPE`, `WPN_LONGRANGE_SNIPER` not in attachments/weapons
    code. `DT_ArmoryAttachments.csv` has rows; weapons module doesn't.
@@ -387,8 +390,13 @@ re-ranked by impact on shipping.
 9. **Civilian Fight mode no-op** — `UQRCivilianReactionComponent`
    Fight state faces threat but doesn't fire. Wire weapon firing
    when MilitiaKit is equipped.
-10. **Codex save persistence** — `UQRCodexSubsystem` aggregates
-    discoveries but they don't survive a save/load cycle.
+10. **Codex save persistence** — 🟡 partial (2026-06-11). Save v2
+    persists `UQRResearchComponent` state (tech nodes, micro-research,
+    `CodexStates`) via `FQRSaveSnapshot`. Still missing: the game-
+    module `UQRCodexSubsystem::Entries` map (SeenCount / FirstSeen /
+    per-entry state) — it lives in the game module so QRSaveNet can't
+    reference its struct; needs an export/import pair like
+    `UQRLootedRegistry` uses.
 11. **Co-op transaction-ID safety net** — GDD demands server-authored
     transaction IDs on every inventory mutation to prevent dupes.
     Standard UE replication is used; no transaction-ID layer yet.
