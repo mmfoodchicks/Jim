@@ -57,17 +57,57 @@ MESH_CANDIDATES = [
     "/Engine/EngineMeshes/SkeletalCube.SkeletalCube",   # last-ditch debug placeholder
 ]
 
+# Locomotion -- prefer the unified ControlRig set so all NPCs share one
+# skeleton (qr_unify_mannequin_anims clones them under /Game/QuietRift/
+# Animations/ControlRig). The stock /Game/Characters path is checked
+# first in case the official feature pack is installed.
 IDLE_CANDIDATES = [
+    "/Game/QuietRift/Animations/ControlRig/A_MM_Idle.A_MM_Idle",
     "/Game/Characters/Mannequins/Animations/Manny/MM_Idle.MM_Idle",
     "/Game/ControlRig/Characters/Mannequins/Animations/Manny/MM_Idle.MM_Idle",
     "/Game/ControlRig/Characters/Mannequins/Animations/Quinn/MF_Idle.MF_Idle",
+    # Combat-pack fallback: Standing_Idle ships with RamsterZ.
+    "/Game/QuietRift/Animations/RamsterZ/A_Standing_Idle.A_Standing_Idle",
 ]
 
 WALK_CANDIDATES = [
+    "/Game/QuietRift/Animations/ControlRig/A_MM_Walk_Fwd.A_MM_Walk_Fwd",
     "/Game/Characters/Mannequins/Animations/Manny/MM_Walk_Fwd.MM_Walk_Fwd",
     "/Game/ControlRig/Characters/Mannequins/Animations/Manny/MM_Walk_Fwd.MM_Walk_Fwd",
     "/Game/ControlRig/Characters/Mannequins/Animations/Quinn/MF_Walk_Fwd.MF_Walk_Fwd",
     "/Game/ControlRig/Characters/Mannequins/Animations/Manny/MM_Walk_InPlace.MM_Walk_InPlace",
+]
+
+RUN_CANDIDATES = [
+    "/Game/QuietRift/Animations/ControlRig/A_MM_Run_Fwd.A_MM_Run_Fwd",
+    "/Game/ControlRig/Characters/Mannequins/Animations/Manny/MM_Run_Fwd.MM_Run_Fwd",
+    "/Game/ControlRig/Characters/Mannequins/Animations/Quinn/MF_Run_Fwd.MF_Run_Fwd",
+]
+
+# Sleep loops -- DeadBodies has Lie poses; use one as a sleep pose.
+SLEEP_CANDIDATES = [
+    "/Game/QuietRift/Animations/DeadBodies/A_AS_DeadBody_Pose_Lie_05.A_AS_DeadBody_Pose_Lie_05",
+    "/Game/QuietRift/Animations/DeadBodies/A_AS_DeadBody_Pose_Lie_03.A_AS_DeadBody_Pose_Lie_03",
+]
+
+# Work loop -- FreeAnimsMix has ReachingForward (working-at-table feel).
+WORK_CANDIDATES = [
+    "/Game/QuietRift/Animations/FreeAnimsMix/A_AS_ReachingForward.A_AS_ReachingForward",
+    "/Game/QuietRift/Animations/RamsterZ/A_H2H_Idle.A_H2H_Idle",
+]
+
+# Talk loop -- emote/gesture anims work for chatting villagers.
+TALK_CANDIDATES = [
+    "/Game/QuietRift/Animations/FreeAnimsMix/A_AS_Emotes19.A_AS_Emotes19",
+    "/Game/QuietRift/Animations/RamsterZ/A_SillyGesture01.A_SillyGesture01",
+    "/Game/QuietRift/Animations/RamsterZ/A_SillyGesture02.A_SillyGesture02",
+]
+
+# Death pose -- DeadBodies has 30 variants. Any Lie pose works.
+DEATH_CANDIDATES = [
+    "/Game/QuietRift/Animations/DeadBodies/A_AS_DeadBody_Pose_Lie_11.A_AS_DeadBody_Pose_Lie_11",
+    "/Game/QuietRift/Animations/DeadBodies/A_AS_DeadBody_Pose_Lie_16.A_AS_DeadBody_Pose_Lie_16",
+    "/Game/QuietRift/Animations/FreeAnimsMix/A_AS_DyingFromWounds.A_AS_DyingFromWounds",
 ]
 
 
@@ -142,39 +182,82 @@ def _stamp_class(class_path, mesh, idle, walk):
     return True
 
 
-def run(mesh=None, idle=None, walk=None):
-    """Resolve a mesh + idle + walk anim and stamp them onto the
-    AQRNPCActor and AQRNPCColonist class defaults.
+def _stamp_brain_slot(brain, prop_snake, asset, name):
+    if not brain or not asset:
+        return False
+    try:
+        brain.set_editor_property(prop_snake, asset)
+        return True
+    except Exception as e:
+        print("[npc-skin]   {} skipped on {}: {}".format(prop_snake, name, e))
+        return False
 
-    Args:
-      mesh: optional soft path override for the skeletal mesh.
-      idle: optional soft path override for the idle animation.
-      walk: optional soft path override for the walk animation.
+
+def _stamp_class_v2(class_path, mesh, anims):
+    """anims = {brain_property_snake_case: asset_or_none}"""
+    cls = unreal.load_object(None, class_path)
+    if not cls:
+        print("[npc-skin]   class {} not loaded (recompile?)".format(class_path))
+        return False
+    name = class_path.rsplit("/", 1)[-1]
+    ok_mesh = _set_cdo_property(cls, "default_skeletal_mesh", mesh) if mesh else False
+
+    cdo = unreal.get_default_object(cls)
+    try:
+        brain = cdo.get_editor_property("brain")
+    except Exception:
+        brain = None
+
+    stamped = []
+    for prop_snake, asset in anims.items():
+        if _stamp_brain_slot(brain, prop_snake, asset, name):
+            stamped.append(prop_snake)
+
+    print("[npc-skin]   {:<22s}: mesh={} anims=[{}]".format(
+        name, "Y" if ok_mesh else ".", ", ".join(stamped) if stamped else "none"))
+    return True
+
+
+def run(mesh=None, idle=None, walk=None, run_=None,
+        sleep=None, work=None, talk=None, death=None):
+    """Resolve a mesh + full anim set and stamp onto AQRNPCActor and
+    AQRNPCColonist class defaults.
+
+    Args (all optional soft-path overrides):
+      mesh, idle, walk, run_, sleep, work, talk, death
     """
     print("\n=== qr_assign_npc_appearance ===")
 
     mesh_asset = _resolve_or(MESH_CANDIDATES, mesh)
-    idle_asset = _resolve_or(IDLE_CANDIDATES, idle)
-    walk_asset = _resolve_or(WALK_CANDIDATES, walk)
+    anims = {
+        "idle_anim":  _resolve_or(IDLE_CANDIDATES,  idle),
+        "walk_anim":  _resolve_or(WALK_CANDIDATES,  walk),
+        "run_anim":   _resolve_or(RUN_CANDIDATES,   run_),
+        "sleep_anim": _resolve_or(SLEEP_CANDIDATES, sleep),
+        "work_anim":  _resolve_or(WORK_CANDIDATES,  work),
+        "talk_anim":  _resolve_or(TALK_CANDIDATES,  talk),
+        "death_anim": _resolve_or(DEATH_CANDIDATES, death),
+    }
 
     if not mesh_asset:
-        print("[npc-skin] No Mannequin SKM mesh found. Import the UE5 Third")
-        print("[npc-skin] Person template content (Add Content -> Third Person")
-        print("[npc-skin] Feature Pack) and re-run, OR pass mesh='/Game/...'.")
+        print("[npc-skin] No Mannequin SKM mesh found. The Fab library should ship")
+        print("[npc-skin] several (ControlRig, FreeAnimsMixPack, DynamicFalling).")
+        print("[npc-skin] If the script can't find any, override: run(mesh='/Game/...')")
         return
 
     print("[npc-skin] mesh:  {}".format(mesh_asset.get_path_name()))
-    print("[npc-skin] idle:  {}".format(idle_asset.get_path_name() if idle_asset else "(none)"))
-    print("[npc-skin] walk:  {}".format(walk_asset.get_path_name() if walk_asset else "(none)"))
+    for prop, asset in anims.items():
+        path = asset.get_path_name() if asset else "(none)"
+        print("[npc-skin] {:<10s} {}".format(prop + ":", path))
 
     targets = [
         "/Script/QuietRiftEnigma.QRNPCActor",
         "/Script/QuietRiftEnigma.QRNPCColonist",
     ]
     for t in targets:
-        _stamp_class(t, mesh_asset, idle_asset, walk_asset)
+        _stamp_class_v2(t, mesh_asset, anims)
 
-    print("[npc-skin] DONE -- new NPC spawns wear the assigned mesh + anims.")
+    print("[npc-skin] DONE -- new NPC spawns wear the assigned mesh + full anim set.")
     print("[npc-skin] Existing villagers in the level must be re-spawned")
     print("[npc-skin] (re-run qr_spawn_starter_village) to pick up the change.")
 

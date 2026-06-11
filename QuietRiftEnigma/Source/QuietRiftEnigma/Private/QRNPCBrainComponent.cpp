@@ -72,11 +72,22 @@ void UQRNPCBrainComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	{
 		StepTowardTarget(DeltaTime);
 	}
-	ApplyAnimForVelocity(DeltaTime);
+	ApplyAnimForState(DeltaTime);
 }
 
 
-void UQRNPCBrainComponent::ApplyAnimForVelocity(float DeltaSeconds)
+void UQRNPCBrainComponent::PlayIfDifferent(UAnimSequence* Seq)
+{
+	if (!Seq) return;
+	USkeletalMeshComponent* SMC = CachedMesh.Get();
+	if (!SMC) return;
+	if (LastPlayedAnim.Get() == Seq) return;   // already playing -- don't restart
+	SMC->PlayAnimation(Seq, /*bLooping*/ true);
+	LastPlayedAnim = Seq;
+}
+
+
+void UQRNPCBrainComponent::ApplyAnimForState(float DeltaSeconds)
 {
 	USkeletalMeshComponent* SMC = CachedMesh.Get();
 	AActor* Owner = GetOwner();
@@ -86,16 +97,44 @@ void UQRNPCBrainComponent::ApplyAnimForVelocity(float DeltaSeconds)
 	const float Speed = (Now - LastFrameLocation).Size2D() / DeltaSeconds;
 	LastFrameLocation = Now;
 
-	const bool bShouldWalk = Speed >= WalkSpeedThreshold;
-	if (bShouldWalk == bAnimIsWalking) return;   // hysteresis -- only swap on edge
-
-	bAnimIsWalking = bShouldWalk;
-	UAnimSequence* Next = bShouldWalk ? WalkAnim.LoadSynchronous()
-	                                  : IdleAnim.LoadSynchronous();
-	if (Next)
+	// Resolve target anim from State + Speed. Each lookup falls back
+	// to a sensible parent so a sparsely-authored NPC still animates.
+	auto Pick = [this](TSoftObjectPtr<UAnimSequence>& Primary,
+	                   TSoftObjectPtr<UAnimSequence>& Fallback) -> UAnimSequence*
 	{
-		SMC->PlayAnimation(Next, /*bLooping*/ true);
+		if (UAnimSequence* S = Primary.LoadSynchronous()) return S;
+		return Fallback.LoadSynchronous();
+	};
+
+	UAnimSequence* Target = nullptr;
+
+	// Movement wins over state-loop -- a walking sleeper isn't a thing,
+	// but the brain may decide the NPC needs to walk somewhere during
+	// the Sleep window if they got displaced. Velocity is the truth.
+	if (Speed >= RunSpeedThreshold)
+	{
+		Target = Pick(RunAnim, WalkAnim);
+		if (!Target) Target = IdleAnim.LoadSynchronous();
 	}
+	else if (Speed >= WalkSpeedThreshold)
+	{
+		Target = WalkAnim.LoadSynchronous();
+		if (!Target) Target = IdleAnim.LoadSynchronous();
+	}
+	else
+	{
+		// Stationary: state-loop drives the pose.
+		switch (State)
+		{
+		case EQRNPCBrainState::Sleep:     Target = Pick(SleepAnim, IdleAnim); break;
+		case EQRNPCBrainState::Work:      Target = Pick(WorkAnim,  IdleAnim); break;
+		case EQRNPCBrainState::Socialize: Target = Pick(TalkAnim,  IdleAnim); break;
+		default:                          Target = IdleAnim.LoadSynchronous(); break;
+		}
+	}
+
+	bAnimIsWalking = Speed >= WalkSpeedThreshold;
+	PlayIfDifferent(Target);
 }
 
 

@@ -112,11 +112,39 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
 	TSoftObjectPtr<UAnimSequence> WalkAnim;
 
+	// Optional run sequence -- played when speed >= RunSpeedThreshold.
+	// Falls back to WalkAnim if unset.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> RunAnim;
+
+	// Sleep loop played while State == Sleep. Falls back to IdleAnim.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> SleepAnim;
+
+	// Work loop played while State == Work and the NPC is stationary at
+	// their work post. Falls back to IdleAnim.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> WorkAnim;
+
+	// Talk loop played while State == Socialize and stationary. Falls
+	// back to IdleAnim.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> TalkAnim;
+
+	// Death pose held when the NPC dies. Falls back to a T-pose freeze.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> DeathAnim;
+
 	// Speed (cm/s) above which the brain swaps to WalkAnim. Hysteresis
 	// covered by ApplyAnimForVelocity only switching on state change.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation",
 		meta = (ClampMin = "1", ClampMax = "300"))
 	float WalkSpeedThreshold = 15.0f;
+
+	// Speed (cm/s) above which the brain swaps to RunAnim (if assigned).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation",
+		meta = (ClampMin = "50", ClampMax = "1000"))
+	float RunSpeedThreshold = 220.0f;
 
 	// ── State (read-only at runtime) ──────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Category = "QR|NPC|Brain|State")
@@ -160,7 +188,13 @@ private:
 	bool bAnimIsWalking = false;
 	FVector LastFrameLocation = FVector::ZeroVector;
 
-	void ApplyAnimForVelocity(float DeltaSeconds);
+	// Token for the last-played anim asset (path hash) so we can avoid
+	// PlayAnimation calls that would restart the current sequence.
+	UPROPERTY()
+	TSoftObjectPtr<UAnimSequence> LastPlayedAnim;
+
+	void ApplyAnimForState(float DeltaSeconds);
+	void PlayIfDifferent(class UAnimSequence* Seq);
 
 	float ThinkAccumulator = 0.0f;
 	float StateTimer = 0.0f;
