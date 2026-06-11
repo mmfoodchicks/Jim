@@ -47,6 +47,15 @@ ROCK_3       = "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03"
 POLAR_ICE_1  = "/Game/Fabs/Polar/Meshes/SM_Polar_Ice_01.SM_Polar_Ice_01"
 POLAR_ROCK_1 = "/Game/Fabs/Polar/Meshes/SM_Polar_Rock_01.SM_Polar_Rock_01"
 
+# Wreckage / construction debris -- sparse scatter in surface biomes
+# near player-start sells "crashed colony ship" baseline. From
+# Ruined_Modern_Buildings + IndustryPropsPack6 the user already has.
+WRECKAGE_1   = "/Game/Fabs/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_01.SM_Destroyed_Skyscraper_01"
+WRECKAGE_2   = "/Game/Fabs/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_05.SM_Destroyed_Skyscraper_05"
+SCRAP_BARREL = "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Barrel01.SM_Barrel01"
+SCRAP_PALLET = "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Pallet01.SM_Pallet01"
+SCRAP_BOX    = "/Game/Fabs/IndustryPropsPack6/Meshes/SM_Box01.SM_Box01"
+
 # Sound + landscape material stand-ins.
 AMBIENT_WIND   = "/Game/Fabs/Free_Sounds_Pack/cue/Ambient_Wind_Loop_1_Cue.Ambient_Wind_Loop_1_Cue"
 AMBIENT_BIRDS  = "/Game/Fabs/Free_Sounds_Pack/cue/Ambient_Birds_Loop_04_Cue.Ambient_Birds_Loop_04_Cue"
@@ -74,6 +83,12 @@ BIOMES = {
             (PLT_SPIRAL_REED,  3.0, 0.7, 1.2,   0.0, False),
             (ROCK_1,           2.0, 0.6, 1.4, -10.0, True),
             (ROCK_2,           1.5, 0.7, 1.5, -15.0, True),
+            # Sparse crash-site flavor near origin: rare wreckage chunks
+            # + dropped supply props sell "you came down here recently".
+            (WRECKAGE_1,       0.3, 0.4, 0.7, -30.0, True),
+            (SCRAP_BARREL,     0.5, 0.8, 1.1,   0.0, False),
+            (SCRAP_PALLET,     0.4, 0.8, 1.1,   0.0, False),
+            (SCRAP_BOX,        0.6, 0.7, 1.2,   0.0, False),
         ],
     },
     "BP_WindPlains": {
