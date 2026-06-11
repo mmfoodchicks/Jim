@@ -193,13 +193,27 @@ def _run_sibling(script_name, fn_name="run", **kwargs):
     return fn(**kwargs)
 
 
+def _seed_sky():
+    """Sky + sun + locked exposure. Without it the map is grey-flat
+    and looks like the editor's default lighting, not a planet."""
+    print("[dress] step 1a: ensure sky / sun / exposure are set up")
+    _run_sibling("qr_setup_sky.py")
+
+
+def _seed_dev_test():
+    """NavMesh + build catalog + loot tables -- the dev map's gameplay
+    plumbing. AI can't path without the nav bounds volume."""
+    print("[dress] step 1b: ensure dev nav / catalogs are set up")
+    _run_sibling("qr_dev_test_dressup.py")
+
+
 def _seed_biomes():
-    print("[dress] step 1/4: ensure biome profiles exist")
+    print("[dress] step 1c: ensure biome profiles exist")
     _run_sibling("qr_seed_biome_profiles.py")
 
 
 def _seed_terrain():
-    print("[dress] step 2/4: ensure rolling-hills terrain exists")
+    print("[dress] step 2: ensure rolling-hills terrain exists")
     _run_sibling("qr_terrain_devtest.py")
 
 
@@ -310,14 +324,20 @@ def _spawn_biome_scatters():
 
 # ─── Public entry ────────────────────────────────────────────────────
 
-def run(skip_biomes=False, skip_terrain=False):
-    """Wire the open dev map for visual content.
+def run(skip_biomes=False, skip_terrain=False, skip_sky=False, skip_dev_test=False):
+    """Wire the open dev map for visual content. By default this is
+    truly one-button: sky + nav + biomes + terrain + ground materials
+    + four scatter zones, in that order.
 
     Args:
-      skip_biomes:  pass True to skip the qr_seed_biome_profiles step
-                    (saves a few seconds on repeat runs once seeded).
-      skip_terrain: pass True to skip qr_terrain_devtest (likewise once
-                    terrain is in the map).
+      skip_biomes:   pass True to skip qr_seed_biome_profiles (saves a
+                     few seconds on repeat runs once seeded).
+      skip_terrain:  pass True to skip qr_terrain_devtest.
+      skip_sky:      pass True to skip qr_setup_sky (don't touch the
+                     sky/sun/exposure -- e.g. when the map already has
+                     a hand-authored atmosphere).
+      skip_dev_test: pass True to skip qr_dev_test_dressup (no NavMesh
+                     touch, no DT_BuildCatalog seed).
     """
     print("\n=== qr_world_dressing ===")
     world = _editor_world()
@@ -326,8 +346,10 @@ def run(skip_biomes=False, skip_terrain=False):
         return
 
     _wipe_previous_dressing()
-    if not skip_biomes:  _seed_biomes()
-    if not skip_terrain: _seed_terrain()
+    if not skip_sky:      _seed_sky()
+    if not skip_dev_test: _seed_dev_test()
+    if not skip_biomes:   _seed_biomes()
+    if not skip_terrain:  _seed_terrain()
     _paint_terrain_geometry()
     _spawn_biome_scatters()
 

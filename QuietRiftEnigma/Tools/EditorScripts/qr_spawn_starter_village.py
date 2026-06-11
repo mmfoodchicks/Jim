@@ -33,6 +33,17 @@ DEFAULT_NAMES = [
     "Dell Bartow",      "Eun-Ji Park",    "Roan Halverson", "Faye Atalay",
 ]
 
+# Rotating role pool so the spawn is a real colony, not 8 unassigned
+# wanderers. EQRNPCRole exposes these as UPPERCASE in Python.
+ROLE_POOL = ["FARMER", "ENGINEER", "HUNTER", "COOK", "MEDIC", "GUARD",
+             "FARMER", "ENGINEER"]
+
+
+def _role_enum(name):
+    enum = getattr(unreal, "QRNPCRole", None)
+    if not enum: return 0
+    return getattr(enum, name, 0)
+
 
 def _editor_world():
     sub = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
@@ -105,7 +116,9 @@ def run(count=8, radius_m=40.0, center=(0.0, 0.0)):
         print("[village] no editor world -- open a map first")
         return
 
-    npc_cls = getattr(unreal, "QRNPCActor", None)
+    # Prefer the role-aware Colonist subclass; fall back to bare NPC.
+    colonist_cls = getattr(unreal, "QRNPCColonist", None)
+    npc_cls      = colonist_cls or getattr(unreal, "QRNPCActor", None)
     if npc_cls is None:
         print("[village] AQRNPCActor unavailable -- recompile C++")
         return
@@ -122,15 +135,21 @@ def run(count=8, radius_m=40.0, center=(0.0, 0.0)):
         if not npc:
             continue
         name = DEFAULT_NAMES[i % len(DEFAULT_NAMES)]
+        role = ROLE_POOL[i % len(ROLE_POOL)]
         try:
-            npc.set_actor_label("{}{:02d}_{}".format(
-                VILLAGE_LABEL_PREFIX, i, name.replace(" ", "_")))
+            npc.set_actor_label("{}{:02d}_{}_{}".format(
+                VILLAGE_LABEL_PREFIX, i, role.lower(), name.replace(" ", "_")))
             npc.set_editor_property("display_name", unreal.Text(name))
+            if colonist_cls:
+                npc.set_editor_property("role", _role_enum(role))
         except Exception:
             pass
 
         # Give each NPC a non-zero wander home + post + bed so the brain
-        # plays out a real schedule even without designer wiring.
+        # plays out a real schedule even without designer wiring. The
+        # Colonist subclass overrides assigned_work_post on BeginPlay
+        # with the nearest matching station -- the values set here are
+        # safe defaults until BeginPlay runs.
         try:
             brain = npc.get_editor_property("brain")
             if brain:
