@@ -3,9 +3,14 @@
 #include "QRWorldGenSubsystem.h"
 #include "Components/BoxComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "Engine/HitResult.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "CollisionQueryParams.h"
+#include "EngineUtils.h"
 #include "Math/RandomStream.h"
 
 AQRProceduralScatterActor::AQRProceduralScatterActor()
@@ -75,6 +80,39 @@ void AQRProceduralScatterActor::Generate()
 	{
 		++Attempts;
 		TryPlaceOne(EffectivePalette, Rng, WorldBox, Placed);
+	}
+
+	// Paint the ground under this scatter with the biome's authored
+	// landscape material. This is what closes the "LandscapeMaterial
+	// field defined but never consumed" gap from the audit — the data
+	// asset already knows what soil/rock should look like; the scatter
+	// actor is the natural site to apply it because it's the only
+	// thing that knows both the biome profile AND the world footprint.
+	if (BiomeProfile)
+	{
+		if (UMaterialInterface* Mat = BiomeProfile->LandscapeMaterial.LoadSynchronous())
+		{
+			const FBox Footprint = WorldBox;
+			int32 Painted = 0;
+			for (TActorIterator<AStaticMeshActor> It(W); It; ++It)
+			{
+				AStaticMeshActor* SMA = *It;
+				if (!SMA || SMA == this) continue;
+				// Only paint actors that sit underneath our footprint —
+				// hill domes, ground planes, terrain tiles.
+				if (!Footprint.IsInsideXY(SMA->GetActorLocation())) continue;
+				UStaticMeshComponent* SMC = SMA->GetStaticMeshComponent();
+				if (!SMC || !SMC->GetStaticMesh()) continue;
+				const int32 Slots = SMC->GetStaticMesh()->GetStaticMaterials().Num();
+				for (int32 i = 0; i < FMath::Max(1, Slots); ++i)
+				{
+					SMC->SetMaterial(i, Mat);
+				}
+				++Painted;
+			}
+			UE_LOG(LogTemp, Log, TEXT("[ProcScatter] %s painted %d ground actors with %s"),
+				*GetName(), Painted, *Mat->GetName());
+		}
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[ProcScatter] %s placed %d / %d (attempts=%d)"),

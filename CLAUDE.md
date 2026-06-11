@@ -110,6 +110,16 @@ exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_terrai
 run()
 ```
 
+**Dress the dev map with real Fab content** in one button — biomes,
+landscape material, rock material on the hill domes, four scatter
+actors that paint the playable bowl with ScifiJungle plants +
+Rock_Collection_04 boulders:
+
+```
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_world_dressing.py').read())
+run()
+```
+
 ---
 
 ## Read-first docs (project state lives in these, not in your head)
