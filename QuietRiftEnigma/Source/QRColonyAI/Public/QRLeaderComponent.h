@@ -67,6 +67,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLeaderDirectiveAdded, FQRLeaderDi
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLeaderDirectiveResolved, FName, DirectiveId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLeaderConditionAdded, FQRLeaderCondition, Condition);
 
+// Fired when the IssueState FSM crosses into QuestIssued. The game
+// module's mission director listens for this and rolls a directive-
+// flavored mission from the same template table. Two params: the
+// leader's own type (so the mission can color its issuer) + the
+// blocker's affected stat (the FetchItem target id for stockpile
+// blockers, the species id for predator-pressure blockers, etc.).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnLeaderQuestIssued,
+	EQRLeaderType, LeaderType, FName, AffectedStat);
+
 // Manages a colony leader's directives, conditions, XP, and moral compass
 UCLASS(ClassGroup=(QuietRift), meta=(BlueprintSpawnableComponent))
 class QRCOLONYAI_API UQRLeaderComponent : public UActorComponent
@@ -204,6 +213,18 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Leader|Events")
 	FOnLeaderConditionAdded OnConditionAdded;
+
+	// Fires when AdvanceIssueEscalation pushes IssueState to QuestIssued.
+	// AQRGameMode binds this and routes it into UQRMissionDirector --
+	// closes the leader-directive-chain loop (priority #7).
+	UPROPERTY(BlueprintAssignable, Category = "Leader|Events")
+	FOnLeaderQuestIssued OnQuestIssued;
+
+	// Current blocker's affected stat -- forwarded with OnQuestIssued so
+	// the mission generator can pick a matching template (e.g. "Food
+	// stockpile low" -> FetchItem of FOD_GENERIC).
+	UPROPERTY(BlueprintReadWrite, Category = "Leader|Issues")
+	FName CurrentBlockerStat;
 
 	// ── Interface ────────────────────────────
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Leader")

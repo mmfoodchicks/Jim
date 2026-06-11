@@ -83,6 +83,59 @@ bool UQRMissionDirector::StartMissionById(FName MissionId)
 }
 
 
+FName UQRMissionDirector::IssueDirectiveMission(EQRLeaderType LeaderType, FName AffectedStat)
+{
+	if (!MissionTemplateTable) return NAME_None;
+	if (ActiveMissions.Num() >= MaxConcurrentMissions) return NAME_None;
+
+	// Pick a template family that matches the leader's domain. The
+	// priority list's mission templates have descriptive ids
+	// (PT_COLLECT_RESEARCH, PT_DEFEND, ...); the director picks the
+	// best family for the leader type and the FQRMissionTemplateRow's
+	// Family enum, falling back to a generic FetchItem.
+	EQRMissionFamily PreferredFamily = EQRMissionFamily::FetchItem;
+	switch (LeaderType)
+	{
+	case EQRLeaderType::Research:  PreferredFamily = EQRMissionFamily::ResearchItem; break;
+	case EQRLeaderType::Military:  PreferredFamily = EQRMissionFamily::KillTarget;   break;
+	case EQRLeaderType::Hunter:    PreferredFamily = EQRMissionFamily::KillTarget;   break;
+	case EQRLeaderType::Scout:     PreferredFamily = EQRMissionFamily::ScoutPOI;     break;
+	default: break;
+	}
+
+	// First pass: look for a non-active template with the matching family.
+	// Second pass: any non-active template (so the directive system
+	// always tries to spawn something).
+	for (int32 Pass = 0; Pass < 2; ++Pass)
+	{
+		for (auto& Pair : MissionTemplateTable->GetRowMap())
+		{
+			const FName Id = Pair.Key;
+			if (IsMissionActive(Id)) continue;
+			FQRMissionTemplateRow* Row = reinterpret_cast<FQRMissionTemplateRow*>(Pair.Value);
+			if (!Row) continue;
+			if (Pass == 0 && Row->Family != PreferredFamily) continue;
+
+			// Stamp the blocker's affected stat onto the template's
+			// TargetId so the mission tracks the actual scarce thing
+			// (food id, predator species id, ...) rather than whatever
+			// the template defaulted to.
+			FQRMissionTemplateRow Patched = *Row;
+			if (!AffectedStat.IsNone())
+			{
+				Patched.TargetId = AffectedStat;
+			}
+			InstantiateMission(Id, Patched);
+			UE_LOG(LogTemp, Log,
+				TEXT("[QRMissionDirector] directive mission '%s' issued (leader=%d, stat=%s)"),
+				*Id.ToString(), static_cast<int32>(LeaderType), *AffectedStat.ToString());
+			return Id;
+		}
+	}
+	return NAME_None;
+}
+
+
 void UQRMissionDirector::InstantiateMission(FName Id, const FQRMissionTemplateRow& Row)
 {
 	FQRActiveMission M;
@@ -476,7 +529,24 @@ void UQRMissionDirector::BeginPlay()
 		// reach the marker", and far cheaper than per-tick distance math.
 		W->GetTimerManager().SetTimer(ScoutTimerHandle, this,
 			&UQRMissionDirector::TickScoutCheck, 1.0f, /*bLoop*/ true);
+
+		// Listen for leader-issued quests. Every leader component in the
+		// world routes its FSM transition through OnQuestIssued; the
+		// director materializes the mission.
+		for (TActorIterator<AActor> It(W); It; ++It)
+		{
+			if (UQRLeaderComponent* Leader = It->FindComponentByClass<UQRLeaderComponent>())
+			{
+				Leader->OnQuestIssued.AddDynamic(this, &UQRMissionDirector::HandleLeaderQuestIssued);
+			}
+		}
 	}
+}
+
+
+void UQRMissionDirector::HandleLeaderQuestIssued(EQRLeaderType LeaderType, FName AffectedStat)
+{
+	IssueDirectiveMission(LeaderType, AffectedStat);
 }
 
 
@@ -514,6 +584,13 @@ void UQRMissionDirector::EndPlay(const EEndPlayReason::Type Reason)
 		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
 		{
 			Codex->OnEntryUpdated.RemoveDynamic(this, &UQRMissionDirector::HandleCodexUpdated);
+		}
+		for (TActorIterator<AActor> It(W); It; ++It)
+		{
+			if (UQRLeaderComponent* Leader = It->FindComponentByClass<UQRLeaderComponent>())
+			{
+				Leader->OnQuestIssued.RemoveDynamic(this, &UQRMissionDirector::HandleLeaderQuestIssued);
+			}
 		}
 	}
 	Super::EndPlay(Reason);

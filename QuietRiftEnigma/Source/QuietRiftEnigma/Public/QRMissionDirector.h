@@ -220,6 +220,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "QR|Missions")
 	bool StartMissionById(FName MissionId);
 
+	// Leader-driven mission: a leader's IssueEscalationScore crossed
+	// 100. Picks a template that fits the leader's domain (FetchItem
+	// for stockpile blockers, ResearchItem for research stalls, etc.),
+	// patches the TargetId to the blocker's stat, and issues. Returns
+	// the issued MissionId, or NAME_None if no template fit.
+	UFUNCTION(BlueprintCallable, Category = "QR|Missions")
+	FName IssueDirectiveMission(EQRLeaderType LeaderType, FName AffectedStat);
+
 	// Report progress against an active mission. Family-aware: for
 	// FetchItem you'd pass the item count delta; for KillTarget the
 	// kill count delta; etc. Completes the mission when CurrentProgress
@@ -257,6 +265,9 @@ private:
 
 	UFUNCTION()
 	void HandleCodexUpdated(FName EntryId, EQRCodexDiscoveryState NewState);
+
+	UFUNCTION()
+	void HandleLeaderQuestIssued(EQRLeaderType LeaderType, FName AffectedStat);
 
 	// ── Instantiation, rewards, location (v2) ─────────────────────
 

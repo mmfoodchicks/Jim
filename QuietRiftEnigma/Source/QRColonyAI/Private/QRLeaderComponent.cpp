@@ -254,7 +254,13 @@ void UQRLeaderComponent::AdvanceIssueEscalation(float BlockerSeverity, float Del
 		break;
 	case EQRLeaderIssueState::Escalating:
 		if (IssueEscalationScore >= 100.0f)
+		{
 			IssueState = EQRLeaderIssueState::QuestIssued;
+			// One-shot when crossing the threshold: tell whoever's
+			// listening (game-module mission director) to materialize
+			// a directive-flavored mission from the template table.
+			OnQuestIssued.Broadcast(LeaderType, CurrentBlockerStat);
+		}
 		break;
 	case EQRLeaderIssueState::QuestIssued:
 		// Fallback: if quest generation system never resolved this within the timeout,
