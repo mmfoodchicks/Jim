@@ -509,8 +509,13 @@ private:
 	// loaded + scaled) and from SetLeftHanded.
 	void ApplyHandednessToHeldMesh();
 
+public:
+	// Settings widget calls this on the local pawn when the Left-Handed
+	// checkbox flips -- public on purpose.
 	UFUNCTION(BlueprintCallable, Category = "QR|Controls")
 	void SetLeftHanded(bool bLeft);
+
+private:
 
 	// Walks every Clothing-category item in the inventory, sums the metal-
 	// tier protection from each ARM_<METAL>_<SLOT> id, and stamps the total

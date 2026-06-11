@@ -434,15 +434,17 @@ int32 UQRMissionDirector::WithdrawFromStockpile(FName ItemId, int32 Quantity)
 	UWorld* W = GetWorld();
 	if (!W || Quantity <= 0) return 0;
 
+	// AQRDepotActor::Storage is a plain UQRInventoryComponent, so the
+	// withdrawal is count-then-remove (same pattern the hauler uses).
 	int32 Taken = 0;
 	for (TActorIterator<AQRDepotActor> It(W); It && Taken < Quantity; ++It)
 	{
 		if (!It->Storage) continue;
-		while (Taken < Quantity)
+		const int32 Avail = It->Storage->CountItem(ItemId);
+		const int32 Take  = FMath::Min(Avail, Quantity - Taken);
+		if (Take > 0 && It->Storage->TryRemoveItem(ItemId, Take))
 		{
-			UQRItemInstance* Out = It->Storage->WithdrawItem(ItemId, Quantity - Taken);
-			if (!Out) break;
-			Taken += Out->Quantity;
+			Taken += Take;
 		}
 	}
 	return Taken;
