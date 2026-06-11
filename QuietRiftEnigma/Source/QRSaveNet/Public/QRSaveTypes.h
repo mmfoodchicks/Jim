@@ -4,7 +4,24 @@
 #include "QRTypes.h"
 #include "QRTechNode.h"
 #include "QRMicroResearch.h"
+#include "QRSurvivalComponent.h"   // FQRInjury
 #include "QRSaveTypes.generated.h"
+
+// Where an item was equipped when saved. Mirrors the paper-doll slots.
+// SaveVersion 2+; v1 saves leave everything at None and rely on the
+// legacy HandSlot/bHasHandSlot fields below.
+UENUM()
+enum class EQRSavedEquipSlot : uint8
+{
+	None = 0,
+	Helm,
+	ChestArmour,
+	LegsArmour,
+	ChestRig,
+	Backpack,
+	Hand,
+	Offhand,
+};
 
 // Serializable item snapshot for save/load
 USTRUCT()
@@ -23,6 +40,17 @@ struct QRSAVENET_API FQRItemSaveData
 	UPROPERTY() EQRFoodOriginClass FoodOriginClass = EQRFoodOriginClass::Unknown;
 	UPROPERTY() float PackageIntegrity = 1.0f;
 	UPROPERTY() bool bIsBulkItem = false;
+
+	// SaveVersion 2: spatial placement, so the player's hand-arranged grid
+	// layout survives reload instead of being re-packed at random.
+	UPROPERTY() EQRContainerKind ContainerKind = EQRContainerKind::None;
+	UPROPERTY() int32 GridX = -1;
+	UPROPERTY() int32 GridY = -1;
+	UPROPERTY() bool bRotated = false;
+
+	// SaveVersion 2: non-None means this entry was equipped, not loose in
+	// the grid. Restored via the matching TryEquip* path on load.
+	UPROPERTY() EQRSavedEquipSlot EquippedSlot = EQRSavedEquipSlot::None;
 };
 
 // Serializable weapon runtime state (per-equipped weapon on a survivor)
@@ -97,6 +125,13 @@ struct QRSAVENET_API FQRSurvivorSaveData
 	UPROPERTY() FQRInventorySaveData Inventory;
 	UPROPERTY() TMap<EQRNPCRole, float> SkillLevels;
 	UPROPERTY() FQRWeaponSaveData EquippedWeapon;    // v1.17: persists weapon fouling/jam/ammo
+
+	// SaveVersion 2: active injuries persist — a fracture survives a reload
+	// instead of healing for free, and oxygen/temperature resume where they
+	// were instead of resetting to defaults.
+	UPROPERTY() TArray<FQRInjury> ActiveInjuries;
+	UPROPERTY() float Oxygen = 100.0f;
+	UPROPERTY() float CoreTemperature = 37.0f;
 };
 
 // Save data for a harvestable node (tree, rock, etc.)

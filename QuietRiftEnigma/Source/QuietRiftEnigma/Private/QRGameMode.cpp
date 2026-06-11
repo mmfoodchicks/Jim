@@ -23,6 +23,7 @@
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
+#include "QRSaveSnapshotLibrary.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -232,56 +233,19 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 {
 	if (!bHasPendingLoadedData || !Player) return;
 
-	// Survival vitals — restore to whatever the save says.
-	if (UQRSurvivalComponent* Surv = Player->Survival)
-	{
-		Surv->Health   = PendingLoadedData.PlayerData.Health;
-		Surv->Hunger   = PendingLoadedData.PlayerData.Hunger;
-		Surv->Thirst   = PendingLoadedData.PlayerData.Thirst;
-		Surv->Fatigue  = PendingLoadedData.PlayerData.Fatigue;
-		// Oxygen / temp aren't on the survivor save struct; leave defaults.
-	}
+	// Survival vitals + active injuries — a fracture survives a reload
+	// instead of healing for free.
+	FQRSaveSnapshot::ApplySurvival(Player->Survival, PendingLoadedData.PlayerData);
 
-	// Inventory contents — clear what's there, then rebuild from save.
-	// We can't materially restore stack containers/cells without the
-	// spatial grid metadata which the save struct doesn't carry, so
-	// items are re-added via TryAddItem so they pack the grid afresh.
-	if (UQRInventoryComponent* Inv = Player->Inventory)
-	{
-		// Walk a copy because TryAddItem mutates Items.
-		TArray<FQRItemSaveData> ToRestore = PendingLoadedData.PlayerInventory.Items;
-		for (const FQRItemSaveData& Saved : ToRestore)
-		{
-			int32 Remainder = 0;
-			// We need the UQRItemDefinition for Saved.ItemId. Resolve
-			// via FindObject — definition assets are loaded once on
-			// startup so a global FindObject hit is cheap.
-			const FString DefPath = FString::Printf(
-				TEXT("/Game/QuietRift/Data/Items/%s.%s"), *Saved.ItemId.ToString(), *Saved.ItemId.ToString());
-			const UQRItemDefinition* Def = LoadObject<UQRItemDefinition>(nullptr, *DefPath);
-			if (!Def) continue;
-			Inv->TryAddByDefinition(Def, FMath::Max(1, Saved.Quantity), Remainder);
-		}
-	}
+	// Inventory — full restore: grid placement, equipped armour/containers,
+	// hand + offhand, durability/spoil. The snapshot library also resolves
+	// item definitions through the asset registry, so defs seeded into
+	// nested buckets (Items/Weapons, Items/Containers, ...) restore too —
+	// the old root-path LoadObject silently dropped all of those.
+	FQRSaveSnapshot::ApplyInventory(Player->Inventory, PendingLoadedData.PlayerInventory);
 
-	// Hand slot restore — pull the matching definition out of inventory
-	// (just re-added above) and equip it. Save struct only carries ItemId
-	// and Quantity, so a fresh-equipped instance is acceptable for v1.
-	if (UQRInventoryComponent* Inv = Player->Inventory)
-	{
-		if (PendingLoadedData.PlayerInventory.bHasHandSlot)
-		{
-			const FName HandId = PendingLoadedData.PlayerInventory.HandSlot.ItemId;
-			for (UQRItemInstance* Inst : Inv->Items)
-			{
-				if (Inst && Inst->Definition && Inst->Definition->ItemId == HandId)
-				{
-					Inv->TryEquipToHandSlot(Inst);
-					break;
-				}
-			}
-		}
-	}
+	// Research / tech tree / codex — was never restored before v2.
+	FQRSaveSnapshot::ApplyResearch(Research, PendingLoadedData.ResearchData);
 
 	// Identity (name + pronouns + voice profile). Appearance lives on
 	// the character creator flow and isn't restored mid-session — the
@@ -307,6 +271,10 @@ void AQRGameMode::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	WorldTimeSeconds += DeltaTime;
+
+	// Guard the divisor — a 0 typed into the editor (or a cheat) would be a
+	// division-by-zero crash on the very next tick.
+	DayLengthRealSeconds = FMath::Max(DayLengthRealSeconds, 1.0f);
 
 	// Convert real-seconds elapsed into game-hours for time-driven subsystems
 	const float GameHoursElapsed = DeltaTime * 24.0f / DayLengthRealSeconds;
@@ -401,39 +369,18 @@ void AQRGameMode::QuickSave()
 			Data.PlayerData.bIsAlive      = true;
 			Data.PlayerIdentity           = Player->PlayerIdentity;
 
-			if (UQRSurvivalComponent* Surv = Player->Survival)
-			{
-				Data.PlayerData.Health  = Surv->Health;
-				Data.PlayerData.Hunger  = Surv->Hunger;
-				Data.PlayerData.Thirst  = Surv->Thirst;
-				Data.PlayerData.Fatigue = Surv->Fatigue;
-				Data.PlayerData.bIsAlive = !Surv->bIsDead;
-			}
-
-			if (UQRInventoryComponent* Inv = Player->Inventory)
-			{
-				FQRInventorySaveData InvSave;
-				for (UQRItemInstance* Inst : Inv->Items)
-				{
-					if (!Inst || !Inst->Definition) continue;
-					FQRItemSaveData ItemSave;
-					ItemSave.ItemId   = Inst->Definition->ItemId;
-					ItemSave.Quantity = Inst->Quantity;
-					InvSave.Items.Add(ItemSave);
-				}
-				if (UQRItemInstance* Held = Inv->HandSlot)
-				{
-					if (Held->Definition)
-					{
-						InvSave.HandSlot.ItemId   = Held->Definition->ItemId;
-						InvSave.HandSlot.Quantity = Held->Quantity;
-						InvSave.bHasHandSlot      = true;
-					}
-				}
-				Data.PlayerInventory = InvSave;
-			}
+			// Snapshot library captures vitals + injuries, the full spatial
+			// inventory (placement, equipped slots, durability), so a system
+			// is saved iff it has a Capture/Apply pair — fields can't fall
+			// out of the save by someone forgetting to extend this function.
+			FQRSaveSnapshot::CaptureSurvival(Player->Survival, Data.PlayerData);
+			FQRSaveSnapshot::CaptureInventory(Player->Inventory, Data.PlayerInventory);
 		}
 	}
+
+	// Research / tech tree / codex — the ResearchData field existed since
+	// v1 but nothing ever filled it, so research was lost on every reload.
+	FQRSaveSnapshot::CaptureResearch(Research, Data.ResearchData);
 
 	SaveSystem->SaveGame(Data, AutosaveSlotName, 0);
 	UE_LOG(LogTemp, Log, TEXT("[QR] QuickSave -> '%s' (Day %d)"), *AutosaveSlotName, DayNumber);

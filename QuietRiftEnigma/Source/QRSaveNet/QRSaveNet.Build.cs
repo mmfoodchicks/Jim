@@ -17,7 +17,8 @@ public class QRSaveNet : ModuleRules
 			"QRSurvival",
 			"QRCraftingResearch",
 			"QRColonyAI",
-			"NetCore"
+			"NetCore",
+			"AssetRegistry"
 		});
 	}
 }

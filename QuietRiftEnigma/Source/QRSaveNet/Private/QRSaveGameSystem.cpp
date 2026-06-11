@@ -10,8 +10,17 @@ void UQRSaveGameSystem::MigrateToCurrentVersion(FQRGameSaveData& Data)
 		// Struct defaults already cover every new field — no data patching needed.
 		Data.SaveVersion = 1;
 	}
-	// Add future migrations here:
-	// if (Data.SaveVersion < 2) { ... Data.SaveVersion = 2; }
+	if (Data.SaveVersion < 2)
+	{
+		// v1 → v2: grid placement + EquippedSlot on FQRItemSaveData; armour/
+		// offhand/hand entries folded into Items; ActiveInjuries, Oxygen,
+		// CoreTemperature on FQRSurvivorSaveData; ResearchData actually
+		// populated. Struct defaults cover the new fields, and
+		// FQRSaveSnapshot::ApplyInventory falls back to the legacy
+		// HandSlot/bHasHandSlot mirror when no EquippedSlot entries exist —
+		// no data patching needed.
+		Data.SaveVersion = 2;
+	}
 }
 
 void UQRSaveGameSystem::SaveGame(const FQRGameSaveData& DataToSave, const FString& SlotName, int32 UserIndex)
