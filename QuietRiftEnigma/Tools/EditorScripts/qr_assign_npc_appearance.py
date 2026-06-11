@@ -36,33 +36,38 @@ import unreal
 # has installed; then a debug cube. The Fab characters carry their own
 # skeletons -- if their pack's anims aren't compatible with Mannequin's
 # UAnimSequence assets, fall back to Mannequin instead.
+# The Fab library ships FOUR full UE5 Mannequin copies (ControlRig,
+# FreeAnimsMixPack, DynamicFalling, DeadBodies all carry Demo
+# mannequins). ControlRig is preferred: it has BOTH the meshes AND the
+# matching MM_/MF_ locomotion anims in one pack, so mesh + anims are
+# guaranteed same-skeleton. Stock /Game/Characters/ path checked first
+# in case the user adds the official feature pack later.
 MESH_CANDIDATES = [
     "/Game/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple",
-    "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
-    "/Game/Characters/Mannequins/Meshes/SKM_Quinn.SKM_Quinn",
-    "/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny",
-    # Fab character packs already in /Game/. Tagged with their
-    # native skeleton in the brain so an override doesn't pair a
-    # FuturisticWarrior mesh with a Mannequin anim.
-    "/Game/QuantumCharacter/Meshes/SKM_QuantumCharacter.SKM_QuantumCharacter",
-    "/Game/QuantumCharacter/Meshes/SKM_QuantumCharacter_NoHead.SKM_QuantumCharacter_NoHead",
-    "/Game/FuturisticWarrior/Meshes/SK_FuturisticWarrior.SK_FuturisticWarrior",
+    "/Game/ControlRig/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple",
+    "/Game/ControlRig/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
+    "/Game/ControlRig/Characters/Mannequins/Meshes/SKM_Quinn.SKM_Quinn",
+    "/Game/ControlRig/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
+    "/Game/DynamicFalling/Demo/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple",
+    # Fab character packs (own skeletons -- only via explicit override
+    # so the Mannequin anims don't get paired with a foreign skeleton).
+    "/Game/QuantumCharacter/Mesh/SKM_QuantumCharacter.SKM_QuantumCharacter",
     "/Engine/EngineMeshes/SkeletalCube.SkeletalCube",   # last-ditch debug placeholder
 ]
 
 IDLE_CANDIDATES = [
     "/Game/Characters/Mannequins/Animations/Manny/MM_Idle.MM_Idle",
-    "/Game/Characters/Mannequins/Animations/Quinn/MF_Idle.MF_Idle",
-    "/Game/Characters/Mannequins/Animations/Idle/MM_Idle.MM_Idle",
-    "/Game/Characters/Mannequin/Animations/ThirdPersonIdle.ThirdPersonIdle",
+    "/Game/ControlRig/Characters/Mannequins/Animations/Manny/MM_Idle.MM_Idle",
+    "/Game/ControlRig/Characters/Mannequins/Animations/Quinn/MF_Idle.MF_Idle",
 ]
 
 WALK_CANDIDATES = [
     "/Game/Characters/Mannequins/Animations/Manny/MM_Walk_Fwd.MM_Walk_Fwd",
-    "/Game/Characters/Mannequins/Animations/Quinn/MF_Walk_Fwd.MF_Walk_Fwd",
-    "/Game/Characters/Mannequins/Animations/Walk/MM_Walk_Fwd.MM_Walk_Fwd",
-    "/Game/Characters/Mannequin/Animations/ThirdPersonWalk.ThirdPersonWalk",
-    "/Game/Characters/Mannequins/Animations/Manny/MM_Run_Fwd.MM_Run_Fwd",   # walk-as-run fallback
+    "/Game/ControlRig/Characters/Mannequins/Animations/Manny/MM_Walk_Fwd.MM_Walk_Fwd",
+    "/Game/ControlRig/Characters/Mannequins/Animations/Quinn/MF_Walk_Fwd.MF_Walk_Fwd",
+    "/Game/ControlRig/Characters/Mannequins/Animations/Manny/MM_Walk_InPlace.MM_Walk_InPlace",
 ]
 
 
