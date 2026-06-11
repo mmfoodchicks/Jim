@@ -8,6 +8,8 @@ class USkeletalMeshComponent;
 class UCapsuleComponent;
 class UQRDialogueComponent;
 class UQRFactionComponent;
+class UQRNPCBrainComponent;
+class UQRCivilianReactionComponent;
 
 /**
  * Minimal NPC actor: capsule + skeletal mesh + dialogue + faction
@@ -39,6 +41,14 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
 	TObjectPtr<UQRFactionComponent> Faction;
+
+	// Living-NPC layer. Brain drives wander/work/sleep loop; Reaction
+	// owns Flee/Fight/Hide during raids and out-prioritizes the brain.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
+	TObjectPtr<UQRNPCBrainComponent> Brain;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
+	TObjectPtr<UQRCivilianReactionComponent> Reaction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC")
 	FText DisplayName;

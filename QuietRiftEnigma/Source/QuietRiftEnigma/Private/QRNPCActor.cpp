@@ -1,6 +1,8 @@
 #include "QRNPCActor.h"
 #include "QRDialogueComponent.h"
 #include "QRFactionComponent.h"
+#include "QRNPCBrainComponent.h"
+#include "QRCivilianReactionComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -23,6 +25,8 @@ AQRNPCActor::AQRNPCActor()
 
 	Dialogue = CreateDefaultSubobject<UQRDialogueComponent>(TEXT("Dialogue"));
 	Faction  = CreateDefaultSubobject<UQRFactionComponent>(TEXT("Faction"));
+	Brain    = CreateDefaultSubobject<UQRNPCBrainComponent>(TEXT("Brain"));
+	Reaction = CreateDefaultSubobject<UQRCivilianReactionComponent>(TEXT("Reaction"));
 
 	DisplayName = FText::FromString(TEXT("Survivor"));
 }

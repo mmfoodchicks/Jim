@@ -334,5 +334,156 @@ def run(skip_biomes=False, skip_terrain=False):
     print("[dress] DONE -- save the level to keep the dressing.")
 
 
+# ─── Production worldgen tiling ──────────────────────────────────────
+#
+# The dev path above stamps four fixed Surface-tier scatters around a
+# small bowl. The PRODUCTION path tiles a configurable radius with
+# scatter actors that query UQRWorldGenSubsystem per placement, so each
+# instance is biome-appropriate to its cell -- a 5km playable zone
+# might have BasaltShelf in the south, MeltlineEdges in a strip, and
+# CraterFloors anywhere the worldgen rolled them. One scatter actor
+# per tile, all 14 biome profiles available via BiomeProfileMap.
+
+# Each canonical profile's biome_tag is "Biome.<Name>". The subsystem's
+# PopulateDefaultBandPools emits bare FNames ("BasaltShelf", ...) so
+# the map must key by the bare name -- strip the prefix when building.
+ALL_BIOMES = [
+    "BP_BasaltShelf",  "BP_WindPlains",  "BP_MeltlineEdges", "BP_CraterFloors",
+    "BP_WetBasins",    "BP_ShallowFens", "BP_ThermalCracks", "BP_GlassDunes",
+    "BP_MossFields",   "BP_MagneticRidges", "BP_HighRims",   "BP_ColdBasins",
+    "BP_CanyonWebs",   "BP_RidgeShadows",
+]
+
+
+def _build_biome_profile_map():
+    """Return a TMap-compatible {bare_name: UQRBiomeProfile} dict."""
+    out = {}
+    for name in ALL_BIOMES:
+        asset_path = "{}/{}".format(BIOME_DIR, name)
+        profile = _maybe_load(asset_path)
+        if not profile:
+            continue
+        bare = name[3:] if name.startswith("BP_") else name
+        out[unreal.Name(bare)] = profile
+    return out
+
+
+def _ensure_worldgen_seed():
+    """Make sure an AQRWorldGenSeedActor exists in the level and has
+    a generated grid. Returns the actor or None."""
+    seed_cls = getattr(unreal, "QRWorldGenSeedActor", None)
+    if seed_cls is None:
+        print("[dress]   QRWorldGenSeedActor unavailable -- recompile C++")
+        return None
+
+    existing = None
+    for a in _level_actors():
+        if a and isinstance(a, seed_cls):
+            existing = a
+            break
+    if not existing:
+        existing = _spawn_actor(seed_cls, unreal.Vector(0, 0, 0))
+        if existing:
+            existing.set_actor_label("QR_Dress_WorldGenSeed")
+            print("[dress]   spawned WorldGenSeedActor at origin")
+
+    # Press the Generate button. The seed actor exposes Generate() as
+    # CallInEditor; Python sees it as generate() on the actor.
+    try:
+        existing.call_method("Generate", ())
+    except Exception:
+        try:
+            existing.generate()
+        except Exception as e:
+            print("[dress]   seed Generate() didn't fire: {}".format(e))
+    return existing
+
+
+def _spawn_tile_scatter(center_x, center_y, half_tile_cm, profile_map, target_count):
+    scatter_cls = unreal.QRProceduralScatterActor
+    actor = _spawn_actor(scatter_cls, unreal.Vector(center_x, center_y, 0.0))
+    if not actor:
+        return None
+
+    actor.set_actor_label("{}Tile_{:+06.0f}_{:+06.0f}".format(
+        DRESS_LABEL_PREFIX, center_x, center_y))
+
+    # WorldGen mode: each placement asks the subsystem for the cell's
+    # biome and the BiomeProfileMap supplies the palette.
+    actor.set_editor_property("use_world_gen_subsystem", True)
+    actor.set_editor_property("biome_profile_map", profile_map)
+    actor.set_editor_property("target_count", target_count)
+    actor.set_editor_property("seed", (int(center_x * 7919) ^ int(center_y * 6151)) & 0x7FFFFFFF)
+
+    box = actor.get_editor_property("bounds")
+    if box:
+        box.set_box_extent(unreal.Vector(half_tile_cm, half_tile_cm, 600.0), True)
+
+    try:
+        actor.call_method("Generate", ())
+    except Exception:
+        try:
+            actor.generate()
+        except Exception:
+            pass
+    return actor
+
+
+def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
+             skip_biomes=False, skip_worldgen=False):
+    """Tile a configurable playable radius with worldgen-aware scatter
+    actors. Each tile picks its palette per placement from the
+    UQRWorldGenSubsystem cell grid so the whole zone reads biome-
+    accurate without per-tile hand-tuning.
+
+    Args:
+      playable_radius_m: half-side of the dressed square zone, in meters.
+                         2500m = a 5km x 5km playable area. Set higher to
+                         dress further out; each doubling quadruples the
+                         tile count.
+      tile_m:            edge of each scatter tile, in meters. 500m
+                         (default) = 25 tiles for a 5km zone, each one
+                         covers 0.25 km^2.
+      per_tile:          TargetCount per scatter actor. 350 default = ~9k
+                         instances over a 5km zone, all HISM.
+      skip_biomes:       skip qr_seed_biome_profiles (already seeded).
+      skip_worldgen:     skip the seed-actor placement / Generate call.
+    """
+    print("\n=== qr_world_dressing.run_full ===")
+    world = _editor_world()
+    if not world:
+        print("[dress] no editor world -- open a map first")
+        return
+
+    _wipe_previous_dressing()
+    if not skip_biomes:   _seed_biomes()
+    if not skip_worldgen: _ensure_worldgen_seed()
+
+    profile_map = _build_biome_profile_map()
+    if not profile_map:
+        print("[dress] no biome profiles loaded -- run qr_seed_biome_profiles first")
+        return
+    print("[dress] biome profile map: {} profiles".format(len(profile_map)))
+
+    radius_cm    = playable_radius_m * 100.0
+    tile_cm      = tile_m            * 100.0
+    half_tile_cm = tile_cm * 0.5
+    # Center the tile grid so origin sits on a tile edge -- prevents
+    # gap at the seed actor.
+    n_tiles = int(math.ceil(radius_cm * 2.0 / tile_cm))
+    base = -n_tiles * 0.5 * tile_cm + half_tile_cm
+
+    placed = 0
+    for ix in range(n_tiles):
+        for iy in range(n_tiles):
+            cx = base + ix * tile_cm
+            cy = base + iy * tile_cm
+            if _spawn_tile_scatter(cx, cy, half_tile_cm, profile_map, per_tile):
+                placed += 1
+    print("[dress] tiled {} scatter actors across {:.1f} km x {:.1f} km".format(
+        placed, n_tiles * tile_m / 1000.0, n_tiles * tile_m / 1000.0))
+    print("[dress] DONE -- save the level to keep the dressing.")
+
+
 if __name__ == "__main__":
     run()

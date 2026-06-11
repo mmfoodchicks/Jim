@@ -120,6 +120,26 @@ exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_world_
 run()
 ```
 
+For a **full worldgen-tiled dressing** (uses UQRWorldGenSubsystem to
+pick the right biome profile per cell across a configurable playable
+radius — every tile knows which biome it sits in and scatters
+accordingly):
+
+```
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_world_dressing.py').read())
+run_full()                                      # default 5km zone, 500m tiles
+run_full(playable_radius_m=8000.0, tile_m=800)  # 16km zone, larger tiles
+```
+
+**Spawn a starter village** of brain-driven NPCs (wander / work /
+sleep / socialize / flee on raid alarm):
+
+```
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_spawn_starter_village.py').read())
+run()             # 8 colonists in a 40 m ring around origin
+run(count=20)     # bigger settlement
+```
+
 ---
 
 ## Read-first docs (project state lives in these, not in your head)
