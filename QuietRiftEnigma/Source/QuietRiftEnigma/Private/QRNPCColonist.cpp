@@ -57,7 +57,7 @@ FVector AQRNPCColonist::ResolveWorkPostForRole() const
 		return Best ? Best->GetActorLocation() : MyLoc;
 	};
 
-	switch (Role)
+	switch (ColonistRole)
 	{
 	case EQRNPCRole::Farmer:
 		return NearestOfClass(W, [](AActor* A)

@@ -160,7 +160,7 @@ def run(count=8, radius_m=40.0, center=(0.0, 0.0)):
                 VILLAGE_LABEL_PREFIX, i, role.lower(), name.replace(" ", "_")))
             npc.set_editor_property("display_name", unreal.Text(name))
             if colonist_cls:
-                npc.set_editor_property("role", _role_enum(role))
+                npc.set_editor_property("colonist_role", _role_enum(role))
         except Exception:
             pass
 

@@ -33,7 +33,7 @@ public:
 	AQRNPCColonist();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Colonist")
-	EQRNPCRole Role = EQRNPCRole::Unassigned;
+	EQRNPCRole ColonistRole = EQRNPCRole::Unassigned;
 
 	// Max distance (cm) the colonist will walk to claim a work post.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Colonist",
