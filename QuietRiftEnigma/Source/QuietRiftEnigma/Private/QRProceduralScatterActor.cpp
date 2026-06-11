@@ -97,7 +97,7 @@ void AQRProceduralScatterActor::Generate()
 			for (TActorIterator<AStaticMeshActor> It(W); It; ++It)
 			{
 				AStaticMeshActor* SMA = *It;
-				if (!SMA || SMA == this) continue;
+				if (!SMA || static_cast<AActor*>(SMA) == static_cast<AActor*>(this)) continue;
 				// Only paint actors that sit underneath our footprint —
 				// hill domes, ground planes, terrain tiles.
 				if (!Footprint.IsInsideXY(SMA->GetActorLocation())) continue;

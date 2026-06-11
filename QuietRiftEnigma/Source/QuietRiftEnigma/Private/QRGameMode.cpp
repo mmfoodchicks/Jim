@@ -319,7 +319,9 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 			AQRNPCActor* NPC = W->SpawnActor<AQRNPCActor>(Cls, N.Location, N.Rotation, Params);
 			if (!NPC) continue;
-			NPC->SetActorLabel(N.ActorLabel);
+#if WITH_EDITOR
+			if (!N.ActorLabel.IsEmpty()) NPC->SetActorLabel(N.ActorLabel);
+#endif
 			NPC->DisplayName  = N.DisplayName;
 			if (UQRNPCBrainComponent* Brain = NPC->Brain)
 			{
@@ -515,7 +517,11 @@ void AQRGameMode::QuickSave()
 			if (AQRNPCActor* NPC = Cast<AQRNPCActor>(*It))
 			{
 				FQRNPCSaveData N;
+#if WITH_EDITOR
+				// Actor labels are editor-only; packaged builds key off
+				// DisplayName instead.
 				N.ActorLabel    = NPC->GetActorLabel();
+#endif
 				N.NPCClassPath  = NPC->GetClass()->GetPathName();
 				N.DisplayName   = NPC->DisplayName;
 				N.Location      = NPC->GetActorLocation();

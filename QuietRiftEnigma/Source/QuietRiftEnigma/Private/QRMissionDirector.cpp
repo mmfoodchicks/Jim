@@ -96,10 +96,13 @@ FName UQRMissionDirector::IssueDirectiveMission(EQRLeaderType LeaderType, FName 
 	EQRMissionFamily PreferredFamily = EQRMissionFamily::FetchItem;
 	switch (LeaderType)
 	{
-	case EQRLeaderType::Research:  PreferredFamily = EQRMissionFamily::ResearchItem; break;
-	case EQRLeaderType::Military:  PreferredFamily = EQRMissionFamily::KillTarget;   break;
-	case EQRLeaderType::Hunter:    PreferredFamily = EQRMissionFamily::KillTarget;   break;
-	case EQRLeaderType::Scout:     PreferredFamily = EQRMissionFamily::ScoutPOI;     break;
+	case EQRLeaderType::Research:    PreferredFamily = EQRMissionFamily::ResearchItem; break;
+	case EQRLeaderType::Military:    PreferredFamily = EQRMissionFamily::KillTarget;   break;
+	case EQRLeaderType::Security:    PreferredFamily = EQRMissionFamily::KillTarget;   break;
+	case EQRLeaderType::Survival:    PreferredFamily = EQRMissionFamily::ScoutPOI;     break;
+	case EQRLeaderType::Logistics:
+	case EQRLeaderType::Agriculture:
+	case EQRLeaderType::Engineering: PreferredFamily = EQRMissionFamily::FetchItem;    break;
 	default: break;
 	}
 

@@ -48,9 +48,10 @@ DEFAULT_NAMES = [
 ]
 
 # Rotating role pool so the spawn is a real colony, not 8 unassigned
-# wanderers. EQRNPCRole exposes these as UPPERCASE in Python.
-ROLE_POOL = ["FARMER", "ENGINEER", "HUNTER", "COOK", "MEDIC", "GUARD",
-             "FARMER", "ENGINEER"]
+# wanderers. EQRNPCRole exposes these as UPPERCASE in Python. (No
+# HUNTER role exists in the enum -- Scout is the field/recon job.)
+ROLE_POOL = ["FARMER", "ENGINEER", "SCOUT", "COOK", "MEDIC", "GUARD",
+             "FARMER", "BUILDER"]
 
 
 def _role_enum(name):

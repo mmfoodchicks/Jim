@@ -101,6 +101,8 @@ void UQRNPCBrainComponent::ApplyAnimForVelocity(float DeltaSeconds)
 
 void UQRNPCBrainComponent::Think()
 {
+	if (!GetOwner()) return;
+
 	// Yield to the civilian-reaction FSM whenever it's active.
 	if (UQRCivilianReactionComponent* R = Reaction.Get())
 	{
