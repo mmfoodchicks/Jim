@@ -31,6 +31,8 @@
 #include "QRCodexSubsystem.h"
 #include "QRCodexWidget.h"
 #include "QRScopeOverlayWidget.h"
+#include "QRMissionHUDWidget.h"
+#include "QRMissionDirector.h"
 #include "Components/AudioComponent.h"
 #include "Sound/SoundBase.h"
 #include "QRGameMode.h"
@@ -112,6 +114,7 @@ AQRCharacter::AQRCharacter()
 	CodexWidgetClass      = UQRCodexWidget::StaticClass();
 	ScopeOverlayClass     = UQRScopeOverlayWidget::StaticClass();
 	AmmoHUDClass          = UQRAmmoHUDWidget::StaticClass();
+	MissionHUDClass       = UQRMissionHUDWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -284,6 +287,23 @@ void AQRCharacter::BeginPlay()
 			{
 				ScopeOverlay->AddToViewport(/*ZOrder*/ 400);
 				ScopeOverlay->Bind(CachedView);
+			}
+		}
+		// Mission tracker — director lives on the GameMode, so this only
+		// binds on single-player / listen host (GameMode is server-only).
+		if (MissionHUDClass)
+		{
+			if (AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr)
+			{
+				if (GM->MissionDirector)
+				{
+					MissionHUD = CreateWidget<UQRMissionHUDWidget>(LocalPC, MissionHUDClass);
+					if (MissionHUD)
+					{
+						MissionHUD->AddToViewport(/*ZOrder*/ 10);
+						MissionHUD->Bind(GM->MissionDirector);
+					}
+				}
 			}
 		}
 	}

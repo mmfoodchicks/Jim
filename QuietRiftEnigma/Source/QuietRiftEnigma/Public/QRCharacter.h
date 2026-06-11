@@ -339,6 +339,13 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UQRScopeOverlayWidget> ScopeOverlay = nullptr;
 
+	// Top-right active-mission tracker, bound to the GameMode's director.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRMissionHUDWidget> MissionHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRMissionHUDWidget> MissionHUD = nullptr;
+
 	// Bottom-right ammo readout — held-weapon icon + magazine / reserve.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<class UQRAmmoHUDWidget> AmmoHUDClass;

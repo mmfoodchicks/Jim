@@ -249,6 +249,10 @@ struct QRSAVENET_API FQRGameSaveData
 	UPROPERTY() TArray<FName> CompletedMissionIds;
 	UPROPERTY() TArray<FName> ActiveMissionIds;
 
+	// SaveVersion 2: the mission director's live instances (template id →
+	// current progress), so in-flight procedural missions resume mid-count.
+	UPROPERTY() TMap<FName, int32> DirectorMissionProgress;
+
 	// World delta
 	UPROPERTY() TArray<FQRChunkDelta> ChunkDeltas;
 

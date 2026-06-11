@@ -28,6 +28,53 @@ enum class EQRMissionFamily : uint8
 
 
 /**
+ * Where a mission's rewards come from — the GDD's No-Pocket-OP law
+ * (RewardSourceValidation, Master GDD v1.4 Mission & Leadership pass):
+ * every reward must have a believable survival source. The director
+ * enforces each source's rules at grant time:
+ *
+ *   NPCPersonal     : a person hands you a few things from their own
+ *                     pack — item quantities capped (no one carries 40
+ *                     rifles), XP allowed.
+ *   FactionStockpile: items are WITHDRAWN from a real depot that
+ *                     actually has them. Stockpile empty = no reward,
+ *                     and the log says so. No materializing.
+ *   SiteContainer   : items spawn as world pickups at the mission site
+ *                     ("recovered from the wreck"), never into pocket.
+ *   Infrastructure  : the reward is the structure/system itself — no
+ *                     pocket items granted.
+ *   Knowledge       : codex/research advancement only — items stripped.
+ *   Morale          : colony morale bump only — items stripped.
+ */
+UENUM(BlueprintType)
+enum class EQRRewardSource : uint8
+{
+	NPCPersonal      UMETA(DisplayName = "NPC Personal"),
+	FactionStockpile UMETA(DisplayName = "Faction Stockpile"),
+	SiteContainer    UMETA(DisplayName = "Site Container"),
+	Infrastructure   UMETA(DisplayName = "Infrastructure"),
+	Knowledge        UMETA(DisplayName = "Knowledge"),
+	Morale           UMETA(DisplayName = "Morale"),
+};
+
+
+/**
+ * MissionLocationFallbackRule — controls placement when a named POI
+ * didn't spawn in this world. Resolution cascades from the authored
+ * rule down to GenerateMinorPOI, which always produces a point.
+ */
+UENUM(BlueprintType)
+enum class EQRMissionLocationRule : uint8
+{
+	ExactPOI         UMETA(DisplayName = "Exact POI"),
+	RegionHint       UMETA(DisplayName = "Region Hint"),
+	BiomeHint        UMETA(DisplayName = "Biome Hint"),
+	FactionOwned     UMETA(DisplayName = "Faction Owned"),
+	GenerateMinorPOI UMETA(DisplayName = "Generate Minor POI"),
+};
+
+
+/**
  * DataTable row for procedural mission templates. RowName is the
  * template's MissionId. Designer authors a pool of these and the
  * director rolls one when the player has bandwidth (no active mission
@@ -74,6 +121,20 @@ struct QUIETRIFTENIGMA_API FQRMissionTemplateRow : public FTableRowBase
 	// likely. Set to 0 to take a template out of rotation.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0", ClampMax = "1"))
 	float RollWeight = 1.0f;
+
+	// No-Pocket-OP: where the reward comes from. Validated at grant time
+	// — see EQRRewardSource. Defaults to the strictest common case.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EQRRewardSource RewardSource = EQRRewardSource::FactionStockpile;
+
+	// Placement rule for location-bearing families (ScoutPOI, EscortNPC,
+	// and any fetch whose target is site-bound).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EQRMissionLocationRule LocationRule = EQRMissionLocationRule::RegionHint;
+
+	// ScoutPOI: how close (meters) the player must get to complete.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "5"))
+	float ScoutRadiusMeters = 30.0f;
 };
 
 
@@ -91,6 +152,12 @@ struct QUIETRIFTENIGMA_API FQRActiveMission
 	UPROPERTY(BlueprintReadOnly) int32 CurrentProgress = 0;
 	UPROPERTY(BlueprintReadOnly) EQRMissionFamily Family = EQRMissionFamily::FetchItem;
 	UPROPERTY(BlueprintReadOnly) FDateTime IssuedAt;
+
+	// Resolved world location for ScoutPOI / EscortNPC / site missions.
+	// Set at issue time via the template's MissionLocationFallbackRule.
+	UPROPERTY(BlueprintReadOnly) FVector TargetLocation = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly) bool bHasTargetLocation = false;
+	UPROPERTY(BlueprintReadOnly) float ScoutRadiusMeters = 30.0f;
 };
 
 
@@ -147,6 +214,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "QR|Missions")
 	FName RollNewMission();
 
+	// Start a specific template (bypasses the weighted roll). Used by
+	// save-restore and scripted mission chains. Returns false when the
+	// id is unknown, already active, or the concurrency cap is hit.
+	UFUNCTION(BlueprintCallable, Category = "QR|Missions")
+	bool StartMissionById(FName MissionId);
+
 	// Report progress against an active mission. Family-aware: for
 	// FetchItem you'd pass the item count delta; for KillTarget the
 	// kill count delta; etc. Completes the mission when CurrentProgress
@@ -184,6 +257,30 @@ private:
 
 	UFUNCTION()
 	void HandleCodexUpdated(FName EntryId, EQRCodexDiscoveryState NewState);
+
+	// ── Instantiation, rewards, location (v2) ─────────────────────
+
+	// Build the live instance from a template row: resolves the target
+	// location through the MissionLocationFallbackRule cascade.
+	void InstantiateMission(FName Id, const FQRMissionTemplateRow& Row);
+
+	// No-Pocket-OP reward grant. Looks the template back up and routes
+	// XP + items through the RewardSource rules (see EQRRewardSource).
+	void GrantRewards(const FQRActiveMission& Mission);
+
+	// MissionLocationFallbackRule cascade. Always succeeds by the time
+	// it reaches GenerateMinorPOI (random navigable ring point).
+	bool ResolveMissionLocation(const FQRMissionTemplateRow& Row,
+		FName TargetId, FVector& OutLocation) const;
+
+	// Reward helpers, one per source.
+	int32 WithdrawFromStockpile(FName ItemId, int32 Quantity);   // returns granted
+	void  SpawnSiteCache(const FQRActiveMission& Mission,
+		const TMap<FName, int32>& Items);
+
+	// 1 Hz scout check against HookedPlayer's location.
+	FTimerHandle ScoutTimerHandle;
+	void TickScoutCheck();
 
 public:
 	// Called by AQRWildlifeActor when a tracked species dies. Static

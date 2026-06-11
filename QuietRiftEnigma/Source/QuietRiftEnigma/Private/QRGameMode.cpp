@@ -251,6 +251,25 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 	// Research / tech tree / codex — was never restored before v2.
 	FQRSaveSnapshot::ApplyResearch(Research, PendingLoadedData.ResearchData);
 
+	// In-flight procedural missions resume with their saved progress.
+	if (MissionDirector)
+	{
+		for (const TPair<FName, int32>& Pair : PendingLoadedData.DirectorMissionProgress)
+		{
+			if (MissionDirector->StartMissionById(Pair.Key))
+			{
+				for (FQRActiveMission& M : MissionDirector->ActiveMissions)
+				{
+					if (M.MissionId == Pair.Key)
+					{
+						M.CurrentProgress = FMath::Clamp(Pair.Value, 0, M.TargetQuantity);
+						break;
+					}
+				}
+			}
+		}
+	}
+
 	// World-state restore: looted containers stay empty, codex keeps its
 	// discovery history, and the placed base comes back.
 	if (UWorld* W = GetWorld())
@@ -385,6 +404,13 @@ void AQRGameMode::QuickSave()
 	Data.CompletedMissionIds = CompletedMissionIds;
 	Data.ActiveMissionIds    = ActiveMissionIds;
 	if (ColonyState) Data.ColonyMorale = ColonyState->ColonyMorale;
+	if (MissionDirector)
+	{
+		for (const FQRActiveMission& M : MissionDirector->ActiveMissions)
+		{
+			Data.DirectorMissionProgress.Add(M.MissionId, M.CurrentProgress);
+		}
+	}
 
 	// Snapshot the first local player's vitals + inventory. Multi-player
 	// per-PC save expansion goes here later.
