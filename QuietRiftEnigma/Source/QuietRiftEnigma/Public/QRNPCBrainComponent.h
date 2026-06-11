@@ -6,6 +6,8 @@
 
 class AActor;
 class UQRCivilianReactionComponent;
+class USkeletalMeshComponent;
+class UAnimSequence;
 
 
 /**
@@ -96,6 +98,26 @@ public:
 		meta = (ClampMin = "200", ClampMax = "5000"))
 	float SocialRangeCm = 1500.0f;
 
+	// ── Animation (single-node mode, no AnimBP graph needed) ──────
+	// The owner's SkeletalMeshComponent is forced into AnimationSingleNode
+	// mode on BeginPlay and these two sequences are swapped based on
+	// per-frame velocity. Sidesteps the empty ABP_QRPlayer state machine
+	// (UE Python can't author state-machine node graphs, so a stock
+	// AnimBP is impractical) -- direct PlayAnimation gets civilians
+	// moving on the same Mannequin skeleton without manual editor work.
+	// Designer can override per-class or per-instance from BP.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> IdleAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> WalkAnim;
+
+	// Speed (cm/s) above which the brain swaps to WalkAnim. Hysteresis
+	// covered by ApplyAnimForVelocity only switching on state change.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation",
+		meta = (ClampMin = "1", ClampMax = "300"))
+	float WalkSpeedThreshold = 15.0f;
+
 	// ── State (read-only at runtime) ──────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Category = "QR|NPC|Brain|State")
 	EQRNPCBrainState State = EQRNPCBrainState::Idle;
@@ -129,6 +151,16 @@ private:
 	// Flee/Fight/Hide so the brain just yields to it.
 	UPROPERTY()
 	TWeakObjectPtr<UQRCivilianReactionComponent> Reaction;
+
+	// Cached on BeginPlay so the per-frame anim swap doesn't pay for a
+	// FindComponentByClass every tick.
+	UPROPERTY()
+	TWeakObjectPtr<USkeletalMeshComponent> CachedMesh;
+
+	bool bAnimIsWalking = false;
+	FVector LastFrameLocation = FVector::ZeroVector;
+
+	void ApplyAnimForVelocity(float DeltaSeconds);
 
 	float ThinkAccumulator = 0.0f;
 	float StateTimer = 0.0f;

@@ -2,6 +2,8 @@
 #include "QRCivilianReactionComponent.h"
 #include "QRGameMode.h"
 #include "GameFramework/Actor.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimSequence.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 
@@ -28,6 +30,21 @@ void UQRNPCBrainComponent::BeginPlay()
 		if (AssignedBed.IsZero())      AssignedBed      = HomePosition;
 
 		Reaction = Owner->FindComponentByClass<UQRCivilianReactionComponent>();
+
+		// Force the owner's skeletal mesh into single-node anim mode so
+		// PlayAnimation works without an AnimBP. If the mesh slot is
+		// empty (designer didn't pick one) we leave it alone -- the
+		// caller is responsible; otherwise we'd mask the bug.
+		if (USkeletalMeshComponent* SMC = Owner->FindComponentByClass<USkeletalMeshComponent>())
+		{
+			CachedMesh = SMC;
+			SMC->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+			if (UAnimSequence* Idle = IdleAnim.LoadSynchronous())
+			{
+				SMC->PlayAnimation(Idle, /*bLooping*/ true);
+			}
+		}
+		LastFrameLocation = Owner->GetActorLocation();
 	}
 
 	CurrentTarget = HomePosition;
@@ -48,10 +65,37 @@ void UQRNPCBrainComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	}
 
 	// Reaction component owns the body during Flee/Fight/Hide -- skip
-	// our movement so we don't fight it for actor transform.
-	if (State == EQRNPCBrainState::Reacting) return;
+	// our movement so we don't fight it for actor transform. We still
+	// drive the anim swap so a fleeing NPC plays Walk while the
+	// reaction component moves the capsule.
+	if (State != EQRNPCBrainState::Reacting)
+	{
+		StepTowardTarget(DeltaTime);
+	}
+	ApplyAnimForVelocity(DeltaTime);
+}
 
-	StepTowardTarget(DeltaTime);
+
+void UQRNPCBrainComponent::ApplyAnimForVelocity(float DeltaSeconds)
+{
+	USkeletalMeshComponent* SMC = CachedMesh.Get();
+	AActor* Owner = GetOwner();
+	if (!SMC || !Owner || DeltaSeconds <= 0.0f) return;
+
+	const FVector Now = Owner->GetActorLocation();
+	const float Speed = (Now - LastFrameLocation).Size2D() / DeltaSeconds;
+	LastFrameLocation = Now;
+
+	const bool bShouldWalk = Speed >= WalkSpeedThreshold;
+	if (bShouldWalk == bAnimIsWalking) return;   // hysteresis -- only swap on edge
+
+	bAnimIsWalking = bShouldWalk;
+	UAnimSequence* Next = bShouldWalk ? WalkAnim.LoadSynchronous()
+	                                  : IdleAnim.LoadSynchronous();
+	if (Next)
+	{
+		SMC->PlayAnimation(Next, /*bLooping*/ true);
+	}
 }
 
 

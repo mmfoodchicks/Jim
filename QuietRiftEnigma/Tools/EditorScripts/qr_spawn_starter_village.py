@@ -18,10 +18,24 @@ Run from the UE Python console with the dev map open:
 """
 
 import math
+import os
 import unreal
 
 
 VILLAGE_LABEL_PREFIX = "QR_Village_"
+
+
+def _run_sibling(script_name, fn_name="run"):
+    """exec another qr_*.py from the same folder."""
+    here = os.path.dirname(os.path.abspath(__file__)) \
+        if "__file__" in globals() else \
+        os.path.normpath(os.path.join(unreal.Paths.project_dir(), "..", "Tools", "EditorScripts"))
+    path = os.path.join(here, script_name)
+    if not os.path.isfile(path): return
+    g = {"__name__": "__qr_sub__", "__file__": path}
+    exec(open(path).read(), g)
+    fn = g.get(fn_name)
+    if callable(fn): fn()
 
 # Designer can mix-in real names later via DialogueTable; for now a
 # small rolodex so the village reads as a place, not a clone army.
@@ -124,6 +138,10 @@ def run(count=8, radius_m=40.0, center=(0.0, 0.0)):
         return
 
     _wipe_previous()
+    # Make sure the NPC class defaults have a mesh + idle/walk anim
+    # before we spawn anyone -- otherwise the village is invisible /
+    # T-pose-static. Idempotent; cheap re-run.
+    _run_sibling("qr_assign_npc_appearance.py")
     radius_cm = radius_m * 100.0
 
     placed = 0
