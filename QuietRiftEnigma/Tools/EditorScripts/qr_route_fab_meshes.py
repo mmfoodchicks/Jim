@@ -167,6 +167,66 @@ MESH_RULES = [
     (r"\bICE\b|\bFROST\b|\bSNOW\b", [
         "/Game/Fabs/Polar/Meshes/SM_Polar_Ice_01",
     ]),
+
+    # ── Construction_VOL1 (73 SM) — raw materials + tools ────────
+    (r"\bBRICK\b|\bMASONRY\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_BrickPaletteStack_01a",
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_BrickPaletteStack_01b",
+    ]),
+    (r"\bCINDER\b|\bCEMENT\b|\bBLOCK\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_CinderStack_01b",
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_CinderStack_Single_01a",
+    ]),
+    (r"\bCONCRETE\b|\bSAG\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConcreteBag_02a",
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConcretePipe_02",
+    ]),
+    (r"\bDRYWALL\b|\bPLASTER\b|\bSHEETROCK\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_Drywall_01a",
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_Drywall_01b",
+    ]),
+    (r"\bREBAR\b|\bSTEEL_BAR\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_Rebar_01a",
+    ]),
+    (r"\bPYLON\b|\bMARKER\b|\bCONE\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConstructionPylons_01c",
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_ConstructionPylons_01e",
+    ]),
+    (r"\bDUMPSTER\b|\bSKIP\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_Dumpster",
+    ]),
+    (r"\bPORTAPOTTY\b|\bOUTHOUSE\b|\bPRIVY\b|\bLATRINE\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_Portapotty_02",
+    ]),
+    (r"\bSPOOL\b|\bREEL\b|\bWIRE_REEL\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_Spool_01a",
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_CableReel",
+    ]),
+    (r"\bGENERATOR\b|\bGEN\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_LightGenerator_Base_01a",
+    ]),
+    (r"\bFREIGHT\b|\bCONTAINER\b|\bSHIPCRATE\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_FreightContainer_01",
+    ]),
+    (r"\bFENCE\b|\bPERIMETER\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_construction_fence_support_01a",
+    ]),
+
+    # ── Tool-gated crash entry tools (mapped to existing item ids
+    # we just authored in QRWorldGenSubsystem). Placeholder meshes
+    # for now -- swap to bespoke when art arrives.
+    (r"\bCUTTING_TORCH\b|\bTORCH\b|\bCUTTER\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_LightGenerator_Lights_01a",
+    ]),
+    (r"\bPRY_BAR\b|\bCROWBAR\b|\bPRYBAR\b", [
+        "/Game/Fabs/Construction_VOL1/Meshes/SM_Rebar_01a",
+    ]),
+    (r"\bDECRYPT\b|\bSPIKE\b|\bKEY\b", [
+        "/Game/Fabs/DeepWaterStation/Meshes/SM_Terminal01",
+    ]),
+    (r"\bPOWER_COUPLER\b|\bCOUPLER\b|\bJUNCTION\b", [
+        "/Game/Fabs/DeepWaterStation/Meshes/SM_Antena01",
+    ]),
 ]
 
 

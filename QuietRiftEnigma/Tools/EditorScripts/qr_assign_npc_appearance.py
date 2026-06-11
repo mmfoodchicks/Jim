@@ -30,14 +30,23 @@ Override which assets to use by passing soft paths:
 import unreal
 
 
-# Stock UE5 Mannequin paths -- ship with every UE5 install when the
-# Third Person template content is added. Order = preference (Manny is
-# the "default" male, Quinn the female; either works for either NPC).
+# Mesh candidates in preference order. The script picks the first one
+# that resolves. Stock UE5 Mannequin first (most likely to have stock
+# anims that play correctly); then the Fab character packs the user
+# has installed; then a debug cube. The Fab characters carry their own
+# skeletons -- if their pack's anims aren't compatible with Mannequin's
+# UAnimSequence assets, fall back to Mannequin instead.
 MESH_CANDIDATES = [
     "/Game/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple",
     "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
     "/Game/Characters/Mannequins/Meshes/SKM_Quinn.SKM_Quinn",
     "/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny",
+    # Fab character packs already in /Game/Fabs/. Tagged with their
+    # native skeleton in the brain so an override doesn't pair a
+    # FuturisticWarrior mesh with a Mannequin anim.
+    "/Game/Fabs/QuantumCharacter/Meshes/SKM_QuantumCharacter.SKM_QuantumCharacter",
+    "/Game/Fabs/QuantumCharacter/Meshes/SKM_QuantumCharacter_NoHead.SKM_QuantumCharacter_NoHead",
+    "/Game/Fabs/FuturisticWarrior/Meshes/SK_FuturisticWarrior.SK_FuturisticWarrior",
     "/Engine/EngineMeshes/SkeletalCube.SkeletalCube",   # last-ditch debug placeholder
 ]
 

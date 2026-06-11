@@ -181,6 +181,48 @@ void AQRWorldGenSpawner::PopulateDefaultCrashTemplates()
 		T.Entries.Add(MakeEntry(TEXT("RAW_METAL_INGOT"),      2, 5, 0.65f));
 		CrashLootTemplates.Add(TEXT("PowerModuleWreck"), T);
 	}
+
+	// ── 2026-06-11 design pass: 2 hero crashes + 6 tool-gated.
+	// Hero locations reuse the legacy loot tables but bump quantities
+	// so the loot density matches their scale.
+	{
+		FQRCrashLootTemplate T;
+		T.Entries.Add(MakeEntry(TEXT("WPN_CARBINE"),          2, 4, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("WPN_SERVICE_PISTOL"),   2, 4, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("WPN_BOLT_SNIPER"),      1, 2, 0.55f));
+		T.Entries.Add(MakeEntry(TEXT("AMM_556"),              40, 120, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("REM_ART_DATA_SHARD"),   2, 4, 0.85f));
+		T.Entries.Add(MakeEntry(TEXT("RAW_CIRCUIT_BOARD"),    5, 12, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("TOL_DECRYPT_SPIKE"),    1, 1, 0.65f));
+		T.Entries.Add(MakeEntry(TEXT("TOL_CUTTING_TORCH"),    1, 1, 0.55f));
+		CrashLootTemplates.Add(TEXT("MajorCrash_CommandBridge"), T);
+	}
+	{
+		FQRCrashLootTemplate T;
+		T.Entries.Add(MakeEntry(TEXT("RAW_POWER_CELL"),       4, 10, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("RAW_CAPACITOR"),        8, 20, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("RAW_METAL_INGOT"),      10, 25, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("RAW_WIRE"),             12, 30, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("TOL_WRENCH"),           2, 3, 0.95f));
+		T.Entries.Add(MakeEntry(TEXT("TOL_POWER_COUPLER"),    1, 1, 0.65f));
+		T.Entries.Add(MakeEntry(TEXT("REM_ART_POWER_CELL"),   1, 2, 0.45f));
+		CrashLootTemplates.Add(TEXT("MajorCrash_EngineeringCore"), T);
+	}
+
+	// Minor crashes reuse the legacy templates 1:1 (loot DNA preserved
+	// despite the renamed archetype) so designers don't have to re-author.
+	if (FQRCrashLootTemplate* P = CrashLootTemplates.Find(TEXT("ArmoryWreck")))
+		CrashLootTemplates.Add(TEXT("MinorCrash_Armory"),    *P);
+	if (FQRCrashLootTemplate* P = CrashLootTemplates.Find(TEXT("MedBayWreck")))
+		CrashLootTemplates.Add(TEXT("MinorCrash_MedBay"),    *P);
+	if (FQRCrashLootTemplate* P = CrashLootTemplates.Find(TEXT("GalleyWreck")))
+		CrashLootTemplates.Add(TEXT("MinorCrash_Galley"),    *P);
+	if (FQRCrashLootTemplate* P = CrashLootTemplates.Find(TEXT("AvionicsWreck")))
+		CrashLootTemplates.Add(TEXT("MinorCrash_Avionics"),  *P);
+	if (FQRCrashLootTemplate* P = CrashLootTemplates.Find(TEXT("LuggageWreck")))
+		CrashLootTemplates.Add(TEXT("MinorCrash_Luggage"),   *P);
+	if (FQRCrashLootTemplate* P = CrashLootTemplates.Find(TEXT("PowerModuleWreck")))
+		CrashLootTemplates.Add(TEXT("MinorCrash_PowerCore"), *P);
 }
 
 
@@ -354,12 +396,19 @@ void AQRWorldGenSpawner::SpawnPOIs()
 			{
 				if (AQRCrashSiteActor* Crash = Cast<AQRCrashSiteActor>(A))
 				{
-					Crash->ArchetypeId = P.ArchetypeId;
-					const int32 LootSeed = Sub->WorldSeed
-						^ GetTypeHash(P.ArchetypeId)
-						^ GetTypeHash(P.WorldLocation.ToString());
-					const FQRCrashLootTemplate& Template = CrashLootTemplates[P.ArchetypeId];
-					Crash->PopulateLoot(Template, LootSeed);
+					Crash->ArchetypeId        = P.ArchetypeId;
+					Crash->RequiredToolItemId = P.RequiredToolItemId;
+
+					// Major (unkeyed) crashes scatter their loot immediately
+					// -- they're the always-accessible hero locations. Tool-
+					// gated minor crashes wait for TryUnlockWithInventory.
+					if (P.RequiredToolItemId.IsNone())
+					{
+						const int32 LootSeed = Sub->WorldSeed
+							^ GetTypeHash(P.ArchetypeId)
+							^ GetTypeHash(P.WorldLocation.ToString());
+						Crash->PopulateLoot(CrashLootTemplates[P.ArchetypeId], LootSeed);
+					}
 				}
 			}
 		}

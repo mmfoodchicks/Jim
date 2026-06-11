@@ -83,12 +83,10 @@ BIOMES = {
             (PLT_SPIRAL_REED,  3.0, 0.7, 1.2,   0.0, False),
             (ROCK_1,           2.0, 0.6, 1.4, -10.0, True),
             (ROCK_2,           1.5, 0.7, 1.5, -15.0, True),
-            # Sparse crash-site flavor near origin: rare wreckage chunks
-            # + dropped supply props sell "you came down here recently".
-            (WRECKAGE_1,       0.3, 0.4, 0.7, -30.0, True),
-            (SCRAP_BARREL,     0.5, 0.8, 1.1,   0.0, False),
-            (SCRAP_PALLET,     0.4, 0.8, 1.1,   0.0, False),
-            (SCRAP_BOX,        0.6, 0.7, 1.2,   0.0, False),
+            # Per design note 2026-06-11: wreckage stays at the crash
+            # POI sites (2 major + ~6 small tool-gated, set in
+            # UQRWorldGenSubsystem::PlacePOIs), not in the biome
+            # background. Keeps the world looking pretty.
         ],
     },
     "BP_WindPlains": {
