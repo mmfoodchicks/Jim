@@ -1,6 +1,7 @@
 #include "QRCrashSiteActor.h"
 #include "QRWorldItem.h"
 #include "QRItemDefinition.h"
+#include "QRInventoryComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -30,6 +31,8 @@ void AQRCrashSiteActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AQRCrashSiteActor, ArchetypeId);
+	DOREPLIFETIME(AQRCrashSiteActor, RequiredToolItemId);
+	DOREPLIFETIME(AQRCrashSiteActor, bUnlocked);
 }
 
 void AQRCrashSiteActor::ClearScatteredLoot()
@@ -40,6 +43,21 @@ void AQRCrashSiteActor::ClearScatteredLoot()
 	}
 	ScatteredLoot.Reset();
 }
+
+bool AQRCrashSiteActor::TryUnlockWithInventory(UQRInventoryComponent* Inventory)
+{
+	if (bUnlocked) return true;
+	if (RequiredToolItemId.IsNone())
+	{
+		bUnlocked = true;
+		return true;
+	}
+	if (!Inventory) return false;
+	if (Inventory->CountItem(RequiredToolItemId) <= 0) return false;
+	bUnlocked = true;
+	return true;
+}
+
 
 void AQRCrashSiteActor::PopulateLoot(const FQRCrashLootTemplate& Template, int32 Seed)
 {

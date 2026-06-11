@@ -281,14 +281,15 @@ void UQRWorldGenSubsystem::PlacePOIs()
 	};
 
 	auto AddPlacement = [&](FName Archetype, const FVector& Loc, float Radius,
-		const FQRWorldCell& Cell)
+		const FQRWorldCell& Cell, FName RequiredTool = NAME_None)
 	{
 		FQRPOIPlacement P;
-		P.ArchetypeId   = Archetype;
-		P.WorldLocation = Loc;
-		P.RadiusCm      = Radius;
-		P.BiomeTag      = Cell.MacroBiome;
-		P.DepthBand     = Cell.DepthBand;
+		P.ArchetypeId        = Archetype;
+		P.WorldLocation      = Loc;
+		P.RadiusCm           = Radius;
+		P.BiomeTag           = Cell.MacroBiome;
+		P.DepthBand          = Cell.DepthBand;
+		P.RequiredToolItemId = RequiredTool;
 		POIPlacements.Add(P);
 	};
 
@@ -325,26 +326,57 @@ void UQRWorldGenSubsystem::PlacePOIs()
 		AddPlacement(TEXT("FactionSatellite"), Loc, 1500.0f, C);
 	}
 
-	// ── 4. Major crash wrecks — Surface band, scattered.
-	static const TArray<FName> WreckTypes = {
-		TEXT("ArmoryWreck"),
-		TEXT("MedBayWreck"),
-		TEXT("GalleyWreck"),
-		TEXT("EngineeringWreck"),
-		TEXT("AvionicsWreck"),
-		TEXT("LuggageWreck"),
-		TEXT("PowerModuleWreck"),
+	// ── 4. Crash wrecks.
+	// Per 2026-06-11 design call: 2 MASSIVE hero crashes (CommandBridge
+	// + EngineeringCore — always-accessible, huge POI) plus 6 SMALLER
+	// tool-gated wrecks (interior locked behind a cutter / power coupler
+	// / decryption-spike item ID). Keeps the world "pretty" -- no
+	// wreckage-everywhere scatter -- and concentrates the action at
+	// distinct, memorable locations. The small wrecks each set a
+	// RequiredToolItemId; the spawner forwards this to the crash
+	// actor's loot container interaction.
+	struct FCrashEntry
+	{
+		FName ArchetypeId;
+		float RadiusCm;
+		FName RequiredToolItemId;   // NAME_None = no tool required
 	};
-	for (int32 i = 0; i < 12; ++i)
+	static const TArray<FCrashEntry> MajorCrashes = {
+		{ TEXT("MajorCrash_CommandBridge"),   2400.0f, NAME_None },
+		{ TEXT("MajorCrash_EngineeringCore"), 2400.0f, NAME_None },
+	};
+	static const TArray<FCrashEntry> MinorCrashes = {
+		{ TEXT("MinorCrash_Armory"),    900.0f, TEXT("TOL_CUTTING_TORCH")  },
+		{ TEXT("MinorCrash_MedBay"),    900.0f, TEXT("TOL_MED_KEY")        },
+		{ TEXT("MinorCrash_Galley"),    900.0f, TEXT("TOL_PRY_BAR")        },
+		{ TEXT("MinorCrash_Avionics"),  900.0f, TEXT("TOL_DECRYPT_SPIKE")  },
+		{ TEXT("MinorCrash_Luggage"),   900.0f, TEXT("TOL_PRY_BAR")        },
+		{ TEXT("MinorCrash_PowerCore"), 900.0f, TEXT("TOL_POWER_COUPLER")  },
+	};
+
+	// 2 hero crashes -- generous radius, generous min-spacing so each
+	// reads as a hero location and never overlaps.
+	for (const FCrashEntry& E : MajorCrashes)
 	{
 		const int32 Idx = SampleRandomCellInBand(EQRDepthBand::Surface, 200);
 		if (Idx == INDEX_NONE) break;
 		const FQRWorldCell& C = Cells[Idx];
 		const FVector Loc = WorldPosForCell(C.X, C.Y);
 		if (Loc.SizeSquared() < StartSafeRadiusMeters * StartSafeRadiusMeters * 10000.0f) continue;
-		if (!MinSpacingOK(Loc, 1500.0f * 100.0f)) continue;
-		const FName Archetype = WreckTypes[POIRng.RandRange(0, WreckTypes.Num() - 1)];
-		AddPlacement(Archetype, Loc, 800.0f, C);
+		if (!MinSpacingOK(Loc, 6000.0f * 100.0f)) continue;
+		AddPlacement(E.ArchetypeId, Loc, E.RadiusCm, C, E.RequiredToolItemId);
+	}
+
+	// 6 tool-gated smaller wrecks, scattered.
+	for (const FCrashEntry& E : MinorCrashes)
+	{
+		const int32 Idx = SampleRandomCellInBand(EQRDepthBand::Surface, 200);
+		if (Idx == INDEX_NONE) break;
+		const FQRWorldCell& C = Cells[Idx];
+		const FVector Loc = WorldPosForCell(C.X, C.Y);
+		if (Loc.SizeSquared() < StartSafeRadiusMeters * StartSafeRadiusMeters * 10000.0f) continue;
+		if (!MinSpacingOK(Loc, 2000.0f * 100.0f)) continue;
+		AddPlacement(E.ArchetypeId, Loc, E.RadiusCm, C, E.RequiredToolItemId);
 	}
 
 	// ── 5. Minor POIs — biome-specific filler.
