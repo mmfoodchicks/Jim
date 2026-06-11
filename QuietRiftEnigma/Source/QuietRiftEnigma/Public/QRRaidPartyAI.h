@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "QRTypes.h"
 #include "QRWorldGenTypes.h"
 #include "QRRaidPartyAI.generated.h"
 
@@ -94,6 +95,16 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "QR|Raid|State")
 	EQRRaidPartyState State = EQRRaidPartyState::Marching;
+
+	UPROPERTY(BlueprintReadOnly, Category = "QR|Raid|State")
+	EQRRaidExperienceTier ExperienceTier = EQRRaidExperienceTier::Competent;
+
+	// Restamp speeds / perception / damage / retreat threshold from the
+	// experience ladder. Inexperienced -> loud, panicky, soft hits.
+	// Competent -> baseline. Veteran -> wide perception, faster march,
+	// holds longer before retreat. Fanatic -> won't retreat.
+	UFUNCTION(BlueprintCallable, Category = "QR|Raid")
+	void ApplyExperienceTier(EQRRaidExperienceTier Tier);
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
 		FActorComponentTickFunction* ThisTickFunction) override;

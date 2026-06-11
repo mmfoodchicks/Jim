@@ -23,6 +23,54 @@ void UQRRaidPartyAI::BeginPlay()
 }
 
 
+void UQRRaidPartyAI::ApplyExperienceTier(EQRRaidExperienceTier Tier)
+{
+	ExperienceTier = Tier;
+
+	// Numbers tuned against the CSV's prose ladder so each tier has
+	// distinct gameplay feel without spawning bullet sponges:
+	//
+	//   Inexperienced — loud, slow, hits soft, breaks fast.
+	//   Competent     — baseline (unchanged from the ctor defaults).
+	//   Veteran       — wide perception, faster march, retreats later,
+	//                   hits harder.
+	//   Fanatic       — never retreats, fastest, hardest hits.
+	switch (Tier)
+	{
+	case EQRRaidExperienceTier::Inexperienced:
+		MarchSpeed        = 180.0f;
+		EngageSpeed       = 280.0f;
+		PerceptionRadius  = 1100.0f;
+		AttackDamage      = 11.0f;
+		AttackInterval    = 1.9f;
+		RetreatHealthFrac = 0.55f;     // first casualty and they bolt
+		break;
+
+	case EQRRaidExperienceTier::Competent:
+		// keep ctor defaults
+		break;
+
+	case EQRRaidExperienceTier::Veteran:
+		MarchSpeed        = 260.0f;
+		EngageSpeed       = 380.0f;
+		PerceptionRadius  = 2200.0f;   // reads the field
+		AttackDamage      = 20.0f;
+		AttackInterval    = 1.2f;
+		RetreatHealthFrac = 0.18f;     // pushes through casualties
+		break;
+
+	case EQRRaidExperienceTier::Fanatic:
+		MarchSpeed        = 300.0f;
+		EngageSpeed       = 440.0f;
+		PerceptionRadius  = 2600.0f;
+		AttackDamage      = 24.0f;
+		AttackInterval    = 1.0f;
+		RetreatHealthFrac = 0.0f;      // does not retreat
+		break;
+	}
+}
+
+
 void UQRRaidPartyAI::SetState(EQRRaidPartyState NewState)
 {
 	State = NewState;
@@ -214,6 +262,9 @@ AActor* UQRRaidPartyAI::ScanForHostile() const
 
 bool UQRRaidPartyAI::ShouldRetreat() const
 {
+	// Fanatics don't retreat regardless of damage.
+	if (ExperienceTier == EQRRaidExperienceTier::Fanatic) return false;
+	if (RetreatHealthFrac <= 0.0f) return false;
 	if (AActor* Owner = GetOwner())
 	{
 		if (UQRSurvivalComponent* Surv = Owner->FindComponentByClass<UQRSurvivalComponent>())

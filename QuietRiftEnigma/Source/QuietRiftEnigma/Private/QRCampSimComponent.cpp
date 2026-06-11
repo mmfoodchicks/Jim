@@ -82,8 +82,28 @@ void UQRCampSimComponent::ReportRaidSuccessful(int32 SurvivingMilitary, float Lo
 	State.MilitaryStrength = FMath::Max(0, SurvivingMilitary);
 	State.Resources       += LootedResources;
 	State.HoursSinceLastRaid = 0.0f;
+	State.SuccessfulRaids++;
 	// Success emboldens the camp.
 	State.Hostility = FMath::Min(1.0f, State.Hostility + 0.05f);
+}
+
+
+EQRRaidExperienceTier UQRCampSimComponent::DetermineRaidTier() const
+{
+	if (bForceFanaticTier) return EQRRaidExperienceTier::Fanatic;
+
+	// Veteran teams come either from sustained success OR from a
+	// well-led camp that's currently picking its moment (high
+	// leadership + favorable conditions = veteran cadre even on the
+	// first raid).
+	const float Leadership = GetEffectiveLeadership();
+	if (State.SuccessfulRaids >= 6) return EQRRaidExperienceTier::Veteran;
+	if (Leadership >= 8.0f && AreConditionsFavorable())
+	{
+		return EQRRaidExperienceTier::Veteran;
+	}
+	if (State.SuccessfulRaids >= 2) return EQRRaidExperienceTier::Competent;
+	return EQRRaidExperienceTier::Inexperienced;
 }
 
 
@@ -128,6 +148,7 @@ void UQRCampSimComponent::TryDecideRaid()
 	Plan.TargetLocation    = FindRaidTargetLocation();
 	Plan.PartySize         = PartySize;
 	Plan.HostilityAtLaunch = State.Hostility;
+	Plan.Experience        = DetermineRaidTier();
 	OnRaidLaunched.Broadcast(Plan);
 
 	UE_LOG(LogTemp, Log,
