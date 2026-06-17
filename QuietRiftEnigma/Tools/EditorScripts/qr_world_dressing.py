@@ -629,6 +629,20 @@ def decorate_crash_sites():
     print("[dress]   decorated {} crash sites".format(decorated))
 
 
+# Hard safety budgets. Dressing the WHOLE 64 km map at once is what
+# crashed the editor: at 500 m tiles a 64 km square is 128x128 = 16,384
+# scatter actors x 350 instances = ~5.7 M instances, each needing a
+# ground trace at generate time. No machine survives that.
+#
+# The worldgen LOGIC (biomes, POIs, faction camps, the 2 hero crashes)
+# already spans the full 64 km regardless of dressing -- it's cheap data.
+# Only the visual scatter is budgeted here. Beyond the dressed bubble
+# you get bare (biome-coloured) terrain until World Partition streaming
+# lands; per-instance HISM cull distance keeps the bubble itself cheap.
+MAX_SCATTER_ACTORS  = 729      # 27x27 tile grid ceiling
+MAX_TOTAL_INSTANCES = 120000   # total HISM instances across all tiles
+
+
 def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
              skip_biomes=False, skip_worldgen=False):
     """Tile a configurable playable radius with worldgen-aware scatter
@@ -636,16 +650,17 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
     UQRWorldGenSubsystem cell grid so the whole zone reads biome-
     accurate without per-tile hand-tuning.
 
+    SAFETY: total scatter is hard-capped (MAX_SCATTER_ACTORS /
+    MAX_TOTAL_INSTANCES). If the requested radius would blow the budget
+    the dressed bubble is clamped and per_tile auto-reduced -- the script
+    prints what it did instead of crashing. Worldgen POIs still span the
+    full 64 km regardless.
+
     Args:
       playable_radius_m: half-side of the dressed square zone, in meters.
-                         2500m = a 5km x 5km playable area. Set higher to
-                         dress further out; each doubling quadruples the
-                         tile count.
-      tile_m:            edge of each scatter tile, in meters. 500m
-                         (default) = 25 tiles for a 5km zone, each one
-                         covers 0.25 km^2.
-      per_tile:          TargetCount per scatter actor. 350 default = ~9k
-                         instances over a 5km zone, all HISM.
+                         2500m = a 5km x 5km playable area.
+      tile_m:            edge of each scatter tile, in meters.
+      per_tile:          TargetCount per scatter actor (HISM instances).
       skip_biomes:       skip qr_seed_biome_profiles (already seeded).
       skip_worldgen:     skip the seed-actor placement / Generate call.
     """
@@ -659,7 +674,7 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
     if not skip_biomes:   _seed_biomes()
     if not skip_worldgen:
         _ensure_worldgen_seed()
-        _ensure_worldgen_spawner()   # POIs + fauna + caves
+        _ensure_worldgen_spawner()   # POIs + fauna + caves (full-map, cheap)
 
     profile_map = _build_biome_profile_map()
     if not profile_map:
@@ -667,12 +682,33 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
         return
     print("[dress] biome profile map: {} profiles".format(len(profile_map)))
 
-    radius_cm    = playable_radius_m * 100.0
-    tile_cm      = tile_m            * 100.0
+    tile_cm      = max(tile_m, 50.0) * 100.0
     half_tile_cm = tile_cm * 0.5
-    # Center the tile grid so origin sits on a tile edge -- prevents
-    # gap at the seed actor.
+    radius_cm    = max(playable_radius_m, tile_m) * 100.0
+
     n_tiles = int(math.ceil(radius_cm * 2.0 / tile_cm))
+
+    # ── Budget enforcement ───────────────────────────────────────
+    side_cap = int(math.floor(math.sqrt(MAX_SCATTER_ACTORS)))
+    if n_tiles > side_cap:
+        print("[dress] WARNING: requested {0}x{0} tiles ({1:.0f} km) exceeds the "
+              "{2}x{2} dressing cap.".format(
+                  n_tiles, n_tiles * tile_m / 1000.0, side_cap))
+        print("[dress] Clamping the DRESSED bubble to {0}x{0} tiles "
+              "({1:.1f} km). Worldgen POIs still cover the full map; the "
+              "outer area stays bare terrain until streaming lands.".format(
+                  side_cap, side_cap * tile_m / 1000.0))
+        n_tiles = side_cap
+
+    total = n_tiles * n_tiles * per_tile
+    if total > MAX_TOTAL_INSTANCES:
+        new_per_tile = max(8, MAX_TOTAL_INSTANCES // (n_tiles * n_tiles))
+        print("[dress] WARNING: {0} tiles x {1} = {2} instances exceeds the "
+              "{3} budget. Reducing per_tile {1} -> {4}.".format(
+                  n_tiles * n_tiles, per_tile, total,
+                  MAX_TOTAL_INSTANCES, new_per_tile))
+        per_tile = new_per_tile
+
     base = -n_tiles * 0.5 * tile_cm + half_tile_cm
 
     placed = 0
@@ -682,8 +718,10 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
             cy = base + iy * tile_cm
             if _spawn_tile_scatter(cx, cy, half_tile_cm, profile_map, per_tile):
                 placed += 1
-    print("[dress] tiled {} scatter actors across {:.1f} km x {:.1f} km".format(
-        placed, n_tiles * tile_m / 1000.0, n_tiles * tile_m / 1000.0))
+    print("[dress] tiled {} scatter actors ({} instances each) across "
+          "{:.1f} km x {:.1f} km".format(
+              placed, per_tile, n_tiles * tile_m / 1000.0,
+              n_tiles * tile_m / 1000.0))
 
     # Hero crashes get their debris arcs, crew remains, and fires.
     decorate_crash_sites()

@@ -79,13 +79,30 @@ public:
 		meta = (ClampMin = "0", ClampMax = "200000"))
 	float DayIntensity = 2800.0f;
 
-	// "Jovianlight" floor -- Jupiter reflects substantial sunlight onto
-	// the moon during the moon's nightside, ~500x brighter than our full
-	// moon. 250 lux soft-twilight floor; the camera's adaptive exposure
-	// brings the night up the rest of the way without a flat ambient flood.
+	// Residual sun floor when the sun is below the horizon. Near-zero so
+	// the NIGHT is genuinely lit by the Jovianlight (Jupiter's reflected
+	// glow), not by a ghost sun shining up through the world. A tiny
+	// non-zero value gives a hint of star/zodiacal light. The old 250 lux
+	// "night sun" lit the ground from below and washed out the Jovianlight
+	// shadow -- that was the bug.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
 		meta = (ClampMin = "0", ClampMax = "10000"))
-	float NightIntensity = 250.0f;
+	float NightIntensity = 3.0f;
+
+	// Constant intensity of the Jovianlight (the second directional light
+	// labeled QR_Jovianlight). Per canon ~125 lux (500x our full moon).
+	// It does NOT cycle -- Jupiter is fixed in the sky from a tidally-
+	// locked moon -- so it's the steady night-shadow source. At noon the
+	// ~2,800 lux sun overwhelms it (one shadow); at twilight both the low
+	// sun and Jupiter cast (briefly two shadows); at night Jupiter alone
+	// casts (the Jovianlight shadow).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "0", ClampMax = "10000"))
+	float JovianIntensity = 125.0f;
+
+	// Cream-tan tint of Jupiter's reflected light.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
+	FLinearColor JovianColor = FLinearColor(0.95f, 0.85f, 0.65f, 1.0f);
 
 	// Sun color at noon vs at horizon (sunrise/sunset).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
@@ -114,6 +131,13 @@ protected:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AActor>> MoonActors;
+
+	/** The second directional light (QR_Jovianlight) representing
+	 *  Jupiter's reflected glow. Resolved by label at BeginPlay; the
+	 *  Tick keeps it shadow-casting and aimed from Jupiter so the night
+	 *  side gets a real Jovianlight shadow. */
+	UPROPERTY(Transient)
+	TObjectPtr<ADirectionalLight> JovianLight;
 
 	void ResolveSkyActors();
 };

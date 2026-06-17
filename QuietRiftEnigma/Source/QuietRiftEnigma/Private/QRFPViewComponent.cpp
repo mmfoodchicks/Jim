@@ -79,8 +79,17 @@ float UQRFPViewComponent::ComputeLeanWallClamp(float DesiredLean) const
 
 	if (GetWorld() && GetWorld()->LineTraceSingleByChannel(Hit, Origin, End, ECC_Visibility, Params))
 	{
-		const float Allowed = FMath::Max(0.0f, Hit.Distance - 4.0f) / FMath::Max(Reach, 1.0f);
-		return FMath::Min(FMath::Abs(DesiredLean), Allowed);
+		// Only clamp against WALL-LIKE surfaces (near-vertical normals).
+		// On open terrain the sideways trace grazes sloped ground/hills,
+		// and clamping against that made the lean flicker on/off every
+		// frame -- the "leaning shakes the gun rapidly" bug. A near-
+		// horizontal hit normal means a wall; a vertical-ish normal means
+		// ground/slope, which we ignore so the lean stays smooth.
+		if (FMath::Abs(Hit.Normal.Z) < 0.5f)
+		{
+			const float Allowed = FMath::Max(0.0f, Hit.Distance - 4.0f) / FMath::Max(Reach, 1.0f);
+			return FMath::Min(FMath::Abs(DesiredLean), Allowed);
+		}
 	}
 	return FMath::Abs(DesiredLean);
 }

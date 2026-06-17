@@ -96,6 +96,7 @@ void AQRSkyManager::ResolveSkyActors()
 	if (!W) return;
 
 	JupiterActor = nullptr;
+	JovianLight  = nullptr;
 	MoonActors.Reset();
 	MoonActors.SetNum(Moons.Num());
 
@@ -122,6 +123,44 @@ void AQRSkyManager::ResolveSkyActors()
 		}
 	}
 #endif
+
+	// Resolve the Jovianlight (works in any build -- it's a typed cast,
+	// not a label, falling back to the dimmest demoted directional light
+	// if the label-spawned one isn't present).
+	for (TActorIterator<ADirectionalLight> It(W); It; ++It)
+	{
+		ADirectionalLight* DL = *It;
+		if (DL == SunLight) continue;
+#if WITH_EDITOR
+		if (DL->GetActorLabel() == TEXT("QR_Jovianlight"))
+		{
+			JovianLight = DL;
+			break;
+		}
+#endif
+		// Non-editor / unlabeled fallback: the first non-sun directional
+		// light is the Jovianlight.
+		if (!JovianLight) JovianLight = DL;
+	}
+
+	// One-time config so it always casts the night shadow with a soft
+	// penumbra and the canon cream tint.
+	if (JovianLight)
+	{
+		if (UDirectionalLightComponent* LC = JovianLight->FindComponentByClass<UDirectionalLightComponent>())
+		{
+			if (LC->Mobility != EComponentMobility::Movable)
+			{
+				LC->SetMobility(EComponentMobility::Movable);
+			}
+			LC->SetCastShadows(true);
+			LC->LightSourceAngle = 2.0f;          // soft penumbra
+			LC->ForwardShadingPriority = 0;        // sun is the forward winner
+			LC->SetLightColor(JovianColor);
+			LC->SetIntensity(JovianIntensity);
+			LC->MarkRenderStateDirty();
+		}
+	}
 }
 
 
@@ -156,8 +195,15 @@ void AQRSkyManager::Tick(float DeltaTime)
 	// to DayIntensity when the sun was under the world, and dimmed it to
 	// NightIntensity when the sun was overhead. Flipping the sign makes
 	// overhead = bright as physics expects.
-	const float HeightAlpha = FMath::Clamp((-SunPitch / 90.0f), 0.0f, 1.0f);
-	const float Intensity   = FMath::Lerp(NightIntensity, DayIntensity, HeightAlpha);
+	// AboveHorizon: 1 at noon, 0 at/below the horizon. Squared so the sun
+	// fades hard as it sets -- below the horizon it contributes only the
+	// tiny NightIntensity floor, leaving the night to the Jovianlight.
+	// This is the fix for "shadows seem off at night": a 250-lux sun
+	// shining UP through the world was lighting the ground from below and
+	// killing the Jupiter shadow.
+	const float AboveHorizon = FMath::Clamp((-SunPitch / 90.0f), 0.0f, 1.0f);
+	const float SunCurve     = AboveHorizon * AboveHorizon;
+	const float Intensity    = FMath::Lerp(NightIntensity, DayIntensity, SunCurve);
 
 	FLinearColor Color;
 	if (SunPitch <= -30.0f)
@@ -182,6 +228,31 @@ void AQRSkyManager::Tick(float DeltaTime)
 	{
 		LC->SetIntensity(Intensity);
 		LC->SetLightColor(Color);
+	}
+
+	// Aim the Jovianlight FROM Jupiter so the night-side shadow points
+	// correctly away from where Jupiter renders in the sky. Constant
+	// intensity (Jupiter is fixed for a tidally-locked moon) -- only the
+	// direction is kept in sync with the visible Jupiter actor. With the
+	// sun faded out below the horizon, this is the dominant night light,
+	// so it carves the single soft "Jovianlight" shadow. At twilight the
+	// low sun and this both cast -> the brief two-shadow window.
+	if (JovianLight)
+	{
+		if (UDirectionalLightComponent* JLC = JovianLight->FindComponentByClass<UDirectionalLightComponent>())
+		{
+			if (JupiterActor)
+			{
+				// Light shines from Jupiter toward the play area (origin).
+				const FVector ShineDir = (-JupiterActor->GetActorLocation()).GetSafeNormal();
+				if (!ShineDir.IsNearlyZero())
+				{
+					JovianLight->SetActorRotation(ShineDir.Rotation());
+				}
+			}
+			JLC->SetIntensity(JovianIntensity);
+			JLC->SetLightColor(JovianColor);
+		}
 	}
 
 	// Orbit moons around Jupiter. Each moon's world position is
