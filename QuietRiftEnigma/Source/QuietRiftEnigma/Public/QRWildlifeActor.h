@@ -77,6 +77,12 @@ public:
 		meta = (ClampMin = "100", ClampMax = "10000"))
 	float PerceptionRadius = 1800.0f;
 
+	// When true the creature never aggros on the player — stays in
+	// Wander indefinitely. Set on creative-mode-dropped wildlife so
+	// they don't all turn into a flee-mirror parade as the player moves.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Behavior")
+	bool bIgnorePlayer = false;
+
 	// Predators within this range trigger Attack.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Behavior",
 		meta = (ClampMin = "50", ClampMax = "1000"))

@@ -13,6 +13,13 @@ AQRWildlife_PillarbackHauler::AQRWildlife_PillarbackHauler()
 	ThreatDetectionRadius = 1200.0f;
 	NoiseFactor        = 0.8f;
 
+	// Real-world size + attack tuning (colossal ~10m megafauna; stomps)
+	BodyLengthMeters   = 10.0f;
+	BodyHeightMeters   = 5.5f;
+	AttackDamage       = 55.0f;
+	AttackRange        = 500.0f;
+	bArmoredHead       = true;   // bone-plated megafauna -- flank/belly only
+
 	DeathDrops.Add({ FName("FOD_HAULER_MEAT_LARGE"), 8, 16, 1.0f });
 	DeathDrops.Add({ FName("MAT_PILLAR_BONE"),        4,  8, 0.9f });
 	DeathDrops.Add({ FName("MAT_HAULER_HIDE_HEAVY"),  2,  4, 0.8f });

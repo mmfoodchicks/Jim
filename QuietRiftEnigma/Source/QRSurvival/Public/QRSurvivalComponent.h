@@ -154,8 +154,26 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void ApplyDamage(float Amount, EQRInjuryType InjuryType = EQRInjuryType::None);
 
+	// ── Armour ──────────────────────────────
+	// Wear-protection: fraction of incoming damage absorbed by equipped
+	// armour, 0..0.95. Stamped by the character whenever clothing changes
+	// (head/chest/legs aggregated). ApplyDamage multiplies (1 - this).
+	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Survival|Armour",
+		meta = (ClampMin = "0", ClampMax = "0.95"))
+	float ArmourDamageReduction = 0.0f;
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival|Armour")
+	void SetArmourDamageReduction(float NewValue);
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
 	void ApplyHealing(float Amount);
+
+	// Bring a dead survivor back: clears bIsDead, refills health (and the
+	// other vitals), wipes injuries + status tags, and broadcasts so the
+	// HUD updates. Used by the respawn path so the same pawn is reused
+	// (inventory + HUD survive) rather than spawning a fresh one.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Survival")
+	void Revive();
 
 	// Applies nutrition from FoodItem and decrements its Quantity by 1.
 	// Caller must remove the item instance from inventory when Quantity reaches 0.

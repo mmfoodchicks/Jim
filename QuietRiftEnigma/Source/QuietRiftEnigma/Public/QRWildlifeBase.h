@@ -9,6 +9,7 @@
 class UQRSurvivalComponent;
 class UBehaviorTree;
 class UAIPerceptionComponent;
+class UStaticMeshComponent;
 
 // Drop entry when the animal is harvested/killed
 USTRUCT(BlueprintType)
@@ -79,6 +80,71 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife")
 	float MassKg = 50.0f;
 
+	// ── Critical-hit zone (headshots / weak spots) ──
+	// Local-space (actor-relative, cm) centre of the weak point. If
+	// bAutoCritFromBody is true this is recomputed in BeginPlay to the
+	// head position (front + up) from the body dims. Armoured species
+	// override it to a flank / underbelly in their constructor and set a
+	// lower multiplier so the head is NOT the soft spot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat")
+	FVector CritZoneCenterLocal = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat", meta = (ClampMin = "5"))
+	float CritZoneRadiusCm = 35.0f;
+
+	// Damage multiplier when a shot lands in the crit zone. 2.0 = double.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat", meta = (ClampMin = "1.0"))
+	float CritDamageMultiplier = 2.0f;
+
+	// If true, BeginPlay auto-places CritZoneCenterLocal at the head
+	// (front-upper) from the body dims. Turn off (or set the offset in a
+	// ctor) for armoured species whose weak point isn't the head.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat")
+	bool bAutoCritFromBody = true;
+
+	// Armoured-head species: the skull/plating is too tough, so the auto
+	// crit zone moves to the soft underbelly (lower, slightly rear)
+	// instead of the head. Set true in the species constructor.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Combat")
+	bool bArmoredHead = false;
+
+	// ── Physical size (real-world) ────────────
+	// Nose-to-tail length and ground-to-back height, in metres. These
+	// drive the collision capsule and (when bAutoFitMeshToBody is true)
+	// rescale the skeletal mesh in BeginPlay so the animal renders at its
+	// canonical in-game size regardless of the source FBX scale.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size", meta = (ClampMin = "0.1"))
+	float BodyLengthMeters = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size", meta = (ClampMin = "0.1"))
+	float BodyHeightMeters = 1.0f;
+
+	// If true, BeginPlay scales GetMesh() so its rendered height matches
+	// BodyHeightMeters. Turn off for a BP whose mesh is already authored
+	// at the correct scale.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size")
+	bool bAutoFitMeshToBody = true;
+
+	// Optional explicit override for the placeholder mesh. Leave blank to
+	// let BeginPlay auto-derive from the class name (e.g. AQRWildlife_
+	// AshbackBoar -> /Game/Meshes/wildlife/SM_ANM_AshbackBoar). Only used
+	// when no SkeletalMesh is assigned to GetMesh().
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual")
+	FString FallbackMeshPath;
+
+	// ── Attack (read by AQRWildlifeAIController) ──
+	// Damage applied per swing. Predators set this high; prey leave it
+	// low (only used if a prey species enters the Attacking state, e.g.
+	// a cornered boar). The controller copies these on possession.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Combat", meta = (ClampMin = "0.0"))
+	float AttackDamage = 12.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Combat", meta = (ClampMin = "50.0"))
+	float AttackRange = 250.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Combat", meta = (ClampMin = "0.25"))
+	float AttackIntervalSeconds = 1.5f;
+
 	// ── Behavior Tree ─────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")
 	TObjectPtr<UBehaviorTree> BehaviorTree;
@@ -109,6 +175,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Wildlife")
 	void TakeDamage_Wildlife(float Amount, AActor* DamageCauser);
 
+	// Bridges the engine damage pipeline (weapon fire, explosions, anything
+	// calling AActor::TakeDamage / UGameplayStatics::ApplyDamage) into our
+	// custom wildlife health model.
+	virtual float TakeDamage(float DamageAmount, const struct FDamageEvent& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
+
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Wildlife")
 	TArray<FQRWildlifeDrop> Harvest();
 
@@ -134,4 +206,27 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+protected:
+	// Sizes the capsule from BodyLength/HeightMeters, syncs nav-agent +
+	// step height, and (optionally) rescales the mesh to match. Called in
+	// BeginPlay on both server and clients so visuals match everywhere.
+	void ApplyBodySizing();
+
+	// Placeholder body shown when GetMesh() has no SkeletalMesh assigned
+	// (the v15 species classes don't ship a skeletal mesh, so without this
+	// a spawned animal is an invisible capsule). An engine basic shape,
+	// shape-coded by role: Cube = predator, Cylinder = prey, Sphere =
+	// other. Hidden automatically if a real skeletal mesh is present.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wildlife|Visual")
+	TObjectPtr<UStaticMeshComponent> FallbackMesh;
+
+	// Loads an engine basic-shape mesh into FallbackMesh sized to the body,
+	// or hides it if a skeletal mesh is set. Called from BeginPlay.
+	void SetupFallbackVisual();
+
+	// Makes the capsule + visible body block ECC_Visibility so weapon
+	// traces register hits. Called from BeginPlay (must run after profile
+	// registration, otherwise the "Pawn" profile wipes the response).
+	void SetupHitCollision();
 };

@@ -8,8 +8,8 @@ UCX collision, LOD chain).
 
 Generates placeholder meshes for every variant of EQRVanguardHardpointTier
 (ListeningPost / ForwardPost / Hardpoint / InnerSanctum / Concordat)
-plus shared faction props (Barricade, Banner). Sized for UE5 import
-(1 UU = 1 cm).
+plus shared faction props (Barricade, Banner). Sized in metres
+(UE imports them as cm).
 
 Per-asset sockets:
     Outposts:

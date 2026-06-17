@@ -18,6 +18,7 @@
 #include "QRHotbarHUDWidget.h"
 #include "QRCreativeBrowserWidget.h"
 #include "QRVitalsHUDWidget.h"
+#include "QRAmmoHUDWidget.h"
 #include "QRPauseMenuWidget.h"
 #include "QRSettingsWidget.h"
 #include "QRCraftingWidget.h"
@@ -30,6 +31,8 @@
 #include "QRCodexSubsystem.h"
 #include "QRCodexWidget.h"
 #include "QRScopeOverlayWidget.h"
+#include "QRMissionHUDWidget.h"
+#include "QRMissionDirector.h"
 #include "Components/AudioComponent.h"
 #include "Sound/SoundBase.h"
 #include "QRGameMode.h"
@@ -45,8 +48,10 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Net/UnrealNetwork.h"
+#include "Misc/ConfigCacheIni.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/HitResult.h"
+#include "Engine/DamageEvents.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
 AQRCharacter::AQRCharacter()
@@ -59,6 +64,14 @@ AQRCharacter::AQRCharacter()
 	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
 	FirstPersonCamera->SetRelativeLocation(FVector(-10.0f, 0.0f, 60.0f));
 	FirstPersonCamera->bUsePawnControlRotation = true;
+
+	// LOCK exposure on the camera itself so the view can never blow out to
+	// white regardless of which PostProcessVolume / auto-exposure the level
+	// happens to have. Histogram auto-exposure with min == max pins the
+	// camera at a constant EV (no adaptation). This lives on the camera (not
+	// a level PPV) so it's always applied and survives map re-dressing.
+	// Tune live in PIE with the QR_Exposure console exec.
+	QR_Exposure(LockedExposureEV);
 
 	// Arm mesh (visible only to local player)
 	ArmsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmsMesh"));
@@ -78,8 +91,14 @@ AQRCharacter::AQRCharacter()
 	HeldItemMesh->SetCastShadow(false);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetVisibility(false);
-	HeldItemMesh->SetRelativeLocation(FVector(45.0f, 18.0f, -16.0f));
-	HeldItemMesh->SetRelativeRotation(FRotator(-3.0f, -6.0f, 0.0f));
+	// Held weapon transform in camera-local space. The previous offset
+	// pushed the gun ~18 cm right of centre which read as "floating off
+	// to the side"; bringing it in closer and dropping it slightly makes
+	// it sit in the lower-right where FPS hands normally hold a gun.
+	HeldItemBaseLocation = FVector(38.0f, 9.0f, -14.0f);
+	HeldItemBaseRotation = FRotator(-2.0f, -3.0f, 0.0f);
+	HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation);
+	HeldItemMesh->SetRelativeRotation(HeldItemBaseRotation);
 	HeldItemMesh->SetRelativeScale3D(FVector(1.0f));
 
 	// UI defaults — local C++ widgets unless overridden in BP.
@@ -94,6 +113,8 @@ AQRCharacter::AQRCharacter()
 	InventoryGridClass    = UQRInventoryGridWidget::StaticClass();
 	CodexWidgetClass      = UQRCodexWidget::StaticClass();
 	ScopeOverlayClass     = UQRScopeOverlayWidget::StaticClass();
+	AmmoHUDClass          = UQRAmmoHUDWidget::StaticClass();
+	MissionHUDClass       = UQRMissionHUDWidget::StaticClass();
 
 	// Third-person mesh hidden from self
 	GetMesh()->SetOwnerNoSee(true);
@@ -102,6 +123,12 @@ AQRCharacter::AQRCharacter()
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	GetCharacterMovement()->bCanWalkOffLedges = true;
 	GetCharacterMovement()->bUseFlatBaseForFloorChecks = true;
+	// Climb steeper terrain before sliding. The default ~45° was letting
+	// the player slide back down the lower (steeper) part of dome hills
+	// they ought to be able to walk up. 52° + a higher step height makes
+	// the rolling hills climbable.
+	GetCharacterMovement()->SetWalkableFloorAngle(52.0f);
+	GetCharacterMovement()->MaxStepHeight = 55.0f;
 
 	// Survival Components
 	Inventory = CreateDefaultSubobject<UQRInventoryComponent>(TEXT("Inventory"));
@@ -111,6 +138,11 @@ AQRCharacter::AQRCharacter()
 	Vault         = CreateDefaultSubobject<UQRVaultComponent>(TEXT("Vault"));
 	Hotbar        = CreateDefaultSubobject<UQRHotbarComponent>(TEXT("Hotbar"));
 	Build         = CreateDefaultSubobject<UQRBuildModeComponent>(TEXT("Build"));
+	// First-person view driver. Owns ADS state + FOV interpolation. Without
+	// this component RMB toggling ADS was a no-op (FindComponentByClass
+	// returned null), so the weapon's spread function never knew you were
+	// aiming and hipfire spread stayed maxed.
+	FPView        = CreateDefaultSubobject<UQRFPViewComponent>(TEXT("FPView"));
 	BiomeAmbient  = CreateDefaultSubobject<UAudioComponent>(TEXT("BiomeAmbient"));
 	if (BiomeAmbient)
 	{
@@ -138,9 +170,18 @@ void AQRCharacter::BeginPlay()
 
 	// Bind death delegate
 	if (Survival)
+	{
 		Survival->OnDeath.AddDynamic(this, &AQRCharacter::OnDied);
 		Survival->OnHealthChanged.AddDynamic(this, &AQRCharacter::HandleHealthChanged);
 		LastObservedHealth = Survival->Health;
+	}
+
+	// Remember the mesh's resting pose so Revive can undo a death ragdoll.
+	if (USkeletalMeshComponent* M = GetMesh())
+	{
+		MeshBaseRelLocation = M->GetRelativeLocation();
+		MeshBaseRelRotation = M->GetRelativeRotation();
+	}
 
 	// Fill any unset input action slots + build a runtime mapping context
 	// with sensible defaults (WASD / mouse / F / G / Tab / 1-9 / etc).
@@ -175,13 +216,27 @@ void AQRCharacter::BeginPlay()
 	// Cache the view component for lean routing.
 	CachedView = FindComponentByClass<UQRFPViewComponent>();
 
+	// Restore the persisted handedness so a fresh session picks up what the
+	// player set in the settings widget last time. Same config block the
+	// sliders use; key is "LeftHanded".
+	{
+		bool bLeftCfg = false;
+		if (GConfig->GetBool(TEXT("/Script/QuietRiftEnigma.UserSettings"),
+		                     TEXT("LeftHanded"), bLeftCfg, GGameUserSettingsIni))
+		{
+			bIsLeftHanded = bLeftCfg;
+		}
+	}
+
 	// Held-item mesh follows the inventory's HandSlot. Refresh once on
 	// spawn and whenever the inventory changes.
 	if (Inventory)
 	{
 		Inventory->OnInventoryChanged.AddDynamic(this, &AQRCharacter::RefreshHeldItemMesh);
+		Inventory->OnInventoryChanged.AddDynamic(this, &AQRCharacter::RefreshArmour);
 	}
 	RefreshHeldItemMesh();
+	RefreshArmour();
 
 	// Spawn the runtime UI on the local player. Skip on dedicated server
 	// pawns and remote clients (each client makes its own).
@@ -216,6 +271,15 @@ void AQRCharacter::BeginPlay()
 				VitalsHUD->Bind(Survival);
 			}
 		}
+		if (AmmoHUDClass && Weapon)
+		{
+			AmmoHUD = CreateWidget<UQRAmmoHUDWidget>(LocalPC, AmmoHUDClass);
+			if (AmmoHUD)
+			{
+				AmmoHUD->AddToViewport(/*ZOrder*/ 10);
+				AmmoHUD->Bind(Weapon, Hotbar, Inventory);
+			}
+		}
 		if (ScopeOverlayClass && CachedView)
 		{
 			ScopeOverlay = CreateWidget<UQRScopeOverlayWidget>(LocalPC, ScopeOverlayClass);
@@ -223,6 +287,23 @@ void AQRCharacter::BeginPlay()
 			{
 				ScopeOverlay->AddToViewport(/*ZOrder*/ 400);
 				ScopeOverlay->Bind(CachedView);
+			}
+		}
+		// Mission tracker — director lives on the GameMode, so this only
+		// binds on single-player / listen host (GameMode is server-only).
+		if (MissionHUDClass)
+		{
+			if (AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr)
+			{
+				if (GM->MissionDirector)
+				{
+					MissionHUD = CreateWidget<UQRMissionHUDWidget>(LocalPC, MissionHUDClass);
+					if (MissionHUD)
+					{
+						MissionHUD->AddToViewport(/*ZOrder*/ 10);
+						MissionHUD->Bind(GM->MissionDirector);
+					}
+				}
 			}
 		}
 	}
@@ -244,6 +325,37 @@ void AQRCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Weapon recoil — decay the held-mesh kick back to its resting pose.
+	if (IsLocallyControlled() && HeldItemMesh &&
+		(!WeaponRecoilRot.IsNearlyZero(0.02f) || !WeaponRecoilLoc.IsNearlyZero(0.02f)))
+	{
+		WeaponRecoilRot = FMath::RInterpTo(WeaponRecoilRot, FRotator::ZeroRotator,
+			DeltaTime, WeaponRecoilRecoverySpeed);
+		WeaponRecoilLoc = FMath::VInterpTo(WeaponRecoilLoc, FVector::ZeroVector,
+			DeltaTime, WeaponRecoilRecoverySpeed);
+		HeldItemMesh->SetRelativeRotation(HeldItemBaseRotation + WeaponRecoilRot);
+		HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation + WeaponRecoilLoc);
+	}
+
+	// View-recoil recovery — after the burst pauses, walk the camera pitch
+	// back down by the accumulated climb (Tarkov-style). The grace delay
+	// stops recovery from fighting the climb mid-burst; the recovery rate
+	// eases the muzzle home instead of snapping. If the player moves the
+	// mouse during recovery their input still applies on top — we only
+	// remove what the recoil added.
+	if (IsLocallyControlled() && AccumulatedViewRecoilPitch > KINDA_SMALL_NUMBER)
+	{
+		TimeSinceLastShot += DeltaTime;
+		if (TimeSinceLastShot >= ViewRecoilRecoveryDelay)
+		{
+			const float Step = FMath::Min(
+				AccumulatedViewRecoilPitch,
+				ViewRecoilRecoverySpeed * DeltaTime);
+			AddControllerPitchInput(Step);   // positive = down
+			AccumulatedViewRecoilPitch -= Step;
+		}
+	}
+
 	// Update encumbrance state
 	if (Inventory)
 	{
@@ -258,6 +370,14 @@ void AQRCharacter::Tick(float DeltaTime)
 	// Interaction scan (local only)
 	if (IsLocallyControlled())
 		ScanForInteractable();
+
+	// Full-auto fire — when the trigger is held on a full-auto weapon,
+	// poll once a tick. TryFireWeapon is cadence-gated so this only
+	// actually shoots at the weapon's RPM, no matter how fast Tick runs.
+	if (IsLocallyControlled() && bFireHeld && Weapon && Weapon->IsFullAuto())
+	{
+		TryFireWeapon();
+	}
 
 	// Footsteps — local-only, grounded, moving above threshold. Cadence
 	// interpolates between walk and sprint interval based on current
@@ -372,7 +492,16 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (InteractAction)  EI->BindAction(InteractAction,  ETriggerEvent::Started,   this, &AQRCharacter::TryInteract);
 		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Started,   this, &AQRCharacter::StartSprint);
 		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Completed, this, &AQRCharacter::StopSprint);
-		if (FireAction)      EI->BindAction(FireAction,      ETriggerEvent::Started,   this, &AQRCharacter::TryFireWeapon);
+		if (FireAction)
+		{
+			// Started = initial trigger pull (every fire mode fires once).
+			// Completed = release. Full-auto continuous fire is driven by
+			// Tick() polling bFireHeld so we don't depend on a specific
+			// Enhanced Input trigger config to deliver per-tick "Triggered"
+			// events (default Boolean triggers can fire just once on press).
+			EI->BindAction(FireAction, ETriggerEvent::Started,   this, &AQRCharacter::OnFirePressed);
+			EI->BindAction(FireAction, ETriggerEvent::Completed, this, &AQRCharacter::OnFireReleased);
+		}
 		if (ReloadAction)    EI->BindAction(ReloadAction,    ETriggerEvent::Started,   this, &AQRCharacter::TryReload);
 		if (LeanLeftAction)  EI->BindAction(LeanLeftAction,  ETriggerEvent::Started,   this, &AQRCharacter::LeanLeftPressed);
 		if (LeanLeftAction)  EI->BindAction(LeanLeftAction,  ETriggerEvent::Completed, this, &AQRCharacter::LeanLeftReleased);
@@ -427,6 +556,20 @@ void AQRCharacter::Move(const FInputActionValue& Value)
 void AQRCharacter::Look(const FInputActionValue& Value)
 {
 	FVector2D LookVector = Value.Get<FVector2D>();
+
+	// Slow the mouse when aiming. Resolve the view component the SAME way
+	// SetADS does (FindComponentByClass), so we read the exact instance the
+	// ADS state was set on -- reading the C++ FPView member could be a
+	// different component than a BP-added one, which is why the slowdown
+	// wasn't applying even though the FOV zoom (driven by that other
+	// component) was.
+	UQRFPViewComponent* View = CachedView;
+	if (!View) View = FindComponentByClass<UQRFPViewComponent>();
+	if (View && View->IsADS())
+	{
+		LookVector *= View->ADSLookSensitivityMult;
+	}
+
 	AddControllerYawInput(LookVector.X);
 	AddControllerPitchInput(LookVector.Y);
 }
@@ -542,12 +685,29 @@ void AQRCharacter::TryInteract()
 	OnInteract.Broadcast(CurrentInteractable.Get());
 }
 
+void AQRCharacter::OnFirePressed()
+{
+	bFireHeld = true;
+	TryFireWeapon();
+}
+
+void AQRCharacter::OnFireReleased()
+{
+	bFireHeld = false;
+}
+
 void AQRCharacter::TryFireWeapon()
 {
-	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] TryFireWeapon — Weapon=%s Camera=%s"),
-		Weapon ? TEXT("yes") : TEXT("null"),
-		FirstPersonCamera ? TEXT("yes") : TEXT("null"));
 	if (!Weapon || !FirstPersonCamera) return;
+
+	// Client-side rate-of-fire pace gate. Keeps full-auto from spamming a
+	// Server_Fire RPC + recoil kick every frame, and enforces the bolt /
+	// pump cycling delay locally so the feel matches the server cadence.
+	// The server independently re-checks cadence in TryFire (anti-cheat).
+	if (!Weapon->CanFire()) return;
+	const float NowT = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (NowT < NextLocalFireTime) return;
+	NextLocalFireTime = NowT + Weapon->GetFireIntervalSeconds();
 
 	const FVector  Start   = FirstPersonCamera->GetComponentLocation();
 	const FVector  Forward = FirstPersonCamera->GetForwardVector();
@@ -556,6 +716,34 @@ void AQRCharacter::TryFireWeapon()
 	if (UQRFPViewComponent* View = FindComponentByClass<UQRFPViewComponent>())
 	{
 		bAimed = View->IsADS();
+	}
+
+	// Local cosmetic recoil — kick the held weapon mesh the instant we
+	// fire so it reads without waiting for the server round-trip. Gated
+	// on CanFire (replicated state) so an empty / jammed gun doesn't kick.
+	if (IsLocallyControlled() && Weapon->CanFire())
+	{
+		const float AimMult = bAimed ? 0.5f : 1.0f;
+		ApplyWeaponRecoilKick(
+			Weapon->RecoilPitch * AimMult,
+			FMath::FRandRange(-Weapon->RecoilYawRandomRange, Weapon->RecoilYawRandomRange) * AimMult);
+
+		// View kick — punch the camera up so each shot moves the screen.
+		// Snipers (high RecoilPitch) kick hard; the bigger the round, the
+		// bigger the climb. ADS keeps the full kick (you feel the recoil
+		// through the scope); hip-fire is scaled a touch lower so spray
+		// weapons stay controllable. AddControllerPitchInput is negative
+		// for "up". A little random yaw adds life.
+		const float ViewKick = Weapon->RecoilPitch * CameraRecoilScale * (bAimed ? 1.0f : 0.8f);
+		AddControllerPitchInput(-ViewKick);
+		AddControllerYawInput(FMath::FRandRange(-ViewKick, ViewKick) * 0.25f);
+
+		// Track the accumulated climb so Tick can pull the muzzle back
+		// down after the burst ends (Tarkov-style recoil recovery).
+		// Without this, sustained fire walks the camera up permanently
+		// and the player ends up staring at the sky.
+		AccumulatedViewRecoilPitch += ViewKick;
+		TimeSinceLastShot = 0.0f;
 	}
 
 	if (!HasAuthority())
@@ -569,10 +757,39 @@ void AQRCharacter::TryFireWeapon()
 		Result.bFired ? 1 : 0, Result.bHitSomething ? 1 : 0, Result.Damage);
 	if (Result.bFired)
 	{
-		// Apply kick on the firing controller. Pitch is up (negative
-		// camera pitch input in UE convention), yaw is +/- random.
-		AddControllerPitchInput(-Result.RecoilPitch);
-		AddControllerYawInput(Result.RecoilYaw);
+		// Recoil is a local kick on the held weapon mesh — applied in
+		// TryFireWeapon above via ApplyWeaponRecoilKick. The camera is
+		// deliberately left untouched.
+
+		// Visible tracer + hit feedback. One pink line per PELLET so the
+		// shotgun's spread reads clearly (a single line was hiding that
+		// 7 of the 8 pellets even fired). Cyan sphere at each impact.
+		if (UWorld* W = GetWorld())
+		{
+			const FVector Muzzle = Start + Forward * 35.0f;
+			if (Result.PelletEnds.Num() > 0)
+			{
+				for (const FVector& End : Result.PelletEnds)
+				{
+					DrawDebugLine(W, Muzzle, End, FColor(255, 50, 200),
+						false, 0.25f, 0, 2.0f);
+				}
+			}
+			else
+			{
+				// Fallback (shouldn't normally hit): one line.
+				const FVector EndPt = Result.bHitSomething
+					? Result.HitLocation
+					: (Start + Forward * (Weapon->MaxRangeMeters * 100.0f));
+				DrawDebugLine(W, Muzzle, EndPt, FColor(255, 50, 200),
+					false, 0.25f, 0, 2.0f);
+			}
+			if (Result.bHitSomething)
+			{
+				DrawDebugSphere(W, Result.HitLocation, 18.0f, 12,
+					FColor::Cyan, false, 1.0f, 0, 2.0f);
+			}
+		}
 	}
 }
 
@@ -580,12 +797,20 @@ void AQRCharacter::Server_Fire_Implementation(FVector TraceStart, FVector TraceF
 	bool bIsAimed, bool bIsMoving)
 {
 	if (!Weapon) return;
-	const FQRFireResult Result = Weapon->TryFireFromTrace(TraceStart, TraceForward, bIsAimed, bIsMoving, nullptr);
-	if (Result.bFired)
-	{
-		AddControllerPitchInput(-Result.RecoilPitch);
-		AddControllerYawInput(Result.RecoilYaw);
-	}
+	// Authoritative shot — damage / ammo / FX. Recoil is a local cosmetic
+	// kick on the firer's weapon mesh (see TryFireWeapon), not applied here.
+	Weapon->TryFireFromTrace(TraceStart, TraceForward, bIsAimed, bIsMoving, nullptr);
+}
+
+void AQRCharacter::ApplyWeaponRecoilKick(float PitchUnits, float YawUnits)
+{
+	// Pitch the muzzle up, add a little random yaw + roll for life, and
+	// jolt the mesh back toward the camera. Tick decays it all to zero.
+	WeaponRecoilRot.Pitch += PitchUnits * WeaponRecoilPitchScale;
+	WeaponRecoilRot.Yaw   += YawUnits   * WeaponRecoilPitchScale;
+	WeaponRecoilRot.Roll  += YawUnits   * WeaponRecoilPitchScale * 0.5f;
+	// -X on the camera-relative held mesh = toward the player.
+	WeaponRecoilLoc.X     -= WeaponRecoilKickback;
 }
 
 void AQRCharacter::TryReload()
@@ -702,6 +927,9 @@ void AQRCharacter::DoDropHeld()
 				WildlifeActorClass, SpawnLoc, GetActorRotation(), Params))
 		{
 			Animal->InitializeFrom(Def, 1);
+			// Drops are creative-mode: don't make the animal flee the
+			// player or you get the marching-mirror effect.
+			Animal->bIgnorePlayer = true;
 			Inventory->TryRemoveItem(Def->ItemId, 1);
 		}
 		return;
@@ -809,6 +1037,36 @@ void AQRCharacter::QR_StudyItem(FName Id)
 			Codex->Record(Id, Category, DisplayName, EQRCodexDiscoveryState::Known);
 		}
 	}
+}
+
+void AQRCharacter::QR_Exposure(float NewEV)
+{
+	// NewEV is the exposure COMPENSATION (bias) in stops. Higher = brighter,
+	// lower = darker. Stored in LockedExposureEV for the editor knob.
+	LockedExposureEV = FMath::Clamp(NewEV, -8.0f, 8.0f);
+	if (!FirstPersonCamera) return;
+
+	// Bounded histogram AUTO exposure: the camera adapts across the huge
+	// day<->Jovianlight-night luminance swing instead of being pinned to a
+	// single EV (which made noon wash out or night go black). The wide
+	// min/max range lets it stop down fully for the bright daylit scene
+	// (no white-out) and open up for night, while the clamps stop it from
+	// running away. ExposureBias is the user offset on top.
+	FPostProcessSettings& PP = FirstPersonCamera->PostProcessSettings;
+	PP.bOverride_AutoExposureMethod = true;
+	PP.AutoExposureMethod = AEM_Histogram;
+	PP.bOverride_AutoExposureMinBrightness = true;
+	PP.AutoExposureMinBrightness = -2.0f;   // EV100 floor (night)
+	PP.bOverride_AutoExposureMaxBrightness = true;
+	PP.AutoExposureMaxBrightness = 14.0f;   // EV100 ceiling (bright day)
+	PP.bOverride_AutoExposureBias = true;
+	PP.AutoExposureBias = LockedExposureEV;
+	PP.bOverride_AutoExposureSpeedUp = true;
+	PP.AutoExposureSpeedUp = 6.0f;
+	PP.bOverride_AutoExposureSpeedDown = true;
+	PP.AutoExposureSpeedDown = 6.0f;
+
+	UE_LOG(LogTemp, Log, TEXT("[QR_Exposure] exposure bias %.2f (adaptive)"), LockedExposureEV);
 }
 
 void AQRCharacter::QR_OpenSettings()
@@ -967,6 +1225,22 @@ void AQRCharacter::RefreshHeldItemMesh()
 		if (HandDef)
 		{
 			TargetMesh = HandDef->WorldMesh.LoadSynchronous();
+
+			// Auto-resolve fallback: if the item def's WorldMesh slot is
+			// empty, look for /Game/Meshes/weapons_assets/SM_<ItemId>.
+			// That's where Blender bakes land, and where qr_seed_items.py
+			// would have stamped the def -- but if the user seeded BEFORE
+			// importing meshes (the common order), the def's slot is empty
+			// and the held weapon stays invisible. Probing the conventional
+			// path keeps the held mesh visible without needing a re-seed.
+			if (!TargetMesh)
+			{
+				const FString Id = HandDef->ItemId.ToString();
+				const FString Path = FString::Printf(
+					TEXT("/Game/Meshes/weapons_assets/SM_%s.SM_%s"), *Id, *Id);
+				TargetMesh = LoadObject<UStaticMesh>(
+					nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			}
 		}
 	}
 
@@ -996,6 +1270,16 @@ void AQRCharacter::RefreshHeldItemMesh()
 	{
 		if (HandDef && HandDef->Category == EQRItemCategory::Weapon)
 		{
+			// Pick the fire mode + rate of fire for this specific gun
+			// (full-auto SMG/carbine, semi pistol/DMR, bolt/pump sniper &
+			// shotgun). Name-based until the armory DataTable is wired in C++.
+			Weapon->ConfigureForWeaponId(HandDef->ItemId);
+			// TESTING: unlimited ammo so every gun is range-ready, and
+			// clear any leftover jam/fouling so a previously-gunked weapon
+			// doesn't come back Jammed.
+			Weapon->bUnlimitedAmmo = true;
+			Weapon->bIsJammed = false;
+			Weapon->FoulingFactor = 0.0f;
 			Weapon->CurrentAmmo = Weapon->MagazineCapacity;
 			Weapon->WeaponState = EQRWeaponState::Ready;
 		}
@@ -1014,10 +1298,15 @@ void AQRCharacter::RefreshHeldItemMesh()
 	// visible size.
 	if (TargetMesh)
 	{
+		// Scale by the mesh's LONGEST horizontal extent (X) so guns sit at
+		// roughly the right length in first-person view (the previous
+		// max-of-3-axes scaling shrunk long thin weapons to read tiny).
+		// Target ~30 cm half-length = 60 cm gun in hand, which matches a
+		// real carbine / SMG silhouette.
 		const FBoxSphereBounds B = TargetMesh->GetBounds();
-		const float MaxExtent = FMath::Max3(B.BoxExtent.X, B.BoxExtent.Y, B.BoxExtent.Z);
-		const float TargetHalfExtentCm = 20.0f;   // 20 cm half-extent ≈ 40 cm long — typical FPS weapon footprint
-		const float S = (MaxExtent > 0.01f) ? (TargetHalfExtentCm / MaxExtent) : 1.0f;
+		const float LongExtent = FMath::Max(B.BoxExtent.X, B.BoxExtent.Y);
+		const float TargetHalfLengthCm = 30.0f;
+		const float S = (LongExtent > 0.01f) ? (TargetHalfLengthCm / LongExtent) : 1.0f;
 		HeldItemMesh->SetRelativeScale3D(FVector(S));
 	}
 	else
@@ -1026,17 +1315,132 @@ void AQRCharacter::RefreshHeldItemMesh()
 	}
 
 	// Scope detection — long-range sniper or any weapon with ItemId
-	// containing SNIPER or with a scope attachment in tags. Designer
-	// can override via per-weapon tags later. For now: name-based.
+	// containing SNIPER / DMR / SCOPE. The v8 patch's long-range sniper
+	// and the 8X / 16X optic attachments drive the magnification tier:
+	//   LONGRANGE  → 4× (ScopeFOV baseline)
+	//   ATT_8X     → 2× ScopeFOV (=10° effective)
+	//   ATT_16X    → 4× ScopeFOV (=5° effective)
+	// Name-based until the attachment runtime exposes EquippedAttachmentIds.
 	bool bHasScope = false;
+	float ScopeZoom = 1.0f;
 	if (Inventory && Inventory->HandSlot && Inventory->HandSlot->Definition)
 	{
-		const FString Id = Inventory->HandSlot->Definition->ItemId.ToString();
+		const FString Id = Inventory->HandSlot->Definition->ItemId.ToString().ToUpper();
 		bHasScope = Id.Contains(TEXT("SNIPER"))
 				 || Id.Contains(TEXT("DMR"))
-				 || Id.Contains(TEXT("SCOPE"));
+				 || Id.Contains(TEXT("SCOPE"))
+				 || Id.Contains(TEXT("LONGRANGE"));
+		if (Id.Contains(TEXT("LONGRANGE")) || Id.Contains(TEXT("16X")))
+		{
+			ScopeZoom = 4.0f;
+		}
+		else if (Id.Contains(TEXT("8X")))
+		{
+			ScopeZoom = 2.0f;
+		}
 	}
-	if (CachedView) CachedView->SetScopeAvailable(bHasScope);
+	if (CachedView)
+	{
+		CachedView->SetScopeAvailable(bHasScope);
+		CachedView->SetScopeZoomMultiplier(ScopeZoom);
+	}
+
+	// Handedness applied last so the negative-Y scale flip composes with
+	// the uniform bounds-based scale set above. Position + rotation are
+	// mirrored too -- the recoil delta in Tick adds atop the mirrored base.
+	ApplyHandednessToHeldMesh();
+}
+
+void AQRCharacter::ApplyHandednessToHeldMesh()
+{
+	if (!HeldItemMesh) return;
+
+	// Right-handed defaults -- camera-local: +X forward, +Y right, +Z up.
+	// Kept in sync with the constructor's initial values for HeldItemBase*.
+	// Mirroring across the XZ plane (negate Y) flips the gun to the left
+	// hand and inverts Yaw + Roll so e.g. the muzzle still points away.
+	HeldItemBaseLocation = FVector(38.0f, 9.0f, -14.0f);
+	HeldItemBaseRotation = FRotator(-2.0f, -3.0f, 0.0f);
+
+	if (bIsLeftHanded)
+	{
+		HeldItemBaseLocation.Y    = -HeldItemBaseLocation.Y;
+		HeldItemBaseRotation.Yaw  = -HeldItemBaseRotation.Yaw;
+		HeldItemBaseRotation.Roll = -HeldItemBaseRotation.Roll;
+	}
+
+	HeldItemMesh->SetRelativeLocation(HeldItemBaseLocation);
+	HeldItemMesh->SetRelativeRotation(HeldItemBaseRotation);
+
+	// Mirror the geometry itself so the ejection port, charging handle,
+	// scope offset etc. land on the visually-correct side. Preserves the
+	// uniform scale magnitude set above; only flips the sign on Y.
+	FVector Scale = HeldItemMesh->GetRelativeScale3D();
+	Scale.Y = FMath::Abs(Scale.Y) * (bIsLeftHanded ? -1.0f : 1.0f);
+	HeldItemMesh->SetRelativeScale3D(Scale);
+}
+
+void AQRCharacter::SetLeftHanded(bool bLeft)
+{
+	if (bIsLeftHanded == bLeft) return;
+	bIsLeftHanded = bLeft;
+	RefreshHeldItemMesh();
+}
+
+void AQRCharacter::RefreshArmour()
+{
+	if (!Inventory || !Survival) return;
+
+	// Per-piece protection by slot, in stops of damage reduction (additive).
+	// e.g. chest is the biggest cover, helm + legs add a smaller share.
+	auto SlotShare = [](const FString& Id) -> float
+	{
+		if (Id.Contains(TEXT("CHEST"))) return 0.55f;
+		if (Id.Contains(TEXT("LEGS")))  return 0.25f;
+		if (Id.Contains(TEXT("HELM")))  return 0.20f;
+		return 0.0f;
+	};
+	// Metal tier sets the absolute fraction blocked at "full coverage".
+	// Stacked piece shares scale this, so a full set hits the metal's cap.
+	auto MetalCap = [](const FString& Id) -> float
+	{
+		if (Id.Contains(TEXT("REMNANT")))    return 0.80f;
+		if (Id.Contains(TEXT("SPARKSTONE"))) return 0.65f;
+		if (Id.Contains(TEXT("FROSTSPARK")))return 0.55f;
+		if (Id.Contains(TEXT("BLACKGLASS")))return 0.45f;
+		if (Id.Contains(TEXT("SUNWIRE")))    return 0.45f;
+		if (Id.Contains(TEXT("MAGNET")))     return 0.40f;
+		if (Id.Contains(TEXT("FERRIC")))     return 0.30f;
+		return 0.0f;
+	};
+
+	float HeadCov = 0.0f, ChestCov = 0.0f, LegsCov = 0.0f;
+	float HeadCap = 0.0f, ChestCap = 0.0f, LegsCap = 0.0f;
+
+	// Only count armour in dedicated worn slots; loose pieces in the body
+	// grid don't protect (you have to actually equip them).
+	TArray<UQRItemInstance*> Worn;
+	Worn.Reserve(3);
+	if (UQRItemInstance* H = Inventory->GetEquippedArmour(EQRArmourSlot::Helm))  Worn.Add(H);
+	if (UQRItemInstance* C = Inventory->GetEquippedArmour(EQRArmourSlot::Chest)) Worn.Add(C);
+	if (UQRItemInstance* L = Inventory->GetEquippedArmour(EQRArmourSlot::Legs))  Worn.Add(L);
+	for (UQRItemInstance* Inst : Worn)
+	{
+		if (!Inst || !Inst->Definition) continue;
+		const FString Id = Inst->Definition->ItemId.ToString().ToUpper();
+		if (!Id.StartsWith(TEXT("ARM_"))) continue;
+		const float Share = SlotShare(Id);
+		const float Cap   = MetalCap(Id);
+		if (Id.Contains(TEXT("HELM")))  { HeadCov  = FMath::Max(HeadCov,  Share); HeadCap  = FMath::Max(HeadCap,  Cap); }
+		if (Id.Contains(TEXT("CHEST"))) { ChestCov = FMath::Max(ChestCov, Share); ChestCap = FMath::Max(ChestCap, Cap); }
+		if (Id.Contains(TEXT("LEGS")))  { LegsCov  = FMath::Max(LegsCov,  Share); LegsCap  = FMath::Max(LegsCap,  Cap); }
+	}
+
+	// Weighted contribution: each slot covers its share, capped to the metal
+	// tier of THAT slot. Full set = HeadCap*0.20 + ChestCap*0.55 + LegsCap*0.25.
+	const float Total = (HeadCap * HeadCov) + (ChestCap * ChestCov) + (LegsCap * LegsCov);
+	Survival->SetArmourDamageReduction(Total);
+	UE_LOG(LogTemp, Log, TEXT("[QRCharacter] Armour refreshed: %.0f%% reduction"), Total * 100.0f);
 }
 
 void AQRCharacter::HandleHealthChanged(float NewHealth)
@@ -1046,6 +1450,41 @@ void AQRCharacter::HandleHealthChanged(float NewHealth)
 		QRUISound::PlayHitImpact(this, GetActorLocation());
 	}
 	LastObservedHealth = NewHealth;
+}
+
+float AQRCharacter::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	const float Actual = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	float Incoming = DamageAmount;
+
+	// Shield block: if a shield is equipped and raised (ADS/RMB), mitigate
+	// frontal damage. Only blocks hits coming from in front of the player --
+	// you can't block what's behind you.
+	if (Incoming > 0.0f && Weapon && Weapon->bIsShield && FPView && FPView->IsADS())
+	{
+		bool bFrontal = true;
+		if (DamageCauser)
+		{
+			const FVector ToThreat = (DamageCauser->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+			bFrontal = FVector::DotProduct(GetActorForwardVector(), ToThreat) > 0.25f;
+		}
+		if (bFrontal)
+		{
+			const float Before = Incoming;
+			Incoming *= (1.0f - FMath::Clamp(Weapon->ShieldDamageReduction, 0.0f, 1.0f));
+			UE_LOG(LogTemp, Log, TEXT("[QRCharacter] SHIELD blocked %.0f -> %.0f"),
+				Before, Incoming);
+		}
+	}
+
+	// Only the server mutates vitals; clients see the change via OnRep_Health.
+	if (HasAuthority() && Survival && Incoming > 0.0f)
+	{
+		Survival->ApplyDamage(Incoming, EQRInjuryType::Bleeding);
+	}
+	return Actual;
 }
 
 void AQRCharacter::OnDied_Implementation()
@@ -1069,6 +1508,45 @@ void AQRCharacter::OnDied_Implementation()
 		{
 			GM->HandlePlayerDied(this);
 		}
+	}
+}
+
+void AQRCharacter::Revive(FVector Location, FRotator Rotation)
+{
+	if (!HasAuthority()) return;
+
+	// Refill vitals (clears bIsDead so the survival component ticks again).
+	if (Survival)
+	{
+		Survival->Revive();
+		LastObservedHealth = Survival->Health;
+	}
+
+	// Undo the death ragdoll: stop simulating, reattach the mesh to the
+	// capsule, and snap it back to its resting pose.
+	if (USkeletalMeshComponent* M = GetMesh())
+	{
+		M->SetSimulatePhysics(false);
+		M->AttachToComponent(GetCapsuleComponent(),
+			FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		M->SetRelativeLocationAndRotation(MeshBaseRelLocation, MeshBaseRelRotation);
+	}
+
+	// Restore capsule collision + walking movement.
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		Move->SetMovementMode(MOVE_Walking);
+	}
+
+	// Teleport to the respawn point.
+	SetActorLocationAndRotation(Location, Rotation, /*bSweep*/ false,
+		/*OutHit*/ nullptr, ETeleportType::TeleportPhysics);
+
+	// Re-enable input on the controlling PC (OnDied disabled it).
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->EnableInput(PC);
 	}
 }
 

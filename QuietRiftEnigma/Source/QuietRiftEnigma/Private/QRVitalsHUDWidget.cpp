@@ -9,6 +9,8 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
+#include "Components/Border.h"
+#include "Components/SizeBox.h"
 
 namespace
 {
@@ -36,8 +38,14 @@ TSharedRef<SWidget> UQRVitalsHUDWidget::RebuildWidget()
 		UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
 		WidgetTree->RootWidget = Canvas;
 
+		// Dark translucent backing panel groups the vitals into one block.
+		UBorder* Panel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		Panel->SetBrushColor(FLinearColor(0.03f, 0.04f, 0.06f, 0.72f));
+		Panel->SetPadding(FMargin(12.0f, 10.0f));
+
 		Root = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		UCanvasPanelSlot* RootSlot = Canvas->AddChildToCanvas(Root);
+		Panel->SetContent(Root);
+		UCanvasPanelSlot* RootSlot = Canvas->AddChildToCanvas(Panel);
 		if (RootSlot)
 		{
 			// Anchor bottom-left. Position the box ~24px from the screen edges.
@@ -49,6 +57,7 @@ TSharedRef<SWidget> UQRVitalsHUDWidget::RebuildWidget()
 
 		Bars.SetNum(VI_Count);
 		Labels.SetNum(VI_Count);
+		Rows.SetNum(VI_Count);
 
 		MakeRow(VI_Health,  FText::FromString(TEXT("HP")),  FLinearColor(0.85f, 0.20f, 0.20f, 1.0f));
 		MakeRow(VI_Stamina, FText::FromString(TEXT("STA")), FLinearColor(0.85f, 0.85f, 0.20f, 1.0f));
@@ -66,36 +75,41 @@ UHorizontalBox* UQRVitalsHUDWidget::MakeRow(int32 Index, const FText& LabelText,
 
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 
-	// Label cell — fixed-width, right-aligned text for column alignment.
+	// Label cell — fixed-width box keeps every bar's left edge aligned.
 	UTextBlock* LabelText2 = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	LabelText2->SetText(LabelText);
-	LabelText2->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+	LabelText2->SetColorAndOpacity(FSlateColor(FLinearColor(0.82f, 0.85f, 0.90f, 1.0f)));
 	{
 		FSlateFontInfo Font = LabelText2->GetFont();
 		Font.Size = 12;
 		LabelText2->SetFont(Font);
 	}
-	UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(LabelText2);
+	USizeBox* LabelBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	LabelBox->SetWidthOverride(44.0f);
+	LabelBox->SetContent(LabelText2);
+	UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(LabelBox);
 	if (LabelSlot)
 	{
 		LabelSlot->SetPadding(FMargin(0, 0, 8, 0));
 		LabelSlot->SetVerticalAlignment(VAlign_Center);
 	}
 
-	// Progress bar.
+	// Progress bar in a fixed-size box so every vital reads the same.
 	UProgressBar* Bar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass());
 	Bar->SetFillColorAndOpacity(FillColor);
 	Bar->SetPercent(1.0f);
-	UHorizontalBoxSlot* BarSlot = Row->AddChildToHorizontalBox(Bar);
+
+	USizeBox* BarBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	BarBox->SetWidthOverride(190.0f);
+	BarBox->SetHeightOverride(16.0f);
+	BarBox->SetContent(Bar);
+
+	UHorizontalBoxSlot* BarSlot = Row->AddChildToHorizontalBox(BarBox);
 	if (BarSlot)
 	{
 		BarSlot->SetPadding(FMargin(0, 2, 8, 2));
 		BarSlot->SetVerticalAlignment(VAlign_Center);
-		BarSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 	}
-	// ProgressBar doesn't expose a fixed pixel size on the C++ side;
-	// the parent row's auto-size + a fixed numeric column to its right
-	// keeps bars visually consistent.
 
 	// Numeric readout cell.
 	UTextBlock* Numeric = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
@@ -117,6 +131,7 @@ UHorizontalBox* UQRVitalsHUDWidget::MakeRow(int32 Index, const FText& LabelText,
 
 	Bars[Index]   = Bar;
 	Labels[Index] = Numeric;
+	if (Rows.IsValidIndex(Index)) Rows[Index] = Row;
 	return Row;
 }
 
@@ -181,4 +196,21 @@ void UQRVitalsHUDWidget::RefreshAll()
 	SetRow(VI_Hunger,  Survival->Hunger,   Survival->MaxHunger);
 	SetRow(VI_Thirst,  Survival->Thirst,   Survival->MaxThirst);
 	SetRow(VI_Oxygen,  Survival->Oxygen,   Survival->MaxOxygen);
+
+	// O2 hide-when-full: per the canon (breathable Earth-like Jovian
+	// moon atmosphere), oxygen is only worth showing when the player is
+	// actually under threat -- caves, underwater, hazard zones. Show the
+	// row when O2 is at or below 95% of max, hide it when full. Survival
+	// component still ticks oxygen normally underneath; this only
+	// affects display.
+	if (Rows.IsValidIndex(VI_Oxygen) && Rows[VI_Oxygen])
+	{
+		const float OxPct = (Survival->MaxOxygen > 0.0f)
+			? Survival->Oxygen / Survival->MaxOxygen
+			: 1.0f;
+		const ESlateVisibility Vis = (OxPct < 0.95f)
+			? ESlateVisibility::Visible
+			: ESlateVisibility::Collapsed;
+		Rows[VI_Oxygen]->SetVisibility(Vis);
+	}
 }

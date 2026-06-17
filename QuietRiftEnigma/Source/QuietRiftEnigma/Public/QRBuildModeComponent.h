@@ -109,6 +109,19 @@ public:
 	FOnBuildPlacementBlocked OnPlacementBlocked;
 
 	// ── API ──────────────────────────────────
+
+	// Spawn a placed build piece: generic AActor + static mesh root +
+	// UQRBuildPieceTag. Shared by TryConfirmPlacement (fresh placement,
+	// new guid) and the save-restore path (existing guid from the save).
+	static AActor* SpawnPlacedPiece(UWorld* World, UStaticMesh* Mesh,
+		FName PieceId, const FTransform& Xform, const FGuid& Guid);
+
+	// Respawn every saved build piece. Destroys existing tagged pieces
+	// first so loading mid-session doesn't duplicate the base. Returns
+	// how many pieces were restored. Catalog resolves PieceId -> mesh.
+	static int32 RestoreFromSave(UWorld* World, UDataTable* Catalog,
+		const TArray<struct FQRBuildableSaveData>& Saved);
+
 	UFUNCTION(BlueprintCallable, Category = "Build")
 	void EnterBuildMode();
 

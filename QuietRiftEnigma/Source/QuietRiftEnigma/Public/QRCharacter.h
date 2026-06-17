@@ -54,6 +54,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UQRBuildModeComponent> Build;
 
+	// First-person view driver (ADS state + FOV interpolation). RMB
+	// SetADS(true) lowers weapon spread because GetEffectiveSpreadDegrees
+	// reads bIsAimed from this component.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UQRFPViewComponent> FPView;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
 
@@ -166,6 +172,42 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	float InteractDistance = 250.0f;
 
+	// Camera exposure COMPENSATION (bias, in stops) layered on top of the
+	// bounded auto-exposure. 0 = neutral; HIGHER = brighter, LOWER = darker.
+	// The camera adapts to day/night on its own; this just nudges it.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera",
+		meta = (ClampMin = "-8.0", ClampMax = "8.0"))
+	float LockedExposureEV = 0.0f;
+
+	// Live-set the exposure bias on FirstPersonCamera. Tilde console:
+	//   QR_Exposure 1     <- brighter
+	//   QR_Exposure -1    <- darker
+	UFUNCTION(Exec, BlueprintCallable, Category = "Camera")
+	void QR_Exposure(float NewEV);
+
+	// ── Weapon recoil ─────────────────────────
+	// Recoil kicks the held weapon mesh, not the camera, so firing reads
+	// on the gun without yanking the whole view around.
+
+	// Degrees of held-mesh pitch per unit of the weapon's RecoilPitch.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+	float WeaponRecoilPitchScale = 2.5f;
+
+	// Centimetres the held mesh jolts back toward the camera per shot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+	float WeaponRecoilKickback = 4.0f;
+
+	// How fast the kick settles back to the resting pose.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil",
+		meta = (ClampMin = "1", ClampMax = "30"))
+	float WeaponRecoilRecoverySpeed = 9.0f;
+
+	// Multiplier from a weapon's RecoilPitch to the camera/view kick (in
+	// controller pitch input units). Higher = bigger screen punch per shot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil",
+		meta = (ClampMin = "0", ClampMax = "2"))
+	float CameraRecoilScale = 0.18f;
+
 	// ── State ────────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Character")
 	bool bIsSprinting = false;
@@ -226,6 +268,13 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Character")
 	void OnDied();
 	virtual void OnDied_Implementation();
+
+	// Server-side respawn-in-place: un-ragdolls, restores collision +
+	// input, refills vitals via the Survival component, and teleports to
+	// the given transform. Reuses this same pawn (inventory + HUD widgets
+	// survive) instead of spawning a fresh one.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Character")
+	void Revive(FVector Location, FRotator Rotation);
 
 	// Drop the currently-equipped hotbar item into the world. Dispatches
 	// by category: Wildlife → spawn wandering actor; building-prefixed
@@ -290,6 +339,20 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UQRScopeOverlayWidget> ScopeOverlay = nullptr;
 
+	// Top-right active-mission tracker, bound to the GameMode's director.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRMissionHUDWidget> MissionHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRMissionHUDWidget> MissionHUD = nullptr;
+
+	// Bottom-right ammo readout — held-weapon icon + magazine / reserve.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<class UQRAmmoHUDWidget> AmmoHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UQRAmmoHUDWidget> AmmoHUD = nullptr;
+
 	// Opens the settings overlay. Routed through ConsoleCommand from
 	// the pause / main menu widgets so they don't take a direct C++
 	// dep on the character.
@@ -336,6 +399,13 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	// Routes engine damage (wildlife bites, hazards, anything calling
+	// AActor::TakeDamage) into the Survival component's vitals so the
+	// player actually loses health and dies. Without this override the
+	// base AActor::TakeDamage is a no-op for our health model.
+	virtual float TakeDamage(float DamageAmount, const struct FDamageEvent& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
+
 private:
 	UFUNCTION(Server, Reliable)
 	void Server_Interact(AActor* Target);
@@ -343,6 +413,14 @@ private:
 	void Look(const struct FInputActionValue& Value);
 	void StartSprint();
 	void StopSprint();
+	// Fire input: Started = trigger pull (one shot for every mode);
+	// Completed = release. Full-auto sustains via Tick polling bFireHeld
+	// so no Enhanced Input trigger config is required.
+	void OnFirePressed();
+	void OnFireReleased();
+	// True while the fire key is held; Tick uses this to drive full-auto.
+	bool bFireHeld = false;
+	float NextLocalFireTime = 0.0f;
 	void HandleJumpPressed();
 	void HandleJumpReleased();
 	void LeanLeftPressed();
@@ -403,6 +481,11 @@ private:
 	// damage (drop) vs healing (rise) so we only play the hit SFX on hits.
 	float LastObservedHealth = 100.0f;
 
+	// Resting relative transform of the third-person mesh, captured in
+	// BeginPlay so Revive can put it back after a death ragdoll.
+	FVector  MeshBaseRelLocation = FVector::ZeroVector;
+	FRotator MeshBaseRelRotation = FRotator::ZeroRotator;
+
 	UFUNCTION()
 	void HandleHealthChanged(float NewHealth);
 	void OnHotbarSlotInput(int32 SlotIndex);
@@ -413,6 +496,32 @@ private:
 	// to inventory OnInventoryChanged in BeginPlay.
 	UFUNCTION()
 	void RefreshHeldItemMesh();
+
+	// Left-handed players: mirror the held mesh's position, rotation, and
+	// geometry (via negative Y scale) across the camera's XZ plane so the
+	// weapon reads as being held in the left hand. Default is right-handed.
+	// Surface in the settings widget; bound to a per-profile save later.
+	UPROPERTY(EditAnywhere, Category = "QR|Controls")
+	bool bIsLeftHanded = false;
+
+	// Apply bIsLeftHanded to HeldItemMesh -- mirrors position/rotation and
+	// flips Y scale. Called from RefreshHeldItemMesh (after the mesh is
+	// loaded + scaled) and from SetLeftHanded.
+	void ApplyHandednessToHeldMesh();
+
+public:
+	// Settings widget calls this on the local pawn when the Left-Handed
+	// checkbox flips -- public on purpose.
+	UFUNCTION(BlueprintCallable, Category = "QR|Controls")
+	void SetLeftHanded(bool bLeft);
+
+private:
+
+	// Walks every Clothing-category item in the inventory, sums the metal-
+	// tier protection from each ARM_<METAL>_<SLOT> id, and stamps the total
+	// onto Survival->ArmourDamageReduction. Subscribed to OnInventoryChanged.
+	UFUNCTION()
+	void RefreshArmour();
 
 	void ScanForInteractable();
 	TWeakObjectPtr<AActor> CurrentInteractable;
@@ -426,4 +535,33 @@ private:
 	bool bLeanLeftHeld = false;
 	bool bLeanRightHeld = false;
 	void UpdateLeanInput();
+
+	// ── Weapon recoil runtime state ───────────
+	// Resting transform of HeldItemMesh, captured in the constructor.
+	// Recoil offsets are added on top and decayed back to zero each Tick.
+	FRotator HeldItemBaseRotation = FRotator::ZeroRotator;
+	FVector  HeldItemBaseLocation = FVector::ZeroVector;
+	FRotator WeaponRecoilRot = FRotator::ZeroRotator;
+	FVector  WeaponRecoilLoc = FVector::ZeroVector;
+
+	// View-recoil recovery (camera climb walked back after the burst).
+	float AccumulatedViewRecoilPitch = 0.0f;
+	float TimeSinceLastShot = 0.0f;
+
+public:
+	// Seconds after the last shot before the camera starts recovering.
+	UPROPERTY(EditAnywhere, Category = "QR|Weapon|Recoil",
+		meta = (ClampMin = "0", ClampMax = "2"))
+	float ViewRecoilRecoveryDelay = 0.18f;
+
+	// Recovery rate in pitch-input units per second. ~8 brings a long
+	// burst home in under a second without feeling like aim assist.
+	UPROPERTY(EditAnywhere, Category = "QR|Weapon|Recoil",
+		meta = (ClampMin = "0.5", ClampMax = "50"))
+	float ViewRecoilRecoverySpeed = 8.0f;
+
+private:
+
+	// Kick the held weapon mesh on fire — local cosmetic only.
+	void ApplyWeaponRecoilKick(float PitchUnits, float YawUnits);
 };

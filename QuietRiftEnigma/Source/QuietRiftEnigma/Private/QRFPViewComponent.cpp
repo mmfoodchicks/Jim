@@ -59,10 +59,16 @@ float UQRFPViewComponent::ComputeLeanWallClamp(float DesiredLean) const
 		return FMath::Abs(DesiredLean);
 	}
 
-	// Trace from the camera straight sideways for the full lean reach. If
-	// blocked, scale lean by hit distance so the camera stops just short
-	// of the surface instead of clipping through it.
-	const FVector Origin = CameraTarget->GetComponentLocation();
+	// Trace sideways for the full lean reach -- from the UNLEANED camera
+	// base position, not the current (already-leaned) one. Tracing from
+	// the leaned position creates a feedback loop: clamp pulls the camera
+	// back -> next frame's trace starts further from the wall -> clamp
+	// releases -> camera leans into the wall again -> rapid shake.
+	FVector Origin = CameraTarget->GetComponentLocation();
+	if (USceneComponent* Parent = CameraTarget->GetAttachParent())
+	{
+		Origin = Parent->GetComponentTransform().TransformPosition(BaseCameraRelLocation);
+	}
 	const FVector Right  = CameraTarget->GetRightVector();
 	const float   Reach  = MaxLeanOffsetY + 6.0f; // small skin margin
 	const FVector End    = Origin + Right * (DesiredLean > 0.0f ? Reach : -Reach);
@@ -73,8 +79,17 @@ float UQRFPViewComponent::ComputeLeanWallClamp(float DesiredLean) const
 
 	if (GetWorld() && GetWorld()->LineTraceSingleByChannel(Hit, Origin, End, ECC_Visibility, Params))
 	{
-		const float Allowed = FMath::Max(0.0f, Hit.Distance - 4.0f) / FMath::Max(Reach, 1.0f);
-		return FMath::Min(FMath::Abs(DesiredLean), Allowed);
+		// Only clamp against WALL-LIKE surfaces (near-vertical normals).
+		// On open terrain the sideways trace grazes sloped ground/hills,
+		// and clamping against that made the lean flicker on/off every
+		// frame -- the "leaning shakes the gun rapidly" bug. A near-
+		// horizontal hit normal means a wall; a vertical-ish normal means
+		// ground/slope, which we ignore so the lean stays smooth.
+		if (FMath::Abs(Hit.Normal.Z) < 0.5f)
+		{
+			const float Allowed = FMath::Max(0.0f, Hit.Distance - 4.0f) / FMath::Max(Reach, 1.0f);
+			return FMath::Min(FMath::Abs(DesiredLean), Allowed);
+		}
 	}
 	return FMath::Abs(DesiredLean);
 }
@@ -100,8 +115,17 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	// ── 1. FOV blend ────────────────────────────
 	// ADS wins over sprint (you can't aim while sprinting in most games anyway).
 	// Scope tier wins over regular ADS when bScopeAvailable is true.
+	// ScopeZoomMultiplier scales beyond the baseline 4× scope by dividing
+	// further -- 8× = ScopeFOV/2, 16× = ScopeFOV/4 (the v8 patch optics).
 	float TargetFOV = BaseFOV;
-	if (bIsADS && bScopeAvailable) TargetFOV = ScopeFOV;
+	if (bIsADS && bScopeAvailable)
+	{
+		TargetFOV = ScopeFOV;
+		if (ScopeZoomMultiplier > 1.0f)
+		{
+			TargetFOV = FMath::Clamp(ScopeFOV / ScopeZoomMultiplier, 2.0f, ScopeFOV);
+		}
+	}
 	else if (bIsADS)               TargetFOV = ADSFOV;
 	else if (bSprinting)           TargetFOV = SprintFOV;
 
@@ -177,9 +201,18 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	if (FMath::Abs(CurrentLean) > KINDA_SMALL_NUMBER)
 	{
 		const float Sign = FMath::Sign(CurrentLean);
-		EffectiveLean = Sign * ComputeLeanWallClamp(CurrentLean);
+		// Smooth the wall clamp so a moving obstruction (or trace noise)
+		// eases the camera instead of snapping it -- the second half of
+		// the lean-shake fix.
+		const float RawClamp = ComputeLeanWallClamp(CurrentLean);
+		SmoothedLeanClamp = FMath::FInterpTo(SmoothedLeanClamp, RawClamp, DeltaTime, 8.0f);
+		EffectiveLean = Sign * SmoothedLeanClamp;
 		RelLoc.Y += EffectiveLean * MaxLeanOffsetY;
 		RelLoc.X += -FMath::Abs(EffectiveLean) * MaxLeanOffsetX;
+	}
+	else
+	{
+		SmoothedLeanClamp = 0.0f;
 	}
 
 	if (AController* C = OwnerCharacter->GetController())
@@ -196,4 +229,10 @@ void UQRFPViewComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 void UQRFPViewComponent::SetScopeAvailable(bool bHasScope)
 {
 	bScopeAvailable = bHasScope;
+}
+
+
+void UQRFPViewComponent::SetScopeZoomMultiplier(float Mult)
+{
+	ScopeZoomMultiplier = FMath::Clamp(Mult, 1.0f, 16.0f);
 }

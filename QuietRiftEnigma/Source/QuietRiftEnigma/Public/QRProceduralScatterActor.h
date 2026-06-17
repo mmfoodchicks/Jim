@@ -145,6 +145,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter")
 	int32 Seed = 1337;
 
+	// Per-instance culling (cm). Instances start fading at Start and are
+	// fully culled at End. 150 m / 300 m defaults keep huge worlds
+	// playable; bump End for hero landmarks that must read from afar.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter|Performance",
+		meta = (ClampMin = "0", ClampMax = "200000"))
+	float CullStartDistance = 15000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter|Performance",
+		meta = (ClampMin = "0", ClampMax = "400000"))
+	float CullEndDistance = 30000.0f;
+
 	// Generate on BeginPlay. Turn off if you only want editor-time
 	// generation (saved into the level).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Scatter")

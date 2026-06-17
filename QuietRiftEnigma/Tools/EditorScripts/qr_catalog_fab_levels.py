@@ -54,7 +54,7 @@ def _count_actors(world):
 
 
 def run(load_each=False):
-    """Walk /Game/Fabs/ for .umap assets and print a table.
+    """Walk /Game/ for .umap assets and print a table.
 
     load_each : if True, actually load each map to count actors (slow,
                 spawns transient editor work). Default False just lists

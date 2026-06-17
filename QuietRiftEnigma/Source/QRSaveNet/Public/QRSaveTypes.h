@@ -4,7 +4,24 @@
 #include "QRTypes.h"
 #include "QRTechNode.h"
 #include "QRMicroResearch.h"
+#include "QRSurvivalComponent.h"   // FQRInjury
 #include "QRSaveTypes.generated.h"
+
+// Where an item was equipped when saved. Mirrors the paper-doll slots.
+// SaveVersion 2+; v1 saves leave everything at None and rely on the
+// legacy HandSlot/bHasHandSlot fields below.
+UENUM()
+enum class EQRSavedEquipSlot : uint8
+{
+	None = 0,
+	Helm,
+	ChestArmour,
+	LegsArmour,
+	ChestRig,
+	Backpack,
+	Hand,
+	Offhand,
+};
 
 // Serializable item snapshot for save/load
 USTRUCT()
@@ -23,6 +40,17 @@ struct QRSAVENET_API FQRItemSaveData
 	UPROPERTY() EQRFoodOriginClass FoodOriginClass = EQRFoodOriginClass::Unknown;
 	UPROPERTY() float PackageIntegrity = 1.0f;
 	UPROPERTY() bool bIsBulkItem = false;
+
+	// SaveVersion 2: spatial placement, so the player's hand-arranged grid
+	// layout survives reload instead of being re-packed at random.
+	UPROPERTY() EQRContainerKind ContainerKind = EQRContainerKind::None;
+	UPROPERTY() int32 GridX = -1;
+	UPROPERTY() int32 GridY = -1;
+	UPROPERTY() bool bRotated = false;
+
+	// SaveVersion 2: non-None means this entry was equipped, not loose in
+	// the grid. Restored via the matching TryEquip* path on load.
+	UPROPERTY() EQRSavedEquipSlot EquippedSlot = EQRSavedEquipSlot::None;
 };
 
 // Serializable weapon runtime state (per-equipped weapon on a survivor)
@@ -97,6 +125,13 @@ struct QRSAVENET_API FQRSurvivorSaveData
 	UPROPERTY() FQRInventorySaveData Inventory;
 	UPROPERTY() TMap<EQRNPCRole, float> SkillLevels;
 	UPROPERTY() FQRWeaponSaveData EquippedWeapon;    // v1.17: persists weapon fouling/jam/ammo
+
+	// SaveVersion 2: active injuries persist — a fracture survives a reload
+	// instead of healing for free, and oxygen/temperature resume where they
+	// were instead of resetting to defaults.
+	UPROPERTY() TArray<FQRInjury> ActiveInjuries;
+	UPROPERTY() float Oxygen = 100.0f;
+	UPROPERTY() float CoreTemperature = 37.0f;
 };
 
 // Save data for a harvestable node (tree, rock, etc.)
@@ -122,6 +157,27 @@ struct QRSAVENET_API FQRBuildableSaveData
 	UPROPERTY() FRotator Rotation = FRotator::ZeroRotator;
 	UPROPERTY() float Health = 1.0f;
 	UPROPERTY() TArray<FQRItemSaveData> StoredItems;
+
+	// SaveVersion 2: row id into DT_BuildCatalog — what kind of piece this
+	// is, so load can respawn the right mesh. Matches UQRBuildPieceTag::PieceId.
+	UPROPERTY() FName PieceId;
+};
+
+// One codex entry snapshot — mirrors the game module's FQRCodexEntry,
+// which can't live here (the game module depends on QRSaveNet, not the
+// reverse). Conversion happens in UQRCodexSubsystem::Export/ImportEntries.
+USTRUCT()
+struct QRSAVENET_API FQRCodexEntrySaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FName Id;
+	UPROPERTY() FName Category;
+	UPROPERTY() EQRCodexDiscoveryState State = EQRCodexDiscoveryState::Undiscovered;
+	UPROPERTY() FText DisplayName;
+	UPROPERTY() FText Description;
+	UPROPERTY() int32 SeenCount = 0;
+	UPROPERTY() FDateTime FirstSeen;
 };
 
 // Research / Tech Node save state
@@ -146,6 +202,28 @@ struct QRSAVENET_API FQRChunkDelta
 	UPROPERTY() TArray<FQRHarvestNodeSaveData> HarvestNodes;
 	UPROPERTY() TArray<FQRBuildableSaveData> Buildables;
 	UPROPERTY() TArray<FName> DestroyedActorIds;
+};
+
+// One NPC's mid-game snapshot. AQRNPCActor instances aren't level-
+// authored so saving the class + location means load can respawn them
+// where they walked off to instead of reverting to the spawner ring.
+USTRUCT()
+struct QRSAVENET_API FQRNPCSaveData
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FString ActorLabel;          // QR_Village_03_Theo_Beckford etc.
+	UPROPERTY() FString NPCClassPath;        // soft path to subclass; resolved on load
+	UPROPERTY() FText   DisplayName;
+	UPROPERTY() FVector Location = FVector::ZeroVector;
+	UPROPERTY() FRotator Rotation = FRotator::ZeroRotator;
+
+	// Brain memory -- so a colonist who'd walked to their work post
+	// at the moment of save is still standing there on reload.
+	UPROPERTY() FVector HomePosition       = FVector::ZeroVector;
+	UPROPERTY() FVector AssignedWorkPost   = FVector::ZeroVector;
+	UPROPERTY() FVector AssignedBed        = FVector::ZeroVector;
+	UPROPERTY() uint8   BrainState         = 0;   // EQRNPCBrainState
 };
 
 // Top-level save game structure
@@ -193,6 +271,10 @@ struct QRSAVENET_API FQRGameSaveData
 	UPROPERTY() TArray<FName> CompletedMissionIds;
 	UPROPERTY() TArray<FName> ActiveMissionIds;
 
+	// SaveVersion 2: the mission director's live instances (template id →
+	// current progress), so in-flight procedural missions resume mid-count.
+	UPROPERTY() TMap<FName, int32> DirectorMissionProgress;
+
 	// World delta
 	UPROPERTY() TArray<FQRChunkDelta> ChunkDeltas;
 
@@ -200,6 +282,16 @@ struct QRSAVENET_API FQRGameSaveData
 	// UQRLootedRegistry exports/imports this set on save / load so emptied
 	// containers stay empty across reloads.
 	UPROPERTY() TArray<FGuid> LootedContainerIds;
+
+	// SaveVersion 2: full codex (SeenCount / FirstSeen / per-entry state).
+	// The research component's CodexStates map only carries discovery
+	// states; this is the K-key codex widget's data.
+	UPROPERTY() TArray<FQRCodexEntrySaveData> CodexEntries;
+
+	// SaveVersion 2: every brain-carrying AQRNPCActor in the world. Lets
+	// a saved village survive reload with each colonist where they walked
+	// to, not back at the spawner ring.
+	UPROPERTY() TArray<FQRNPCSaveData> NPCActors;
 
 	// Faction data
 	UPROPERTY() TMap<FName, float> FactionTrustScores;

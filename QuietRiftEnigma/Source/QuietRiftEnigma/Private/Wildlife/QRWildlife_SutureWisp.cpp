@@ -13,6 +13,11 @@ AQRWildlife_SutureWisp::AQRWildlife_SutureWisp()
 	ThreatDetectionRadius = 1800.0f;
 	NoiseFactor        = 0.15f;
 
+	// Real-world size + attack tuning (drifting filament predator)
+	BodyLengthMeters   = 1.6f;
+	BodyHeightMeters   = 1.4f;
+	AttackDamage       = 20.0f;
+
 	DeathDrops.Add({ FName("MAT_WISP_RIBBON"),   2, 4, 1.0f });
 	DeathDrops.Add({ FName("MAT_FILAMENT_CORD"),  1, 3, 0.7f });
 }

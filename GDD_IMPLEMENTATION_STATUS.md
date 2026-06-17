@@ -26,42 +26,37 @@ Legend: ✅ shipped · 🟡 partial · 🔧 scaffolded only · ❌ missing
 
 | GDD item | Implementation | Status |
 |---|---|---|
-| 64 km finite world + hazard belt + hard wall | `DT_VariablesWorldgen.csv` defines tunables; no worldgen actor | 🔧 |
-| WorldSeed → BiomeSeed / POISeed / EcologySeed / FactionSeed / LootSeed | `AQRProceduralScatterActor::Seed` field (single seed only) | 🟡 |
-| Macro terrain generation pipeline | None — relies on hand-painted Landscape + MWLandscapeAutoMaterial | ❌ |
-| Macro / Micro / Habitat / Context biome tag layering | `UQRBiomeProfile.BiomeTag` exists (one tag per profile) | 🟡 |
-| Canonical biome list (BasaltShelf, WindPlains, WetBasins, etc.) | **Mismatch** — our profiles use placeholder names (AlienJungle, PolarTundra, DesertSand) | ❌ |
+| 64 km finite world + hazard belt + hard wall | `UQRWorldGenSubsystem` builds the biome cell grid with an outer HazardBelt ring; `AQRWorldGenSeedActor` drives it from an editor button | ✅ |
+| WorldSeed → BiomeSeed / POISeed / EcologySeed / FactionSeed / LootSeed | `UQRWorldGenSubsystem` derives all 5 `FRandomStream`s from one WorldSeed | ✅ |
+| Macro terrain generation pipeline | `qr_generate_heightmap.py` bakes a heightmap + per-biome ground weightmaps from the cell grid; Landscape import is editor-assisted | 🟡 |
+| Macro / Micro / Habitat / Context biome tag layering | `FQRWorldCell` carries MacroBiome + MicroBiome + HabitatFlags + DepthBand per cell | ✅ |
+| Canonical biome list (BasaltShelf, WindPlains, WetBasins, etc.) | All 14 created by `qr_seed_biome_profiles.py`; the subsystem assigns them per depth band | ✅ |
 | Traversal validation from PlayerStart to each depth band | None | ❌ |
-| Depth-band gating (surface → mid → deep → remnant) | None | ❌ |
-| Place order: Remnant → faction capital → wrecks → minor POIs → flora → fauna → predators | None — scatter actor is flat random | ❌ |
+| Depth-band gating (surface → mid → deep → remnant) | `EQRDepthBand` per cell in concentric rings; gameplay gating on the band is partial | 🟡 |
+| Place order: Remnant → faction capital → wrecks → minor POIs → fauna | `UQRWorldGenSubsystem::PlacePOIs` + `AQRWorldGenSpawner` place in canonical order | ✅ |
 | Navmesh + chunk IDs + discovery + save deltas | World partition / save deltas: missing | ❌ |
 
-**This is the largest gap.** GDD §4 describes a full worldgen pipeline.
-We have one stochastic scatter actor + biome data assets — nothing that
-generates terrain shape, places POIs in depth bands, or validates
-connectivity.
+**Worldgen Phase 1 + 2 are built** (post-dates the 2026-05-15 audit).
+`UQRWorldGenSubsystem` generates the biome-tagged cell grid + POI plan;
+`AQRWorldGenSeedActor` drives it; `AQRWorldGenSpawner` spawns POIs /
+wrecks / caves / fauna; `AQRProceduralScatterActor` handles flora;
+`qr_generate_heightmap.py` bakes the terrain heightmap + biome
+weightmaps. Open gaps: programmatic Landscape import, traversal
+validation, world-partition streaming.
 
 ### Canonical biome list (GDD §4 table) — implementation alignment
 
-| GDD biome | Our biome profile asset | Status |
-|---|---|---|
-| BasaltShelf | (placeholder `BP_AlienJungle`) | ❌ rename |
-| WindPlains | none | ❌ |
-| MeltlineEdges | none | ❌ |
-| WetBasins / ShadowFens | none | ❌ |
-| GlassDunes | none | ❌ |
-| ThermalCracks / SteamVents | none | ❌ |
-| RazorstoneRidge / MagneticRidges | none | ❌ |
-| CanyonWebs / IceCaves | none | ❌ |
-| ColdBasins | (placeholder `BP_PolarTundra`) | ❌ rename |
-| CraterFloors / CraterWalls | none | ❌ |
-| HighRims | none | ❌ |
-| MossFields | none | ❌ |
-| RidgeShadows | none | ❌ |
-| ShallowFens | none | ❌ |
+All 14 canonical biomes ship as `UQRBiomeProfile` assets created by
+`qr_seed_biome_profiles.py` under `/Game/QuietRift/Data/Biomes/`:
 
-**Next pass:** rewrite `qr_seed_biome_profiles.py` to create the 14
-canonical biomes with their GDD flora/fauna/predator pools.
+- **Surface** — BasaltShelf, WindPlains, MeltlineEdges, CraterFloors
+- **Mid** — WetBasins, ShallowFens, ThermalCracks, GlassDunes, MossFields
+- **Deep** — MagneticRidges, HighRims, ColdBasins, CanyonWebs, RidgeShadows
+
+Each profile carries its depth band, a scatter palette (tier-correct
+trees + themed plants), suggested density, and a landscape material.
+The legacy placeholders (AlienJungle / PolarTundra / DesertSand) are
+deleted on seeder run.
 
 ---
 
@@ -71,16 +66,18 @@ canonical biomes with their GDD flora/fauna/predator pools.
 
 | GDD species | Biome | Tier / role | Implementation |
 |---|---|---|---|
-| Glassbark | BasaltShelf, MeltlineEdges, WindPlains | Surface / general wood | ❌ no mesh, no item |
-| Velvetspine | WindPlains, RidgeShadows | Mid / fibrous long-grain | ❌ |
-| Slagroot | ThermalCracks, CraterFloors | Mid / dense structural | ❌ |
-| Asterbark | MagneticRidges, HighRims | **Deep / premium** | ❌ |
+| Glassbark | BasaltShelf, MeltlineEdges, WindPlains | Surface / general wood | 🟡 `SM_TRE_GLASSBARK` mesh in Surface biome palettes; no item def |
+| Velvetspine | WindPlains, RidgeShadows | Mid / fibrous long-grain | ❌ no mesh |
+| Slagroot | ThermalCracks, CraterFloors | Mid / dense structural | 🟡 `SM_TRE_SLAGROOT` mesh in Mid biome palettes; no item def |
+| Asterbark | MagneticRidges, HighRims | **Deep / premium** | 🟡 `SM_TRE_ASTERBARK` mesh in Deep biome palettes; no item def |
 
 The "trees get progressively different as you go deeper" thread —
 canonically Glassbark→Velvetspine→Slagroot→Asterbark with palette
-shift visible at distance. **Currently we have no tree art for any of
-these.** The Fab packs we have are stand-ins (Smokebark from
-DT_Species_Flora is the legacy name, replaced by Glassbark in v1.5).
+shift visible at distance. Three of the four tree meshes now exist
+(`SM_TRE_GLASSBARK / SLAGROOT / ASTERBARK`) and `qr_seed_biome_profiles.py`
+wires them into the biome scatter palettes by depth band; Velvetspine
+has no mesh yet. Still missing: `UQRItemDefinition`s so harvested wood
+becomes an inventory item.
 
 ### Flora pool (Visual World Bible §5, 17 plants + 4 trees)
 
@@ -279,20 +276,24 @@ Galepack, Trench Diggers Sapper): ❌ no system.
 
 ## L. Procedural generation — POST-GDD addition
 
-| Implementation feature | Notes |
-|---|---|
-| `AQRProceduralScatterActor` | Box volume + palette + slope check + ground trace + HISM packing | ✅ Post |
+| Implementation feature | Notes | Status |
+|---|---|---|
+| `UQRWorldGenSubsystem` | Seed → 14-biome cell grid + depth bands + POI plan + minimap texture | ✅ Post |
+| `AQRWorldGenSeedActor` | Editor-button driver — Generate + ExportMinimap | ✅ Post |
+| `AQRWorldGenSpawner` | Spawns POIs / wrecks / caves / fauna from the POI plan | ✅ Post |
+| `AQRProceduralScatterActor` | Box volume + palette + slope/trace + HISM packing; biome-aware via the subsystem | ✅ Post |
 | `UQRBiomeProfile` data asset | Palette + density + landscape mat + sky + ambient | ✅ Post |
+| `AQRBiomeZone` | Designer-placed biome override zone (priority over the worldgen cell) | ✅ Post |
+| `qr_seed_biome_profiles.py` | Creates all 14 canonical biome profiles | ✅ Post |
+| `qr_generate_heightmap.py` | Bakes heightmap + per-biome ground weightmaps from the cell grid | ✅ Post |
 | `qr_create_proc_world_map.py` | Builds L_ProcTest with one scatter + ScifiJungle PCG manager | ✅ Post |
-| `qr_seed_biome_profiles.py` | Creates 3 placeholder biome profiles | 🟡 wrong names — refactor next pass |
 | ScifiJungle PCG integration | Coexists with scatter; works alongside | ✅ |
 
-**Not yet built (Phase 7 of MANUAL_EDITOR_TASKS.md):**
-- AQRBiomeZone — tag region detector switching sky / fog / ambient on entry
-- UQRWorldGenSubsystem — biome streaming + per-band gating
-- Heightmap procedural import — make terrain shape generative
-- POI placer — flat-spot scan + prefab drop
-- Wildlife density per biome — biome-aware spawn budget
+**Open worldgen gaps:**
+- Programmatic Landscape heightmap import (currently editor-assisted)
+- Landscape layer-blend material consuming the biome weightmaps
+- Traversal validation PlayerStart → each depth band
+- World-partition streaming + chunk delta saves
 
 ---
 
@@ -331,26 +332,114 @@ implementation-only detail:
 
 ---
 
-## N. The biggest missing categories — priority order
+## N. The biggest open gaps — priority order (reconciled 2026-05-24)
 
-1. **Worldgen pipeline (GDD §4)** — we have data tunables, no actor
-   that actually generates a 64km biome-tagged world. Without this,
-   every map is hand-painted.
-2. **Biome catalog alignment** — code uses placeholder biomes; GDD
-   defines 14 canonical biomes. Trivial to fix; pending next pass.
-3. **POI placement system** — DT_POIArchetypes has 16 archetypes; no
-   placer reads them.
-4. **AI behavior trees** — NPC + wildlife + predator AI is entirely
-   absent. AQRWildlifeActor wanders in 2D; AQRNPCActor stands still.
-5. **Hauler / depot pull logic** — central economic loop of the
-   colony; not implemented.
-6. **Civilian raid response + emergency armory** — Master GDD §12.
-7. **Long-range scope / optics** — added in patch v8; not in code.
-8. **Codex aggregator + UI** — discovery system is half-coded
-   (state tags exist), no central tracker or screen.
-9. **Mission generator** — DT_ProceduralMissionTemplates exists,
-   no generator code.
-10. **Remnant wake-state FSM** — five-state system per remnant site.
+**Doc state warning:** The previous version of this section listed
+8 "missing" items, half of which actually exist in code per
+`SYSTEM_COHESION_AUDIT.md` and a fresh source survey. Items moved
+to "actually built" below; items still genuinely missing are
+re-ranked by impact on shipping.
+
+### Genuinely missing (work to do, in priority order)
+
+1. **AI behavior trees** — 🟡 partial (2026-06-05). Wildlife now driven
+   by `AQRWildlifeAIController` (code-only FSM, 4Hz think, NavMesh
+   pathing via `MoveToLocation`) — covers Prey/Predator/Scavenger/
+   Ambient/Hazard role branching, herd alert on flee, predator prey
+   selection, attack swing cooldowns. Respects designer-supplied
+   `BehaviorTree` if one is later assigned. **Combat + physicality
+   wired (2026-06-05):** `AQRWildlifeBase` now configures walking
+   movement + gravity (animals conform to slopes instead of floating),
+   sizes its capsule + auto-fits its mesh from per-species
+   `BodyLength/HeightMeters` (Pillarback ~10 m … Fogleech ~0.4 m), and
+   bridges the engine damage pipeline into wildlife health via a
+   `TakeDamage` override. Predators deal per-species `AttackDamage`;
+   `AQRCharacter::TakeDamage` routes hits into the Survival component so
+   the player actually takes damage, and the weapon now damages
+   wildlife (was previously SurvivalComponent-only). **Still missing:**
+   NPC colony/leader BTs, mount panic & taming flow, herd-route data
+   driving (currently random wander around HomeLocation), predator
+   pressure-pull weighting between species.
+2. **Mission generator from `DT_ProceduralMissionTemplates`** — the
+   table + `UQRMissionDirector` exist, but the template-instantiator
+   with `MissionLocationFallbackRule` + `RewardSourceValidation` (the
+   GDD's No-Pocket-OP law) isn't wired.
+3. **Hauler / depot pull logic** — ✅ v1 closed (2026-06-11).
+   `UQRCraftingComponent::GetCurrentDemandItem` exposes the first
+   missing ingredient of the queue-head recipe; the hauler fetches
+   that instead of the old hardcoded `RAW_METAL_SCRAP`. Still open
+   for v2: `StorageDeficitMod` weighting across multiple stalled
+   stations (currently first-found wins).
+4. **Long-range optics + sniper (patch v8)** — `ATT_8X_SCOPE`,
+   `ATT_16X_SCOPE`, `WPN_LONGRANGE_SNIPER` not in attachments/weapons
+   code. `DT_ArmoryAttachments.csv` has rows; weapons module doesn't.
+5. **Cross-contamination crop mutation pipeline** — `ToxicSoil +
+   InfectedWater + SporeLoad + FarmerCrossContamScore` → mutated
+   cultivar is a core farming-gameplay loop, not in code.
+6. **Mount husbandry loop** — `BaseTameDays`, `P_tameFailPerDay`,
+   `CurrentStressPool` panic at 85, hazard barding. Wildlife actor
+   exists with mount tags; the taming/stress/panic loop does not.
+7. **Leader directive chains + Moral Compass** — 124 directives × 11
+   condition debuffs × `IssueEscalationScore` → side mission, plus
+   the vector-axis Camp Policy / defection / deserter splinter
+   faction emergence. Components exist; the directive flow doesn't.
+8. **Faction raid leader experience bands** —
+   Inexperienced/Competent/Veteran/Fanatic-Remnant altering raid AI
+   strategy. `DT_RaidExperienceTiers.csv` has rows; raid party AI
+   doesn't branch on them.
+9. **Civilian Fight mode no-op** — `UQRCivilianReactionComponent`
+   Fight state faces threat but doesn't fire. Wire weapon firing
+   when MilitiaKit is equipped.
+10. **Codex save persistence** — 🟡 partial (2026-06-11). Save v2
+    persists `UQRResearchComponent` state (tech nodes, micro-research,
+    `CodexStates`) via `FQRSaveSnapshot`. Still missing: the game-
+    module `UQRCodexSubsystem::Entries` map (SeenCount / FirstSeen /
+    per-entry state) — it lives in the game module so QRSaveNet can't
+    reference its struct; needs an export/import pair like
+    `UQRLootedRegistry` uses.
+11. **Co-op transaction-ID safety net** — GDD demands server-authored
+    transaction IDs on every inventory mutation to prevent dupes.
+    Standard UE replication is used; no transaction-ID layer yet.
+12. **Programmatic Landscape import** — heightmap/weightmap bake to
+    disk; importing into a Landscape actor is still editor-assisted.
+13. **World partition streaming + chunk delta saves** — chunk save
+    struct defined, no streaming integration.
+
+### Build-blockers (urgent — gameplay fails without these)
+
+- **No NavMesh on any test level** — AI components exist but can't
+  path. Manual editor task: drop `NavMeshBoundsVolume` on
+  `L_DevTest`. Now scriptable via `qr_dev_test_dressup.py`.
+- **AnimBP state machine empty** — `ABP_QRPlayer` exists but its
+  Locomotion graph is empty; player T-poses. Manual graph authoring
+  is required (Python can't fully author UE state-machine node
+  graphs); helper script wires the asset variables and locomotion
+  anims so the manual step is "just plug them in."
+- **Buildable + looted-container persistence has no save/load glue**
+  — `FQRBuildableSaveData` defined, never written. C++ change of
+  ~1-2 days; built bases vanish on reload without it.
+- **DataTable rows seeded but empty** — `DT_BuildCatalog`,
+  `DT_Recipes`, `DT_NPC_Greetings`, `DT_LootTables`. Now bulk-seeded
+  by `qr_seed_starter_datatables.py`.
+
+### Already built (no longer count as gaps — fix the prior priority list)
+
+| Was listed missing | Actually in code |
+|---|---|
+| Codex aggregator + UI | `UQRCodexSubsystem` + `UQRCodexWidget` (K key) |
+| Mission director | `UQRMissionDirector` (template-fed, runtime-active) |
+| Remnant wake-state FSM | `AQRRemnantSite` 5-state FSM (Dormant→Warm→Active→Overclock→Dead) |
+| Raid scheduler | `AQRRaidScheduler` (weather + concordat + opportunity scoring) |
+| Faction component + camps | `UQRFactionComponent`, `AQRFactionCamp`, `UQRCampSimComponent` |
+| Civilian reaction component | `UQRCivilianReactionComponent` (Fight mode no-op flagged separately) |
+| Satellite outposts | `AQRSatelliteOutpost` placed by spawner |
+| Hauler component | `UQRHaulerComponent` (hardcoded-item bug flagged separately) |
+
+### Doc maintenance rule
+
+**When a big gap closes, update this list in the same PR/commit.**
+Stale priority lists are how teams waste time fixing already-done
+things. CLAUDE.md mirrors the top of this list; update both.
 
 ---
 

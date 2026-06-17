@@ -13,6 +13,11 @@ AQRWildlife_NestweaverDrifter::AQRWildlife_NestweaverDrifter()
 	ThreatDetectionRadius = 1200.0f;
 	NoiseFactor        = 0.1f;
 
+	// Real-world size + attack tuning (light drifting membrane creature)
+	BodyLengthMeters   = 1.0f;
+	BodyHeightMeters   = 0.8f;
+	AttackDamage       = 5.0f;
+
 	DeathDrops.Add({ FName("MAT_MEMBRANE_FIN"),  2, 4, 1.0f });
 	DeathDrops.Add({ FName("FOD_DRIFTER_MEAT"),  1, 2, 1.0f });
 }

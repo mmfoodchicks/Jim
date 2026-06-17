@@ -39,10 +39,10 @@ ABP_PATH    = "{}/{}".format(OUTPUT_DIR, ABP_NAME)
 # Mannequin asset under their Demo folder.
 SKELETON_CANDIDATES = [
     "/Game/Characters/Mannequins/Meshes/SK_Mannequin",
-    "/Game/Fabs/FreeAnimsMixPack/Demo/Mannequins/Meshes/SK_Mannequin",
-    "/Game/Fabs/DynamicFalling/Demo/Characters/Mannequins/Meshes/SK_Mannequin",
-    "/Game/Fabs/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
-    "/Game/Fabs/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SK_Mannequin",
+    "/Game/FreeAnimsMixPack/Demo/Mannequins/Meshes/SK_Mannequin",
+    "/Game/DynamicFalling/Demo/Characters/Mannequins/Meshes/SK_Mannequin",
+    "/Game/RamsterZ_FreeAnims_Volume1/Demo/Mannequin/Character/Mesh/SK_Mannequin",
+    "/Game/DeadBodies_Poses_nikoff/Demo/Mannequins/Meshes/SK_Mannequin",
 ]
 
 

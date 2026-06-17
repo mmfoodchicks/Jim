@@ -19,6 +19,7 @@ void UQRSurvivalComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UQRSurvivalComponent, Health);
+	DOREPLIFETIME(UQRSurvivalComponent, ArmourDamageReduction);
 	DOREPLIFETIME(UQRSurvivalComponent, Hunger);
 	DOREPLIFETIME(UQRSurvivalComponent, Thirst);
 	DOREPLIFETIME(UQRSurvivalComponent, Fatigue);
@@ -144,9 +145,18 @@ void UQRSurvivalComponent::RefreshStatusTags()
 	}
 }
 
+void UQRSurvivalComponent::SetArmourDamageReduction(float NewValue)
+{
+	ArmourDamageReduction = FMath::Clamp(NewValue, 0.0f, 0.95f);
+}
+
 void UQRSurvivalComponent::ApplyDamage(float Amount, EQRInjuryType InjuryType)
 {
 	if (bIsDead || Amount <= 0.0f) return;
+	// Armour mitigates incoming damage by ArmourDamageReduction. Stacks
+	// multiplicatively after the shield (shield is applied earlier in
+	// AQRCharacter::TakeDamage).
+	Amount *= (1.0f - FMath::Clamp(ArmourDamageReduction, 0.0f, 0.95f));
 	Health = FMath::Max(0.0f, Health - Amount);
 	OnHealthChanged.Broadcast(Health);
 
@@ -161,6 +171,21 @@ void UQRSurvivalComponent::ApplyHealing(float Amount)
 	if (bIsDead || Amount <= 0.0f) return;
 	Health = FMath::Min(MaxHealth, Health + Amount);
 	OnHealthChanged.Broadcast(Health);
+}
+
+void UQRSurvivalComponent::Revive()
+{
+	bIsDead = false;
+	Health  = MaxHealth;
+	Hunger  = MaxHunger * 0.8f;
+	Thirst  = MaxThirst * 0.8f;
+	Fatigue = MaxFatigue;
+	Oxygen  = MaxOxygen;
+	CoreTemperature = 37.0f;
+	ActiveInjuries.Empty();
+	ActiveStatusTags = FGameplayTagContainer();
+	OnHealthChanged.Broadcast(Health);
+	OnStatusChanged.Broadcast(ActiveStatusTags);
 }
 
 void UQRSurvivalComponent::ConsumeFood(UQRItemInstance* FoodItem)

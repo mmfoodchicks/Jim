@@ -1,5 +1,5 @@
 #include "Wildlife/QRWildlife_RidgeCourser.h"
-#include "Net/UnrealNetwork.h"
+#include "QRMountHusbandryComponent.h"
 
 AQRWildlife_RidgeCourser::AQRWildlife_RidgeCourser()
 {
@@ -13,6 +13,17 @@ AQRWildlife_RidgeCourser::AQRWildlife_RidgeCourser()
 	ThreatDetectionRadius = 2200.0f;
 	NoiseFactor        = 0.2f;
 
+	// Real-world size + attack tuning (rideable horse-analogue, kicks)
+	BodyLengthMeters   = 2.6f;
+	BodyHeightMeters   = 1.8f;
+	AttackDamage       = 14.0f;
+
+	Husbandry = CreateDefaultSubobject<UQRMountHusbandryComponent>(TEXT("Husbandry"));
+	// Coursers are a high-strung breed -- shorter taming, twitchier.
+	Husbandry->BaseTameDays         = 5.0f;
+	Husbandry->P_tameFailPerDay     = 0.2f;
+	Husbandry->StressFromRidingPerHour = 4.0f;
+
 	DeathDrops.Add({ FName("FOD_COURSER_MEAT"),  3, 5, 1.0f });
 	DeathDrops.Add({ FName("MAT_COURSER_HIDE"),  1, 2, 0.8f });
 	DeathDrops.Add({ FName("MAT_VANE_QUILL"),    2, 4, 0.7f });
@@ -20,22 +31,14 @@ AQRWildlife_RidgeCourser::AQRWildlife_RidgeCourser()
 
 bool AQRWildlife_RidgeCourser::TryMount(AActor* Rider)
 {
-	if (!bIsTamed || MountedRider != nullptr || !Rider) return false;
-	MountedRider = Rider;
+	if (!Husbandry || !Husbandry->TryMount(Rider)) return false;
 	MoveSpeedWalk = MoveSpeedWalk * MountedSpeedMultiplier;
 	return true;
 }
 
 void AQRWildlife_RidgeCourser::Dismount()
 {
-	if (!MountedRider) return;
+	if (!Husbandry || !Husbandry->CurrentRider) return;
 	MoveSpeedWalk = MoveSpeedWalk / MountedSpeedMultiplier;
-	MountedRider = nullptr;
-}
-
-void AQRWildlife_RidgeCourser::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AQRWildlife_RidgeCourser, bIsTamed);
-	DOREPLIFETIME(AQRWildlife_RidgeCourser, MountedRider);
+	Husbandry->Dismount();
 }

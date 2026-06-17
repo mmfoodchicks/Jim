@@ -5,9 +5,12 @@
 #include "QRNPCActor.generated.h"
 
 class USkeletalMeshComponent;
+class USkeletalMesh;
 class UCapsuleComponent;
 class UQRDialogueComponent;
 class UQRFactionComponent;
+class UQRNPCBrainComponent;
+class UQRCivilianReactionComponent;
 
 /**
  * Minimal NPC actor: capsule + skeletal mesh + dialogue + faction
@@ -40,8 +43,26 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
 	TObjectPtr<UQRFactionComponent> Faction;
 
+	// Living-NPC layer. Brain drives wander/work/sleep loop; Reaction
+	// owns Flee/Fight/Hide during raids and out-prioritizes the brain.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
+	TObjectPtr<UQRNPCBrainComponent> Brain;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
+	TObjectPtr<UQRCivilianReactionComponent> Reaction;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC")
 	FText DisplayName;
+
+	// Soft pointer assigned by qr_assign_npc_appearance.py or a designer
+	// BP subclass. Loaded on BeginPlay if MeshComp's slot is still empty.
+	// Defaults to None so a designer-authored BP subclass with an
+	// inline mesh isn't stomped on.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Appearance")
+	TSoftObjectPtr<USkeletalMesh> DefaultSkeletalMesh;
+
+protected:
+	virtual void BeginPlay() override;
 };
 
 

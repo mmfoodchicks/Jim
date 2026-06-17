@@ -10,7 +10,7 @@ Loading any of those cues at PIE start spams hundreds of warnings like:
   LogStreaming: Warning: LoadPackage: SkipPackage:
     /Game/Free_Sounds_Pack/wav/Ambient_Wind_Loop_1 - does not exist on disk
 
-This script walks every SoundCue under /Game/Fabs/ and /Game/<Pack>/
+This script walks every SoundCue under /Game/ and /Game/<Pack>/
 locations, inspects each cue's dependency list, and deletes any cue
 whose dependency tree references a missing package. The wav files that
 DO exist are left alone — only the cues with broken refs go.

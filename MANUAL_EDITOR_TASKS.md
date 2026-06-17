@@ -213,21 +213,36 @@ L_MainMenu and L_DevTest are functional but plain.
 ## Phase 7 — Procedural world generation
 
 Detailed setup lives in [`PROCEDURAL_WORLD_PLAN.md`](PROCEDURAL_WORLD_PLAN.md).
-Quick checklist:
+The worldgen pipeline is C++-driven; the steps below are the editor
+glue. Quick checklist:
 
-- [ ] Run `qr_seed_biome_profiles.py` — creates three starter
-      `UQRBiomeProfile` data assets (Alien Jungle / Polar Tundra /
-      Desert Sand).
-- [ ] Run `qr_create_proc_world_map.py` — creates `/Game/Maps/L_ProcTest`
-      with a floor + one scatter actor.
-- [ ] Open `L_ProcTest`. Select `ProcScatter_Default`. Details panel
-      → set **BiomeProfile = BP_AlienJungle** → click **Generate**.
-      Verify 500ish scattered plants + rocks appear.
-- [ ] Optional: replace the flat floor with a real Landscape actor
-      painted using MWLandscapeAutoMaterial's master material.
-- [ ] Optional: drop additional scatter actors for other biomes
-      (Polar Tundra, Desert Sand).
-- [ ] Optional: drop ScifiJungle's `BP_PCG_Manager` for dense
+- [ ] Run `qr_seed_biome_profiles.py` — creates all 14 canonical
+      `UQRBiomeProfile` assets under `/Game/QuietRift/Data/Biomes/`
+      (BasaltShelf, WindPlains, … RidgeShadows).
+- [ ] Drop an `AQRWorldGenSeedActor` into your level. Set WorldSeed +
+      WorldMapSizeKm (64) → click **Generate** in the Details panel.
+      This builds the biome cell grid + POI plan in memory.
+- [ ] _(optional)_ Click **ExportMinimap** on the seed actor to dump a
+      biome-colored PNG to `Saved/QRWorldGen/` for a sanity check.
+- [ ] Bake the terrain: Output Log → Python →
+      `exec(open(r'<Project>/Tools/EditorScripts/qr_generate_heightmap.py').read())`.
+      Writes a heightmap (`.png` + `.r16`) and one weightmap PNG per
+      ground layer to `Saved/QRWorldGen/`, and prints the exact
+      Landscape Import settings.
+- [ ] Create the Landscape: Modes → Landscape → New → **Import from
+      File**. Use the `.r16` heightmap and the Resolution + Scale the
+      script printed. Add a paint layer per weightmap (Basalt, Slate,
+      Moss, Mud, Glass, Ice, Hazard) and import each `Weight_*` PNG.
+      _(needs a layer-blend landscape material — see PROCEDURAL_WORLD_PLAN §3c.)_
+- [ ] Drop an `AQRWorldGenSpawner` into the level → click **SpawnAll**
+      to place remnant sites / wrecks / caves / wildlife from the POI
+      plan. Assign its actor-class fields first (RemnantSiteClass etc.).
+- [ ] Drop one `AQRProceduralScatterActor` covering the map. Tick
+      **bUseWorldGenSubsystem**, and fill **BiomeProfileMap** with the
+      14 biome FName → profile pairs (keys are the bare biome names:
+      `BasaltShelf`, not `Biome.BasaltShelf`). Click **Generate** to
+      scatter flora per biome.
+- [ ] _(optional)_ Drop ScifiJungle's `BP_PCG_Manager` for dense
       forest layers alongside the scatter actor.
 
 ---

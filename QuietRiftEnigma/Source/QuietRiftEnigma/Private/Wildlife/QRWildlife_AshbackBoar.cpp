@@ -15,6 +15,11 @@ AQRWildlife_AshbackBoar::AQRWildlife_AshbackBoar()
 	ThreatDetectionRadius = 1200.0f;
 	NoiseFactor        = 0.6f;
 
+	// Real-world size + attack tuning (boar-sized, tusked charger)
+	BodyLengthMeters   = 1.4f;
+	BodyHeightMeters   = 0.9f;
+	AttackDamage       = 18.0f;
+
 	DeathDrops.Add({ FName("FOD_BOAR_MEAT"),    3, 6, 1.0f });
 	DeathDrops.Add({ FName("MAT_BOAR_HIDE"),    1, 2, 0.9f });
 	DeathDrops.Add({ FName("MAT_BOAR_TUSK"),    1, 2, 0.7f });

@@ -1,9 +1,9 @@
 """
 Quiet Rift: Enigma — auto-assign Fab materials to our SM_* meshes by prefix.
 
-Walks every StaticMesh under /Game/Meshes/ (skipping /Game/Fabs/), figures
+Walks every StaticMesh under /Game/Meshes/ (skipping /Game/), figures
 out the asset's category prefix (SM_WPN_*, SM_FOD_*, SM_BLD_*, ...), and
-picks the best-matching material from /Game/Fabs/.../Materials/. Then
+picks the best-matching material from /Game/.../Materials/. Then
 slots that material into every material slot on the mesh.
 
 Why: the generated FBXes import with the engine default grey, so every
@@ -113,7 +113,7 @@ def _scan_paths(paths):
 
 def _get_fab_materials():
     """Return list of (object_path:str, lowercase_asset_name:str) for every
-    Material / MaterialInstanceConstant under /Game/Fabs/."""
+    Material / MaterialInstanceConstant under /Game/."""
     ar = _asset_registry()
     f = unreal.ARFilter(
         class_names=["Material", "MaterialInstanceConstant"],

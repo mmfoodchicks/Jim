@@ -85,6 +85,11 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	// Required for UQRInventoryComponent::ReplicateSubobjects to ship these
+	// instances over the actor channel — plain UObjects default to false and
+	// silently never replicate, leaving null pointers on co-op clients.
+	virtual bool IsSupportedForNetworking() const override { return true; }
+
 private:
 	UFUNCTION()
 	void OnRep_Quantity();

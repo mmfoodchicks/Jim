@@ -54,6 +54,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "QR|CrashSite")
 	TSubclassOf<AQRWorldItem> WorldItemClass;
 
+	// Tool-gated entry. When non-None, the player needs that item id in
+	// their inventory before PopulateLoot will scatter the interior
+	// loot. Set by the spawner from FQRPOIPlacement::RequiredToolItemId.
+	// Major hero crashes leave this NAME_None (always-accessible);
+	// smaller wrecks gate behind cutters/keys/pry bars.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "QR|CrashSite")
+	FName RequiredToolItemId;
+
+	// True after the player has interacted with the right tool and the
+	// interior loot has been populated. Set by UnlockWithTool.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "QR|CrashSite")
+	bool bUnlocked = false;
+
+	// Attempt to unlock this site using whatever's in the actor's
+	// inventory. Returns true if RequiredToolItemId is NAME_None (no
+	// gate) or the actor's inventory holds the required item. The
+	// successful unlock is one-shot -- subsequent calls just return
+	// true so re-entering the radius doesn't re-scatter loot.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "QR|CrashSite")
+	bool TryUnlockWithInventory(class UQRInventoryComponent* Inventory);
+
 	// Populate this wreck by scattering AQRWorldItem actors for each
 	// loot template entry that passes its SpawnChance roll. Quantities
 	// roll in [MinQty, MaxQty]. Each spawned actor sits on the ground

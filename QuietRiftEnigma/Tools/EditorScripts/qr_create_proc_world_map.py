@@ -29,13 +29,13 @@ MAP_PATH = "/Game/Maps/L_ProcTest"
 # even after pack changes).
 SCATTER_PALETTE = [
     # path, weight, min_scale, max_scale, z_offset, align
-    ("/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01",                 2.0, 0.6, 1.4, -10.0, True),
-    ("/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02",                 1.5, 0.7, 1.6, -20.0, True),
-    ("/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03",                 1.0, 0.8, 1.8,   0.0, True),
+    ("/Game/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01",                 2.0, 0.6, 1.4, -10.0, True),
+    ("/Game/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02",                 1.5, 0.7, 1.6, -20.0, True),
+    ("/Game/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03",                 1.0, 0.8, 1.8,   0.0, True),
     # Plants take much higher weight so they're the dominant decor.
-    ("/Game/Fabs/OWD_Plants_Pack/Plants/SM_Plant_01.SM_Plant_01",                4.0, 0.7, 1.3,   0.0, False),
-    ("/Game/Fabs/OWD_Plants_Pack/Plants/SM_Plant_02.SM_Plant_02",                4.0, 0.7, 1.3,   0.0, False),
-    ("/Game/Fabs/ScifiJungle/Models/Trees/SM_Tree_Jungle_01.SM_Tree_Jungle_01",  0.5, 0.8, 1.5,   0.0, False),
+    ("/Game/OWD_Plants_Pack/Plants/SM_Plant_01.SM_Plant_01",                4.0, 0.7, 1.3,   0.0, False),
+    ("/Game/OWD_Plants_Pack/Plants/SM_Plant_02.SM_Plant_02",                4.0, 0.7, 1.3,   0.0, False),
+    ("/Game/ScifiJungle/Models/Trees/SM_Tree_Jungle_01.SM_Tree_Jungle_01",  0.5, 0.8, 1.5,   0.0, False),
 ]
 
 
@@ -96,8 +96,8 @@ def _spawn_scatter(extent_m=100.0):
         entry.set_editor_property("min_scale",         min_s)
         entry.set_editor_property("max_scale",         max_s)
         entry.set_editor_property("z_offset",          z_off)
-        entry.set_editor_property("b_random_yaw",      True)
-        entry.set_editor_property("b_align_to_surface",align)
+        entry.set_editor_property("random_yaw",        True)
+        entry.set_editor_property("align_to_surface",  align)
         palette.append(entry)
 
     actor.set_editor_property("palette",      palette)
@@ -112,7 +112,7 @@ def _spawn_scatter(extent_m=100.0):
 def _try_spawn_scifi_pcg():
     """Optional — drop the ScifiJungle PCG_Manager near origin so the
     designer can compare PCG vs our scatter actor side-by-side."""
-    p = "/Game/Fabs/ScifiJungle/PCG/Bundle/Blueprints/BP_PCG_Manager.BP_PCG_Manager_C"
+    p = "/Game/ScifiJungle/PCG/Bundle/Blueprints/BP_PCG_Manager.BP_PCG_Manager_C"
     cls = unreal.load_object(None, p)
     if not cls:
         return None

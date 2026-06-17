@@ -23,18 +23,41 @@
 #include "QRItemInstance.h"
 #include "QRItemDefinition.h"
 #include "QRSaveTypes.h"
+#include "QRSaveSnapshotLibrary.h"
+#include "QRBuildPieceTag.h"
+#include "QRBuildModeComponent.h"
+#include "QRLootedRegistry.h"
+#include "QRCodexSubsystem.h"
+#include "QRMountHusbandryComponent.h"
+#include "QRFarmPlotActor.h"
+#include "QRNPCActor.h"
+#include "QRNPCBrainComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "UObject/ConstructorHelpers.h"
 
 AQRGameMode::AQRGameMode()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 1.0f;
 
-	DefaultPawnClass = AQRCharacter::StaticClass();
+	// Prefer the editor-side Blueprint child (BP_QRCharacter) when it's
+	// present — that's where the SkeletalMesh + AnimBP get wired by
+	// qr_create_player_blueprint.py. Fall back to the bare C++ class
+	// (invisible body) when the BP hasn't been created yet.
+	static ConstructorHelpers::FClassFinder<APawn> BPCharacter(
+		TEXT("/Game/QuietRift/Characters/BP_QRCharacter"));
+	if (BPCharacter.Class)
+	{
+		DefaultPawnClass = BPCharacter.Class;
+	}
+	else
+	{
+		DefaultPawnClass = AQRCharacter::StaticClass();
+	}
 
 	SaveSystem      = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
 	MissionDirector = CreateDefaultSubobject<UQRMissionDirector>(TEXT("MissionDirector"));
@@ -218,55 +241,98 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 {
 	if (!bHasPendingLoadedData || !Player) return;
 
-	// Survival vitals — restore to whatever the save says.
-	if (UQRSurvivalComponent* Surv = Player->Survival)
-	{
-		Surv->Health   = PendingLoadedData.PlayerData.Health;
-		Surv->Hunger   = PendingLoadedData.PlayerData.Hunger;
-		Surv->Thirst   = PendingLoadedData.PlayerData.Thirst;
-		Surv->Fatigue  = PendingLoadedData.PlayerData.Fatigue;
-		// Oxygen / temp aren't on the survivor save struct; leave defaults.
-	}
+	// Survival vitals + active injuries — a fracture survives a reload
+	// instead of healing for free.
+	FQRSaveSnapshot::ApplySurvival(Player->Survival, PendingLoadedData.PlayerData);
 
-	// Inventory contents — clear what's there, then rebuild from save.
-	// We can't materially restore stack containers/cells without the
-	// spatial grid metadata which the save struct doesn't carry, so
-	// items are re-added via TryAddItem so they pack the grid afresh.
-	if (UQRInventoryComponent* Inv = Player->Inventory)
-	{
-		// Walk a copy because TryAddItem mutates Items.
-		TArray<FQRItemSaveData> ToRestore = PendingLoadedData.PlayerInventory.Items;
-		for (const FQRItemSaveData& Saved : ToRestore)
-		{
-			int32 Remainder = 0;
-			// We need the UQRItemDefinition for Saved.ItemId. Resolve
-			// via FindObject — definition assets are loaded once on
-			// startup so a global FindObject hit is cheap.
-			const FString DefPath = FString::Printf(
-				TEXT("/Game/QuietRift/Data/Items/%s.%s"), *Saved.ItemId.ToString(), *Saved.ItemId.ToString());
-			const UQRItemDefinition* Def = LoadObject<UQRItemDefinition>(nullptr, *DefPath);
-			if (!Def) continue;
-			Inv->TryAddByDefinition(Def, FMath::Max(1, Saved.Quantity), Remainder);
-		}
-	}
+	// Inventory — full restore: grid placement, equipped armour/containers,
+	// hand + offhand, durability/spoil. The snapshot library also resolves
+	// item definitions through the asset registry, so defs seeded into
+	// nested buckets (Items/Weapons, Items/Containers, ...) restore too —
+	// the old root-path LoadObject silently dropped all of those.
+	FQRSaveSnapshot::ApplyInventory(Player->Inventory, PendingLoadedData.PlayerInventory);
 
-	// Hand slot restore — pull the matching definition out of inventory
-	// (just re-added above) and equip it. Save struct only carries ItemId
-	// and Quantity, so a fresh-equipped instance is acceptable for v1.
-	if (UQRInventoryComponent* Inv = Player->Inventory)
+	// Research / tech tree / codex — was never restored before v2.
+	FQRSaveSnapshot::ApplyResearch(Research, PendingLoadedData.ResearchData);
+
+	// In-flight procedural missions resume with their saved progress.
+	if (MissionDirector)
 	{
-		if (PendingLoadedData.PlayerInventory.bHasHandSlot)
+		for (const TPair<FName, int32>& Pair : PendingLoadedData.DirectorMissionProgress)
 		{
-			const FName HandId = PendingLoadedData.PlayerInventory.HandSlot.ItemId;
-			for (UQRItemInstance* Inst : Inv->Items)
+			if (MissionDirector->StartMissionById(Pair.Key))
 			{
-				if (Inst && Inst->Definition && Inst->Definition->ItemId == HandId)
+				for (FQRActiveMission& M : MissionDirector->ActiveMissions)
 				{
-					Inv->TryEquipToHandSlot(Inst);
-					break;
+					if (M.MissionId == Pair.Key)
+					{
+						M.CurrentProgress = FMath::Clamp(Pair.Value, 0, M.TargetQuantity);
+						break;
+					}
 				}
 			}
 		}
+	}
+
+	// World-state restore: looted containers stay empty, codex keeps its
+	// discovery history, and the placed base comes back.
+	if (UWorld* W = GetWorld())
+	{
+		if (UQRLootedRegistry* Looted = W->GetSubsystem<UQRLootedRegistry>())
+		{
+			Looted->ImportLootedIds(PendingLoadedData.LootedContainerIds);
+		}
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->ImportEntries(PendingLoadedData.CodexEntries);
+		}
+		if (PendingLoadedData.ColonyBuildables.Num() > 0)
+		{
+			// Catalog comes off the player's build component — same table
+			// placement used, so saved PieceIds resolve identically.
+			UDataTable* Catalog = (Player->Build) ? Player->Build->PieceCatalog.Get() : nullptr;
+			const int32 N = UQRBuildModeComponent::RestoreFromSave(
+				W, Catalog, PendingLoadedData.ColonyBuildables);
+			UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d/%d build pieces"),
+				N, PendingLoadedData.ColonyBuildables.Num());
+		}
+
+		// Despawn any AQRNPCActor that's still in the level from the
+		// fresh load, then respawn from the save. Without the wipe,
+		// loading mid-session would double the village.
+		TArray<AActor*> ToKill;
+		for (TActorIterator<AQRNPCActor> It(W); It; ++It) ToKill.Add(*It);
+		for (AActor* A : ToKill) A->Destroy();
+
+		for (const FQRNPCSaveData& N : PendingLoadedData.NPCActors)
+		{
+			UClass* Cls = AQRNPCActor::StaticClass();
+			if (!N.NPCClassPath.IsEmpty())
+			{
+				if (UClass* Loaded = LoadObject<UClass>(nullptr, *N.NPCClassPath))
+				{
+					Cls = Loaded;
+				}
+			}
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			AQRNPCActor* NPC = W->SpawnActor<AQRNPCActor>(Cls, N.Location, N.Rotation, Params);
+			if (!NPC) continue;
+#if WITH_EDITOR
+			if (!N.ActorLabel.IsEmpty()) NPC->SetActorLabel(N.ActorLabel);
+#endif
+			NPC->DisplayName  = N.DisplayName;
+			if (UQRNPCBrainComponent* Brain = NPC->Brain)
+			{
+				Brain->HomePosition     = N.HomePosition;
+				Brain->AssignedWorkPost = N.AssignedWorkPost;
+				Brain->AssignedBed      = N.AssignedBed;
+				Brain->State            = static_cast<EQRNPCBrainState>(N.BrainState);
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d NPC actors"),
+			PendingLoadedData.NPCActors.Num());
 	}
 
 	// Identity (name + pronouns + voice profile). Appearance lives on
@@ -294,6 +360,10 @@ void AQRGameMode::Tick(float DeltaTime)
 
 	WorldTimeSeconds += DeltaTime;
 
+	// Guard the divisor — a 0 typed into the editor (or a cheat) would be a
+	// division-by-zero crash on the very next tick.
+	DayLengthRealSeconds = FMath::Max(DayLengthRealSeconds, 1.0f);
+
 	// Convert real-seconds elapsed into game-hours for time-driven subsystems
 	const float GameHoursElapsed = DeltaTime * 24.0f / DayLengthRealSeconds;
 	if (Weather)           Weather->AdvanceByHours(GameHoursElapsed);
@@ -308,6 +378,26 @@ void AQRGameMode::Tick(float DeltaTime)
 		if (AQRFactionCamp* Camp = *It)
 		{
 			if (Camp->Sim) Camp->Sim->AdvanceGameHours(GameHoursElapsed);
+		}
+	}
+
+	// Drive mount husbandry on every tameable animal — taming days
+	// advance, stress decays, panic fires.
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (UQRMountHusbandryComponent* H = It->FindComponentByClass<UQRMountHusbandryComponent>())
+		{
+			H->TickGameHours(GameHoursElapsed);
+		}
+	}
+
+	// Advance every farm plot's grow cycle + run the cross-contam
+	// mutation roll.
+	for (TActorIterator<AQRFarmPlotActor> It(GetWorld()); It; ++It)
+	{
+		if (AQRFarmPlotActor* Plot = *It)
+		{
+			Plot->TickGameHours(GameHoursElapsed);
 		}
 	}
 
@@ -375,6 +465,13 @@ void AQRGameMode::QuickSave()
 	Data.CompletedMissionIds = CompletedMissionIds;
 	Data.ActiveMissionIds    = ActiveMissionIds;
 	if (ColonyState) Data.ColonyMorale = ColonyState->ColonyMorale;
+	if (MissionDirector)
+	{
+		for (const FQRActiveMission& M : MissionDirector->ActiveMissions)
+		{
+			Data.DirectorMissionProgress.Add(M.MissionId, M.CurrentProgress);
+		}
+	}
 
 	// Snapshot the first local player's vitals + inventory. Multi-player
 	// per-PC save expansion goes here later.
@@ -387,37 +484,66 @@ void AQRGameMode::QuickSave()
 			Data.PlayerData.bIsAlive      = true;
 			Data.PlayerIdentity           = Player->PlayerIdentity;
 
-			if (UQRSurvivalComponent* Surv = Player->Survival)
+			// Snapshot library captures vitals + injuries, the full spatial
+			// inventory (placement, equipped slots, durability), so a system
+			// is saved iff it has a Capture/Apply pair — fields can't fall
+			// out of the save by someone forgetting to extend this function.
+			FQRSaveSnapshot::CaptureSurvival(Player->Survival, Data.PlayerData);
+			FQRSaveSnapshot::CaptureInventory(Player->Inventory, Data.PlayerInventory);
+		}
+	}
+
+	// Research / tech tree / codex — the ResearchData field existed since
+	// v1 but nothing ever filled it, so research was lost on every reload.
+	FQRSaveSnapshot::CaptureResearch(Research, Data.ResearchData);
+
+	// World-state persistence (save v2): placed build pieces, looted-
+	// container registry, the full codex (SeenCount / FirstSeen), and
+	// every brain-carrying NPC actor so colonies survive reload.
+	if (UWorld* W = GetWorld())
+	{
+		for (TActorIterator<AActor> It(W); It; ++It)
+		{
+			if (UQRBuildPieceTag* Tag = It->FindComponentByClass<UQRBuildPieceTag>())
 			{
-				Data.PlayerData.Health  = Surv->Health;
-				Data.PlayerData.Hunger  = Surv->Hunger;
-				Data.PlayerData.Thirst  = Surv->Thirst;
-				Data.PlayerData.Fatigue = Surv->Fatigue;
-				Data.PlayerData.bIsAlive = !Surv->bIsDead;
+				FQRBuildableSaveData B;
+				B.BuildableGuid = Tag->PieceGuid;
+				B.PieceId       = Tag->PieceId;
+				B.Location      = It->GetActorLocation();
+				B.Rotation      = It->GetActorRotation();
+				Data.ColonyBuildables.Add(MoveTemp(B));
 			}
 
-			if (UQRInventoryComponent* Inv = Player->Inventory)
+			if (AQRNPCActor* NPC = Cast<AQRNPCActor>(*It))
 			{
-				FQRInventorySaveData InvSave;
-				for (UQRItemInstance* Inst : Inv->Items)
+				FQRNPCSaveData N;
+#if WITH_EDITOR
+				// Actor labels are editor-only; packaged builds key off
+				// DisplayName instead.
+				N.ActorLabel    = NPC->GetActorLabel();
+#endif
+				N.NPCClassPath  = NPC->GetClass()->GetPathName();
+				N.DisplayName   = NPC->DisplayName;
+				N.Location      = NPC->GetActorLocation();
+				N.Rotation      = NPC->GetActorRotation();
+				if (UQRNPCBrainComponent* Brain = NPC->Brain)
 				{
-					if (!Inst || !Inst->Definition) continue;
-					FQRItemSaveData ItemSave;
-					ItemSave.ItemId   = Inst->Definition->ItemId;
-					ItemSave.Quantity = Inst->Quantity;
-					InvSave.Items.Add(ItemSave);
+					N.HomePosition     = Brain->HomePosition;
+					N.AssignedWorkPost = Brain->AssignedWorkPost;
+					N.AssignedBed      = Brain->AssignedBed;
+					N.BrainState       = static_cast<uint8>(Brain->State);
 				}
-				if (UQRItemInstance* Held = Inv->HandSlot)
-				{
-					if (Held->Definition)
-					{
-						InvSave.HandSlot.ItemId   = Held->Definition->ItemId;
-						InvSave.HandSlot.Quantity = Held->Quantity;
-						InvSave.bHasHandSlot      = true;
-					}
-				}
-				Data.PlayerInventory = InvSave;
+				Data.NPCActors.Add(MoveTemp(N));
 			}
+		}
+
+		if (UQRLootedRegistry* Looted = W->GetSubsystem<UQRLootedRegistry>())
+		{
+			Data.LootedContainerIds = Looted->ExportLootedIds();
+		}
+		if (UQRCodexSubsystem* Codex = W->GetSubsystem<UQRCodexSubsystem>())
+		{
+			Codex->ExportEntries(Data.CodexEntries);
 		}
 	}
 
@@ -451,12 +577,14 @@ void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)
 	// that PC's local viewport — for listen-server hosts that's the host
 	// screen; for remote clients the widget is created via the standard
 	// owning-PC replication.
+	TWeakObjectPtr<UQRDeathScreenWidget> WeakWidget;
 	if (DeathScreenClass)
 	{
 		if (UQRDeathScreenWidget* W = CreateWidget<UQRDeathScreenWidget>(PC, DeathScreenClass))
 		{
 			W->AddToViewport(/*ZOrder*/ 1000);
 			W->Initialize(RespawnDelaySeconds);
+			WeakWidget = W;
 		}
 	}
 
@@ -467,20 +595,36 @@ void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)
 	TWeakObjectPtr<AQRCharacter>      WeakDead = DeadPawn;
 	FTimerHandle Handle;
 	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateLambda(
-		[this, WeakPC, WeakDead]()
+		[this, WeakPC, WeakDead, WeakWidget]()
 		{
 			APlayerController* P = WeakPC.Get();
 			if (!P) return;
 
-			// Tear down the corpse before spawning a new pawn so we
-			// don't end up with two characters owned by the same PC.
-			if (AQRCharacter* Corpse = WeakDead.Get())
+			// Remove the death overlay BEFORE respawning. Without this the
+			// widget sits on screen forever showing "Respawning in 0…",
+			// covering the revived pawn.
+			if (UQRDeathScreenWidget* DeadUI = WeakWidget.Get())
 			{
-				Corpse->Destroy();
+				DeadUI->RemoveFromParent();
 			}
 
-			// Standard GameModeBase respawn — picks a PlayerStart and
-			// possesses a freshly spawned DefaultPawnClass.
-			RestartPlayer(P);
+			AQRCharacter* Pawn = WeakDead.Get();
+			if (!Pawn) return;
+
+			// Respawn-in-place: revive the SAME pawn rather than spawning a
+			// fresh one via RestartPlayer. RestartPlayer would have wiped the
+			// player's inventory and left the dead pawn's HUD widgets stranded
+			// in the viewport (stale 0-HP bar + old hotbar that wouldn't
+			// cycle). Reusing the pawn keeps inventory, HUDs, and input bindings
+			// intact — Revive just refills vitals, un-ragdolls, re-enables input
+			// and teleports to a PlayerStart.
+			FVector  SpawnLoc = Pawn->GetActorLocation();
+			FRotator SpawnRot = Pawn->GetActorRotation();
+			if (AActor* Start = FindPlayerStart(P))
+			{
+				SpawnLoc = Start->GetActorLocation();
+				SpawnRot = Start->GetActorRotation();
+			}
+			Pawn->Revive(SpawnLoc, SpawnRot);
 		}), RespawnDelaySeconds, /*bLoop*/ false);
 }

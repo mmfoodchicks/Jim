@@ -12,6 +12,12 @@ AQRWildlife_ShardbackGrazer::AQRWildlife_ShardbackGrazer()
 	ThreatDetectionRadius = 1800.0f;
 	NoiseFactor        = 0.35f;
 
+	// Real-world size + attack tuning (armoured plated grazer)
+	BodyLengthMeters   = 2.3f;
+	BodyHeightMeters   = 1.5f;
+	AttackDamage       = 12.0f;
+	bArmoredHead       = true;   // ceramic head/back plates -- shoot the belly
+
 	DeathDrops.Add({ FName("FOD_SHARDBACK_MEAT"),  3, 6, 1.0f });
 	DeathDrops.Add({ FName("MAT_CERAMIC_PLATE"),   2, 4, 0.85f });
 	DeathDrops.Add({ FName("MAT_BONE_MEDIUM"),     1, 2, 0.7f });

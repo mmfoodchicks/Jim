@@ -7,7 +7,7 @@ class UObject;
 
 /**
  * Audio surface enum for footstep dispatch. Mirrors the folders inside
- * /Game/Fabs/Essential_Foosteps_SK/CUE/. Default Concrete works for any
+ * /Game/Essential_Foosteps_SK/CUE/. Default Concrete works for any
  * indoor / hard surface fallback when no PhysicalMaterial is wired.
  */
 UENUM(BlueprintType)

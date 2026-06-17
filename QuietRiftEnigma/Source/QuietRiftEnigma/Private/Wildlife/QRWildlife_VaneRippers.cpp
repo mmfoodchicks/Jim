@@ -13,6 +13,11 @@ AQRWildlife_VaneRippers::AQRWildlife_VaneRippers()
 	ThreatDetectionRadius = 1600.0f;
 	NoiseFactor        = 0.2f;
 
+	// Real-world size + attack tuning (fast bladed flock predator)
+	BodyLengthMeters   = 1.3f;
+	BodyHeightMeters   = 1.0f;
+	AttackDamage       = 16.0f;
+
 	DeathDrops.Add({ FName("MAT_VANE_BLADE"),   1, 2, 0.9f });
 	DeathDrops.Add({ FName("FOD_RIPPER_MEAT"),  1, 2, 1.0f });
 }

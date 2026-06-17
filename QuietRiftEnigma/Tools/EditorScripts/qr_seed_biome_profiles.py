@@ -6,16 +6,18 @@ Aligned with Master GDD §4 Biome Catalog and Visual World Bible v1.5
 (Surface / Mid / Deep / Remnant) so trees + predator pools progress
 correctly the further into the Rift the player travels.
 
-Tree progression per GDD Visual World Bible §5:
-  TRE_GLASSBARK   — Surface (BasaltShelf, MeltlineEdges, WindPlains)
-  TRE_VELVETSPINE — Mid     (WindPlains, RidgeShadows)
-  TRE_SLAGROOT    — Mid     (ThermalCracks, CraterFloors)
-  TRE_ASTERBARK   — Deep    (MagneticRidges, HighRims)  ← premium
+Tree progression per GDD Visual World Bible §5 — the real meshes now
+ship under /Game/Meshes/Flora/Trees/:
+  SM_TRE_GLASSBARK — Surface (Tier 1)
+  SM_TRE_SLAGROOT  — Mid     (Tier 2)
+  SM_TRE_ASTERBARK — Deep    (Tier 3)  ← premium
 
-The script creates each biome with a palette pre-filled from
-confirmed-existing Fab assets used as stand-ins (until the real
-TRE_*/PLT_* meshes ship). Designer can swap meshes per row as art
-lands. Already-existing profiles are updated in place (idempotent).
+Plant meshes ship under /Game/Meshes/Flora/Flora/ (SM_PLT_*). Rocks
+have no bespoke QR meshes yet, so Fab rock packs still stand in —
+_build_palette silently drops any path that doesn't resolve, so
+swapping a rock for a real mesh later is a one-line edit.
+
+Already-existing profiles are updated in place (idempotent).
 
 Run from the UE Python console:
   exec(open(r'<Project>/Tools/EditorScripts/qr_seed_biome_profiles.py').read())
@@ -27,31 +29,58 @@ import unreal
 BIOME_DIR = "/Game/QuietRift/Data/Biomes"
 
 
-# Helpers used for the placeholder palettes. Real flora/fauna meshes
-# under /Game/Meshes/{flora,wildlife}_assets/ will eventually replace
-# these Fab stand-ins.
-SCIFI_TREE     = "/Game/Fabs/ScifiJungle/Models/Trees/SM_Tree_Jungle_01.SM_Tree_Jungle_01"
-SCIFI_TREE_2   = "/Game/Fabs/ScifiJungle/Models/Trees/SM_Tree_Jungle_02.SM_Tree_Jungle_02"
-OWD_PLANT_1    = "/Game/Fabs/OWD_Plants_Pack/Plants/SM_Plant_01.SM_Plant_01"
-OWD_PLANT_2    = "/Game/Fabs/OWD_Plants_Pack/Plants/SM_Plant_02.SM_Plant_02"
-OWD_PLANT_3    = "/Game/Fabs/OWD_Plants_Pack/Plants/SM_Plant_03.SM_Plant_03"
-ROCK_1         = "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01"
-ROCK_2         = "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02"
-ROCK_3         = "/Game/Fabs/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03"
-POLAR_ICE_1    = "/Game/Fabs/Polar/Meshes/SM_Polar_Ice_01.SM_Polar_Ice_01"
-POLAR_ROCK_1   = "/Game/Fabs/Polar/Meshes/SM_Polar_Rock_01.SM_Polar_Rock_01"
-WINTER_PINE_1  = "/Game/Fabs/WinterTown/Meshes/SM_Tree_Pine_Snow_01.SM_Tree_Pine_Snow_01"
+# Real QR flora meshes — imported under /Game/Meshes/Flora/.
+TRE_GLASSBARK = "/Game/Meshes/Flora/Trees/SM_TRE_GLASSBARK"   # Surface, Tier 1
+TRE_SLAGROOT  = "/Game/Meshes/Flora/Trees/SM_TRE_SLAGROOT"    # Mid, Tier 2
+TRE_ASTERBARK = "/Game/Meshes/Flora/Trees/SM_TRE_ASTERBARK"   # Deep, Tier 3
 
-# Sound + sky stand-ins.
-AMBIENT_WIND   = "/Game/Fabs/Free_Sounds_Pack/cue/Ambient_Wind_Loop_1_Cue.Ambient_Wind_Loop_1_Cue"
-AMBIENT_BIRDS  = "/Game/Fabs/Free_Sounds_Pack/cue/Ambient_Birds_Loop_04_Cue.Ambient_Birds_Loop_04_Cue"
-LANDSCAPE_AUTO = "/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_MWAM_Landscape.M_MWAM_Landscape"
+PLT_SPIRAL_REED    = "/Game/Meshes/Flora/Flora/SM_PLT_SPIRAL_REED"
+PLT_MAWCAP_BLOOM   = "/Game/Meshes/Flora/Flora/SM_PLT_MAWCAP_BLOOM"
+PLT_LATTICE_BULB   = "/Game/Meshes/Flora/Flora/SM_PLT_LATTICE_BULB"
+PLT_IRONBRINE_CUPS = "/Game/Meshes/Flora/Flora/SM_PLT_IRONBRINE_CUPS"
+PLT_CINDER_THORN   = "/Game/Meshes/Flora/Flora/SM_PLT_CINDER_THORN"
+
+# Rocks / ice — no bespoke QR meshes yet; Fab packs stand in.
+ROCK_1       = "/Game/Rock_Collection_04/Meshes/SM_Rock01.SM_Rock01"
+ROCK_2       = "/Game/Rock_Collection_04/Meshes/SM_Rock02.SM_Rock02"
+ROCK_3       = "/Game/Rock_Collection_04/Meshes/SM_Rock03.SM_Rock03"
+POLAR_ICE_1  = "/Game/Polar/Meshes/SM_Polar_Ice_01.SM_Polar_Ice_01"
+POLAR_ROCK_1 = "/Game/Polar/Meshes/SM_Polar_Rock_01.SM_Polar_Rock_01"
+
+# Wreckage / construction debris -- sparse scatter in surface biomes
+# near player-start sells "crashed colony ship" baseline. From
+# Ruined_Modern_Buildings + IndustryPropsPack6 the user already has.
+WRECKAGE_1   = "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_01.SM_Destroyed_Skyscraper_01"
+WRECKAGE_2   = "/Game/Ruined_Modern_Buildings/Meshes/SM_Destroyed_Skyscraper_05.SM_Destroyed_Skyscraper_05"
+SCRAP_BARREL = "/Game/IndustryPropsPack6/Meshes/SM_Barrel01.SM_Barrel01"
+SCRAP_PALLET = "/Game/IndustryPropsPack6/Meshes/SM_Pallet01.SM_Pallet01"
+SCRAP_BOX    = "/Game/IndustryPropsPack6/Meshes/SM_Box01.SM_Box01"
+
+# OWD_Plants_Pack (483 assets, 2026-06-11 upload) -- dozens of ground-
+# cover plant variants. The suffix is a color code (G / GR / GRY / Y);
+# greens go in the wet biomes, yellows in the dry ones. These layer
+# UNDER the crystalline QR flora, filling the ground plane so biomes
+# don't read as sparse.
+OWD_G_1  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_01_2_G.SM_Plant_01_2_G"
+OWD_G_2  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_05_3_G.SM_Plant_05_3_G"
+OWD_G_3  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_07_3_G.SM_Plant_07_3_G"
+OWD_G_4  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_02_2_G.SM_Plant_02_2_G"
+OWD_Y_1  = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_07_7_Y.SM_Plant_07_7_Y"
+OWD_GR_1 = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_09_1_GR.SM_Plant_09_1_GR"
+OWD_GR_2 = "/Game/OWD_Plants_Pack/Plants/Meshes/SM_Plant_03_4_GR.SM_Plant_03_4_GR"
+
+# Sound + landscape material stand-ins.
+AMBIENT_WIND   = "/Game/Free_Sounds_Pack/cue/Ambient_Wind_Loop_1_Cue.Ambient_Wind_Loop_1_Cue"
+AMBIENT_BIRDS  = "/Game/Free_Sounds_Pack/cue/Ambient_Birds_Loop_04_Cue.Ambient_Birds_Loop_04_Cue"
+LANDSCAPE_AUTO = "/Game/MWLandscapeAutoMaterial/Materials/M_MWAM_Landscape.M_MWAM_Landscape"
 
 
 # Each biome entry follows GDD §4 Biome Catalog mapping. Palette is
 # (asset_path, weight, min_scale, max_scale, z_offset, align_to_surface).
 # Missing assets are silently skipped so the script keeps working as
-# packs change.
+# packs change. Trees follow the depth-band tier; plants are themed to
+# the biome (reeds in the open, bloom/cups in the damp, thorn/cups in
+# the hot and hostile).
 BIOMES = {
     # ── Surface (Tier 1) — starter, readable sightlines ─────────────
     "BP_BasaltShelf": {
@@ -62,12 +91,17 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            # TRE_GLASSBARK stand-in (Tier 1 wood)
-            (SCIFI_TREE,    1.5, 0.9, 1.5,   0.0, False),
-            (OWD_PLANT_1,   3.0, 0.7, 1.2,   0.0, False),
-            (OWD_PLANT_2,   3.0, 0.7, 1.2,   0.0, False),
-            (ROCK_1,        2.0, 0.6, 1.4, -10.0, True),
-            (ROCK_2,        1.5, 0.7, 1.5, -15.0, True),
+            (TRE_GLASSBARK,    1.5, 0.9, 1.5,   0.0, False),
+            (PLT_LATTICE_BULB, 3.0, 0.7, 1.2,   0.0, False),
+            (PLT_SPIRAL_REED,  3.0, 0.7, 1.2,   0.0, False),
+            (ROCK_1,           2.0, 0.6, 1.4, -10.0, True),
+            (ROCK_2,           1.5, 0.7, 1.5, -15.0, True),
+            # Per design note 2026-06-11: wreckage stays at the crash
+            # POI sites (2 major + ~6 small tool-gated, set in
+            # UQRWorldGenSubsystem::PlacePOIs), not in the biome
+            # background. Keeps the world looking pretty.
+            (OWD_G_1,  4.0, 0.6, 1.1, 0.0, True),
+            (OWD_G_4,  4.0, 0.6, 1.1, 0.0, True),
         ],
     },
     "BP_WindPlains": {
@@ -78,10 +112,11 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            # Mostly low spiral reeds; sparse Glassbark/Velvetspine outliers
-            (OWD_PLANT_3,   5.0, 0.6, 1.1,   0.0, False),
-            (SCIFI_TREE,    0.6, 0.9, 1.4,   0.0, False),  # rare canopy
-            (ROCK_1,        0.7, 0.5, 1.0, -5.0,  True),
+            (PLT_SPIRAL_REED, 5.0, 0.6, 1.1,  0.0, False),
+            (TRE_GLASSBARK,   0.6, 0.9, 1.4,  0.0, False),  # rare canopy
+            (ROCK_1,          0.7, 0.5, 1.0, -5.0, True),
+            (OWD_Y_1,  6.0, 0.6, 1.2, 0.0, True),
+            (OWD_GR_1, 3.0, 0.6, 1.1, 0.0, True),
         ],
     },
     "BP_MeltlineEdges": {
@@ -92,11 +127,12 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_BIRDS,
         "Palette": [
-            (SCIFI_TREE,    1.0, 0.9, 1.5,   0.0, False),
-            (SCIFI_TREE_2,  1.0, 0.9, 1.5,   0.0, False),
-            (OWD_PLANT_1,   4.0, 0.7, 1.3,   0.0, False),
-            (OWD_PLANT_2,   4.0, 0.7, 1.3,   0.0, False),
-            (ROCK_3,        1.0, 0.7, 1.4, -15.0, True),
+            (TRE_GLASSBARK,    2.0, 0.9, 1.5,   0.0, False),
+            (PLT_LATTICE_BULB, 4.0, 0.7, 1.3,   0.0, False),
+            (PLT_MAWCAP_BLOOM, 4.0, 0.7, 1.3,   0.0, False),
+            (ROCK_3,           1.0, 0.7, 1.4, -15.0, True),
+            (OWD_G_2,  5.0, 0.7, 1.2, 0.0, True),
+            (OWD_G_3,  5.0, 0.7, 1.2, 0.0, True),
         ],
     },
     "BP_CraterFloors": {
@@ -107,9 +143,9 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            (ROCK_1,        3.0, 0.7, 1.8, -20.0, True),
-            (ROCK_2,        3.0, 0.7, 1.8, -20.0, True),
-            (OWD_PLANT_3,   1.0, 0.6, 1.0,   0.0, False),
+            (ROCK_1,           3.0, 0.7, 1.8, -20.0, True),
+            (ROCK_2,           3.0, 0.7, 1.8, -20.0, True),
+            (PLT_CINDER_THORN, 1.0, 0.6, 1.0,   0.0, False),
         ],
     },
 
@@ -122,12 +158,13 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_BIRDS,
         "Palette": [
-            (OWD_PLANT_1,   5.0, 0.7, 1.4,   0.0, False),
-            (OWD_PLANT_2,   5.0, 0.7, 1.4,   0.0, False),
-            (OWD_PLANT_3,   4.0, 0.7, 1.4,   0.0, False),
-            (SCIFI_TREE,    1.5, 1.0, 1.7,   0.0, False),  # TRE_VELVETSPINE stand-in
-            (SCIFI_TREE_2,  1.0, 1.0, 1.7,   0.0, False),
-            (ROCK_3,        0.8, 0.6, 1.2, -10.0, True),
+            (PLT_MAWCAP_BLOOM,   5.0, 0.7, 1.4,   0.0, False),
+            (PLT_IRONBRINE_CUPS, 5.0, 0.7, 1.4,   0.0, False),
+            (PLT_LATTICE_BULB,   4.0, 0.7, 1.4,   0.0, False),
+            (TRE_SLAGROOT,       2.5, 1.0, 1.7,   0.0, False),
+            (ROCK_3,             0.8, 0.6, 1.2, -10.0, True),
+            (OWD_G_1,  6.0, 0.7, 1.3, 0.0, True),
+            (OWD_G_2,  6.0, 0.7, 1.3, 0.0, True),
         ],
     },
     "BP_ShallowFens": {
@@ -138,9 +175,11 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_BIRDS,
         "Palette": [
-            (OWD_PLANT_2,   5.0, 0.7, 1.3,   0.0, False),
-            (OWD_PLANT_3,   5.0, 0.7, 1.3,   0.0, False),
-            (SCIFI_TREE,    1.0, 1.0, 1.6,   0.0, False),
+            (PLT_MAWCAP_BLOOM, 5.0, 0.7, 1.3, 0.0, False),
+            (PLT_LATTICE_BULB, 5.0, 0.7, 1.3, 0.0, False),
+            (TRE_SLAGROOT,     1.0, 1.0, 1.6, 0.0, False),
+            (OWD_G_3,  6.0, 0.7, 1.3, 0.0, True),
+            (OWD_G_4,  6.0, 0.7, 1.3, 0.0, True),
         ],
     },
     "BP_ThermalCracks": {
@@ -151,11 +190,10 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            # TRE_SLAGROOT stand-in — dense structural wood
-            (SCIFI_TREE_2,  1.5, 0.8, 1.4,   0.0, False),
-            (ROCK_1,        3.5, 0.8, 1.6, -10.0, True),
-            (ROCK_2,        3.5, 0.8, 1.6, -10.0, True),
-            (OWD_PLANT_1,   0.8, 0.6, 1.0,   0.0, False),
+            (TRE_SLAGROOT,       1.5, 0.8, 1.4,   0.0, False),
+            (ROCK_1,             3.5, 0.8, 1.6, -10.0, True),
+            (ROCK_2,             3.5, 0.8, 1.6, -10.0, True),
+            (PLT_IRONBRINE_CUPS, 0.8, 0.6, 1.0,   0.0, False),
         ],
     },
     "BP_GlassDunes": {
@@ -166,9 +204,11 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            (ROCK_1,        4.0, 0.5, 1.6, -25.0, True),
-            (ROCK_3,        4.0, 0.5, 1.8, -30.0, True),
-            (OWD_PLANT_3,   1.0, 0.5, 0.9,   0.0, False),
+            (ROCK_1,          4.0, 0.5, 1.6, -25.0, True),
+            (ROCK_3,          4.0, 0.5, 1.8, -30.0, True),
+            (PLT_SPIRAL_REED, 1.0, 0.5, 0.9,   0.0, False),
+            (OWD_Y_1,  3.0, 0.5, 1.0, 0.0, True),
+            (OWD_GR_2, 2.0, 0.5, 1.0, 0.0, True),
         ],
     },
     "BP_MossFields": {
@@ -179,10 +219,13 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_BIRDS,
         "Palette": [
-            (OWD_PLANT_1,   6.0, 0.8, 1.3,   0.0, False),
-            (OWD_PLANT_2,   6.0, 0.8, 1.3,   0.0, False),
-            (OWD_PLANT_3,   5.0, 0.8, 1.3,   0.0, False),
-            (SCIFI_TREE,    0.5, 1.0, 1.6,   0.0, False),
+            (PLT_LATTICE_BULB, 6.0, 0.8, 1.3, 0.0, False),
+            (PLT_MAWCAP_BLOOM, 6.0, 0.8, 1.3, 0.0, False),
+            (PLT_SPIRAL_REED,  5.0, 0.8, 1.3, 0.0, False),
+            (TRE_SLAGROOT,     0.5, 1.0, 1.6, 0.0, False),
+            (OWD_G_1,  8.0, 0.8, 1.3, 0.0, True),
+            (OWD_G_2,  8.0, 0.8, 1.3, 0.0, True),
+            (OWD_G_3,  6.0, 0.8, 1.3, 0.0, True),
         ],
     },
 
@@ -195,8 +238,7 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            # TRE_ASTERBARK stand-in — premium late-tier wood
-            (SCIFI_TREE_2,  2.0, 1.1, 1.7,   0.0, False),
+            (TRE_ASTERBARK, 2.0, 1.1, 1.7,   0.0, False),
             (ROCK_1,        3.0, 0.7, 1.5, -10.0, True),
             (ROCK_3,        2.5, 0.8, 1.6, -15.0, True),
         ],
@@ -209,7 +251,7 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            (SCIFI_TREE_2,  1.5, 1.0, 1.6,   0.0, False),  # Asterbark stand-in
+            (TRE_ASTERBARK, 1.5, 1.0, 1.6,   0.0, False),
             (ROCK_3,        4.0, 0.8, 1.8, -10.0, True),
             (POLAR_ROCK_1,  2.0, 0.7, 1.4, -10.0, True),
         ],
@@ -224,7 +266,7 @@ BIOMES = {
         "Palette": [
             (POLAR_ICE_1,   2.0, 0.8, 1.5,   0.0, False),
             (POLAR_ROCK_1,  3.0, 0.7, 1.6, -15.0, True),
-            (WINTER_PINE_1, 1.0, 0.9, 1.4,   0.0, False),
+            (TRE_ASTERBARK, 1.0, 0.9, 1.4,   0.0, False),
             (ROCK_2,        1.5, 0.7, 1.3, -20.0, True),
         ],
     },
@@ -236,10 +278,9 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_BIRDS,
         "Palette": [
-            (SCIFI_TREE,    1.5, 1.0, 1.6,   0.0, False),
-            (SCIFI_TREE_2,  1.0, 1.0, 1.6,   0.0, False),
-            (ROCK_3,        2.5, 0.8, 1.4, -15.0, True),
-            (OWD_PLANT_2,   2.0, 0.7, 1.2,   0.0, False),
+            (TRE_ASTERBARK,    2.5, 1.0, 1.6,   0.0, False),
+            (ROCK_3,           2.5, 0.8, 1.4, -15.0, True),
+            (PLT_CINDER_THORN, 2.0, 0.7, 1.2,   0.0, False),
         ],
     },
     "BP_RidgeShadows": {
@@ -250,10 +291,9 @@ BIOMES = {
         "Landscape":   LANDSCAPE_AUTO,
         "Ambient":     AMBIENT_WIND,
         "Palette": [
-            # TRE_VELVETSPINE stand-in
-            (SCIFI_TREE_2,  2.0, 1.0, 1.6,   0.0, False),
-            (ROCK_1,        2.0, 0.7, 1.4, -10.0, True),
-            (OWD_PLANT_2,   1.5, 0.7, 1.2,   0.0, False),
+            (TRE_ASTERBARK,    2.0, 1.0, 1.6,   0.0, False),
+            (ROCK_1,           2.0, 0.7, 1.4, -10.0, True),
+            (PLT_CINDER_THORN, 1.5, 0.7, 1.2,   0.0, False),
         ],
     },
 }
@@ -289,6 +329,7 @@ def _build_palette(specs):
     out = []
     for path, w, mn, mx, z, align in specs:
         if not unreal.EditorAssetLibrary.does_asset_exist(path):
+            print("[biome]   skip (missing): {}".format(path))
             continue
         e = unreal.QRScatterEntry()
         e.set_editor_property("mesh",               unreal.load_asset(path))
@@ -296,8 +337,8 @@ def _build_palette(specs):
         e.set_editor_property("min_scale",          mn)
         e.set_editor_property("max_scale",          mx)
         e.set_editor_property("z_offset",           z)
-        e.set_editor_property("b_random_yaw",       True)
-        e.set_editor_property("b_align_to_surface", align)
+        e.set_editor_property("random_yaw",         True)
+        e.set_editor_property("align_to_surface",   align)
         out.append(e)
     return out
 

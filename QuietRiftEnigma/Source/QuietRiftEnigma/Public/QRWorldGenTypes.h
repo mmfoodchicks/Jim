@@ -84,6 +84,12 @@ struct QUIETRIFTENIGMA_API FQRPOIPlacement
 	// Biome and band at the placement spot — handy for spawner queries.
 	UPROPERTY(BlueprintReadOnly) FName BiomeTag;
 	UPROPERTY(BlueprintReadOnly) EQRDepthBand DepthBand = EQRDepthBand::Surface;
+
+	// Tool-gated entry. Small crash wrecks and locked Remnant sites
+	// set this; spawner forwards the requirement to the crash actor's
+	// loot container so the player needs the named tool item to open
+	// the interior. Major wrecks leave this empty (always-accessible).
+	UPROPERTY(BlueprintReadOnly) FName RequiredToolItemId;
 };
 
 

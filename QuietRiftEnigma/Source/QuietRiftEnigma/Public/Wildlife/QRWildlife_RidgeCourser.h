@@ -2,6 +2,8 @@
 #include "QRWildlifeBase.h"
 #include "QRWildlife_RidgeCourser.generated.h"
 
+class UQRMountHusbandryComponent;
+
 // ANI_RIDGE_COURSER — Primary fast mount; long-bodied six-limbed runner with vane tail
 // Biomes: WindPlains, BasaltShelf, RidgeShadows | Role: Mount
 // Elite variant: ANI_RIDGE_COURSER_STORMLINE (alias: Gale)
@@ -12,13 +14,10 @@ class QUIETRIFTENIGMA_API AQRWildlife_RidgeCourser : public AQRWildlifeBase
 public:
 	AQRWildlife_RidgeCourser();
 
-	// Whether this specimen has been tamed for mounting
-	UPROPERTY(BlueprintReadOnly, Replicated, Category = "RidgeCourser")
-	bool bIsTamed = false;
-
-	// Rider character reference when mounted
-	UPROPERTY(BlueprintReadOnly, Replicated, Category = "RidgeCourser")
-	TObjectPtr<AActor> MountedRider;
+	// Husbandry loop (BaseTameDays + stress + panic). The bIsTamed and
+	// rider state live there now; this class just owns the speed multi.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RidgeCourser")
+	TObjectPtr<UQRMountHusbandryComponent> Husbandry;
 
 	// Stormline elite variant flag (longer vanes, harder sprint posture)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RidgeCourser")
@@ -35,6 +34,4 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "RidgeCourser")
 	void Dismount();
-
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

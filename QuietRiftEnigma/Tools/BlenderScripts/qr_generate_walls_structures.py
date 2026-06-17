@@ -25,7 +25,7 @@ Per-piece sockets (placement helpers, picked up by UE5 modular building):
     Stairs / Ramps:  SOCKET_SnapBottom / SOCKET_SnapTop
     Pillar:          SOCKET_SnapBottom / SOCKET_SnapTop
 
-Grid constants (Blender meters; SCALE=100 → 1 UU = 1 cm):
+Grid constants (Blender metres; UE's FBX import converts to cm):
     GRID    = 4.00 m   (wall width / floor side / roof side)
     HEIGHT  = 3.00 m   (full wall height)
     HALF_H  = 1.50 m   (half wall / railing)

@@ -13,6 +13,11 @@ AQRWildlife_FogleechSwarm::AQRWildlife_FogleechSwarm()
 	ThreatDetectionRadius = 800.0f;
 	NoiseFactor        = 0.1f;
 
+	// Real-world size + attack tuning (tiny clustered swarm body)
+	BodyLengthMeters   = 0.4f;
+	BodyHeightMeters   = 0.3f;
+	AttackDamage       = 4.0f;
+
 	DeathDrops.Add({ FName("MAT_LEECH_MEMBRANE"), 1, 3, 0.4f });
 }
 

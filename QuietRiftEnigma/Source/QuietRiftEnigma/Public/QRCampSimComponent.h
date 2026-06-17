@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "QRTypes.h"
 #include "QRCampSimComponent.generated.h"
 
 class AQRFactionCamp;
@@ -42,6 +43,11 @@ struct QUIETRIFTENIGMA_API FQRCampState
 	// Game-hours since the last failed raid (party wiped). Camps that
 	// just lost their force back off.
 	UPROPERTY(BlueprintReadOnly) float HoursSinceLastDefeat = 9999.0f;
+
+	// Camps "learn" — raid count climbs the experience ladder.
+	// Determined at launch time by DetermineRaidTier(); influences the
+	// per-raider perception, march speed, retreat threshold, damage.
+	UPROPERTY(BlueprintReadOnly) int32 SuccessfulRaids = 0;
 };
 
 
@@ -59,6 +65,13 @@ struct QUIETRIFTENIGMA_API FQRRaidPlan
 	UPROPERTY(BlueprintReadOnly) FVector TargetLocation = FVector::ZeroVector;
 	UPROPERTY(BlueprintReadOnly) int32 PartySize = 3;
 	UPROPERTY(BlueprintReadOnly) float HostilityAtLaunch = 0.5f;
+
+	// Per DT_RaidExperienceTiers (Inexperienced / Competent / Veteran /
+	// Fanatic). UQRRaidPartyAI applies tier-specific perception, march
+	// speed, retreat behavior, and damage on attach. Derived in
+	// UQRCampSimComponent::DetermineRaidTier from camp size, successful
+	// raid count, and a fanatic-faction tag.
+	UPROPERTY(BlueprintReadOnly) EQRRaidExperienceTier Experience = EQRRaidExperienceTier::Competent;
 };
 
 
@@ -204,9 +217,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "QR|Camp")
 	void ReportRaidSuccessful(int32 SurvivingMilitary, float LootedResources);
 
+	// Designer hook -- Remnant/cult camps spawn as Fanatic regardless of
+	// their kill count. Set true on the BP class for that faction.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Camp|Raid")
+	bool bForceFanaticTier = false;
+
 private:
 	void TryDecideRaid();
 	FVector FindRaidTargetLocation() const;
 	float   GetEffectiveLeadership() const;
 	bool    AreConditionsFavorable() const;
+
+	// Pick a tier per the Raid_Experience_Tiers design ladder:
+	//   Inexperienced  : <2 successful raids (still learning)
+	//   Competent      : 2-5
+	//   Veteran        : >=6 OR leadership >= 8 + favorable conditions
+	//   Fanatic        : bForceFanaticTier set on the BP class
+	EQRRaidExperienceTier DetermineRaidTier() const;
 };

@@ -15,6 +15,11 @@ AQRWildlife_HookjawStalker::AQRWildlife_HookjawStalker()
 	ThreatDetectionRadius = 2500.0f;
 	NoiseFactor        = 0.05f;   // Nearly silent
 
+	// Real-world size + attack tuning (large wolf-analogue ambush predator)
+	BodyLengthMeters   = 1.8f;
+	BodyHeightMeters   = 1.1f;
+	AttackDamage       = 22.0f;
+
 	DeathDrops.Add({ FName("FOD_STALKER_MEAT"),     2, 4, 1.0f });
 	DeathDrops.Add({ FName("MAT_STALKER_HIDE"),     1, 2, 0.9f });
 	DeathDrops.Add({ FName("MAT_HOOKJAW_FANG"),     1, 2, 0.75f }); // Crafting component

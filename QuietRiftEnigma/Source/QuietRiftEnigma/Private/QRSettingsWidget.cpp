@@ -11,10 +11,14 @@
 #include "Components/Slider.h"
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
+#include "Components/CheckBox.h"
 #include "Sound/SoundClass.h"
 #include "AudioDevice.h"
 #include "Engine/Engine.h"
+#include "GameFramework/PlayerController.h"
 #include "Misc/ConfigCacheIni.h"
+#include "QRCharacter.h"
+#include "QRPauseMenuWidget.h"
 
 namespace QRSettingsDefaults
 {
@@ -83,6 +87,28 @@ TSharedRef<SWidget> UQRSettingsWidget::RebuildWidget()
 		if (SensitivitySlider) SensitivitySlider->OnValueChanged.AddDynamic(this, &UQRSettingsWidget::HandleSensitivity);
 		if (FOVSlider)         FOVSlider->OnValueChanged.AddDynamic(this,         &UQRSettingsWidget::HandleFOV);
 		if (VolumeSlider)      VolumeSlider->OnValueChanged.AddDynamic(this,      &UQRSettingsWidget::HandleVolume);
+
+		// Left-handed checkbox row. CheckBox + label sit on the same horizontal
+		// row so the layout matches the sliders above.
+		{
+			UHorizontalBox* LeftRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+
+			LeftHandedCheck = WidgetTree->ConstructWidget<UCheckBox>(UCheckBox::StaticClass());
+			bool bLeftCur = false;
+			GConfig->GetBool(kCfgSection, TEXT("LeftHanded"), bLeftCur, GGameUserSettingsIni);
+			LeftHandedCheck->SetIsChecked(bLeftCur);
+			LeftHandedCheck->OnCheckStateChanged.AddDynamic(this, &UQRSettingsWidget::HandleLeftHanded);
+			LeftRow->AddChildToHorizontalBox(LeftHandedCheck);
+
+			UTextBlock* LeftLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+			LeftLabel->SetText(FText::FromString(TEXT("  Left-Handed (mirror held weapon)")));
+			LeftLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+			UHorizontalBoxSlot* LblSlot = LeftRow->AddChildToHorizontalBox(LeftLabel);
+			if (LblSlot) LblSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+
+			UVerticalBoxSlot* LeftRowSlot = Column->AddChildToVerticalBox(LeftRow);
+			if (LeftRowSlot) LeftRowSlot->SetPadding(FMargin(0, 12, 0, 4));
+		}
 
 		// Close button.
 		CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
@@ -186,8 +212,51 @@ void UQRSettingsWidget::HandleVolume(float NewValue)
 	}
 }
 
+void UQRSettingsWidget::HandleLeftHanded(bool bNew)
+{
+	using namespace QRSettingsDefaults;
+	GConfig->SetBool(kCfgSection, TEXT("LeftHanded"), bNew, GGameUserSettingsIni);
+	GConfig->Flush(false, GGameUserSettingsIni);
+
+	// Push live to the local pawn so the held weapon flips immediately.
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		if (AQRCharacter* Char = Cast<AQRCharacter>(PC->GetPawn()))
+		{
+			Char->SetLeftHanded(bNew);
+		}
+	}
+}
+
 void UQRSettingsWidget::HandleClose()
 {
 	QRUISound::PlayClick(this);
+
+	// QR_OpenSettings switched the controller to GameAndUI; without undoing
+	// that here, closing Settings opened from gameplay (console command, no
+	// pause menu underneath) left the player stuck in UI input — WASD dead.
+	// If the pause menu is still up, hand focus back to it instead.
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		UQRPauseMenuWidget* Pause = nullptr;
+		if (AQRCharacter* Char = Cast<AQRCharacter>(PC->GetPawn()))
+		{
+			Pause = (Char->PauseMenu && Char->PauseMenu->IsInViewport())
+				? Char->PauseMenu.Get() : nullptr;
+		}
+		if (Pause)
+		{
+			FInputModeGameAndUI Mode;
+			Mode.SetWidgetToFocus(Pause->TakeWidget());
+			PC->SetInputMode(Mode);
+			PC->bShowMouseCursor = true;
+		}
+		else
+		{
+			PC->SetInputMode(FInputModeGameOnly());
+			PC->bShowMouseCursor = false;
+		}
+	}
+
 	RemoveFromParent();
 }

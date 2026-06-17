@@ -11,6 +11,8 @@ class UCanvasPanelSlot;
 class UHorizontalBox;
 class UVerticalBox;
 class UBorder;
+class UImage;
+class UTexture2D;
 class UTextBlock;
 class UQRInventoryComponent;
 class UQRItemInstance;
@@ -54,6 +56,10 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeDestruct() override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	// Right-click anywhere on the widget pops the context menu against
+	// HoveredItem. Left-clicks fall through to the per-button handlers.
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry,
+		const FPointerEvent& InMouseEvent) override;
 
 private:
 	UPROPERTY()
@@ -69,22 +75,89 @@ private:
 	UPROPERTY()
 	TObjectPtr<UCanvasPanel> BackpackGrid = nullptr;
 
+	// Label+grid wrappers for the container grids, so the whole block
+	// (heading included) collapses when the container isn't equipped.
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> ChestGridBox = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> BackpackGridBox = nullptr;
+
 	UPROPERTY()
 	TObjectPtr<UTextBlock> WeightText = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> StatusText = nullptr;
 
+	// Tarkov-style paper-doll: a character silhouette with equip slots
+	// (Helm / Body armour / Legs / Chest rig / Backpack / Hand) anchored over
+	// the matching body locations. Built into PaperDoll each Rebuild().
+	UPROPERTY()
+	TObjectPtr<UCanvasPanel> PaperDoll = nullptr;
+
+	// Optional silhouette texture drawn behind the slots. If unset, a neutral
+	// humanoid is drawn from simple shapes so the panel still reads as a body.
+	// Designer can assign /Game/QuietRift/UI/T_BodySilhouette to swap it in.
+	UPROPERTY(EditDefaultsOnly, Category = "QR|UI")
+	TObjectPtr<UTexture2D> BodySilhouette = nullptr;
+
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> GrabbedItem = nullptr;
 	bool bGrabbedRotation = false;
 
+	// Item currently under the mouse (set by per-item OnHovered/OnUnhovered).
+	// Right-click anywhere on the widget pops a context menu against this.
+	UPROPERTY()
+	TObjectPtr<UQRItemInstance> HoveredItem = nullptr;
+
+	// Right-click context menu (built lazily). A content-sized Border holding
+	// a vertical list of action buttons -- NOT an autosize canvas, which
+	// collapses to 0x0 around fill-anchored children and kills hit-testing.
+	UPROPERTY()
+	TObjectPtr<UBorder> ContextMenu = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UQRItemInstance> ContextTarget = nullptr;
+
+	// Full-screen click-catcher behind the context menu (closes on outside
+	// click). Torn down together with the menu.
+	UPROPERTY()
+	TObjectPtr<UButton> ContextBackdrop = nullptr;
+
+	// One-off inspect popup -- text dump of the item's metadata. A Border
+	// (not a canvas) for the same hit-test reasons as ContextMenu.
+	UPROPERTY()
+	TObjectPtr<UBorder> InspectPopup = nullptr;
+
 	UFUNCTION() void HandleInventoryChanged();
+
+	// Paper-doll slot identity. KindIndex on UQRInventoryEquipButton maps to
+	// this: 1=Helm 2=Body armour 3=Legs 4=Chest rig 5=Backpack 6=Primary hand
+	// 7=Offhand.
+	enum class EEquipKind : uint8 { None, Helm, Chest, Legs, Rig, Backpack, Hand, Offhand };
+
+	// Paper-doll canvas footprint and slot square size (pixels).
+	static constexpr float PaperDollWidth  = 300.0f;
+	static constexpr float PaperDollHeight = 480.0f;
+	static constexpr float PaperDollSlot   = 66.0f;
 
 public:
 	// Called from sub-button click handlers (UQRInventoryCellButton / UQRInventoryItemButton).
 	UFUNCTION() void HandleCellClicked(int32 PackedKey);
+	UFUNCTION() void HandleEquipSlotClicked(int32 KindIndex);
 	void HandleItemClicked(UQRItemInstance* Item);
+
+	// Hover tracking -- called by UQRInventoryItemButton on its OnHovered /
+	// OnUnhovered, so right-click knows what's under the cursor.
+	void HandleItemHovered(UQRItemInstance* Item);
+	void HandleItemUnhovered(UQRItemInstance* Item);
+
+	// Single dispatch for context-menu action buttons (UQRInventoryAction
+	// Button). ActionId: 1=Equip 2=Remove 3=Inspect 4=Destroy 5=Cancel
+	// 6=CloseBackdrop 7=InspectClose.
+	void HandleContextAction(int32 ActionId);
+	// Right-click on an equipped slot -> open the menu against its item.
+	void OpenContextMenuForEquipped(UQRItemInstance* Item, FVector2D ScreenPos);
 
 private:
 	void Rebuild();
@@ -92,6 +165,25 @@ private:
 	void AddCellGrid(UCanvasPanel* Panel, EQRContainerKind Kind);
 	void AddItem(UCanvasPanel* Panel, EQRContainerKind Kind, UQRItemInstance* Item);
 	void RefreshHeader();
+
+	// Paper-doll construction. RebuildPaperDoll lays the six slots over the
+	// silhouette; AddSilhouette draws the body (texture or shape fallback);
+	// AddPaperDollSlot places one equip button at a canvas offset.
+	void RebuildPaperDoll();
+	void AddSilhouette();
+	void AddPaperDollSlot(const TCHAR* Label, int32 KindIndex,
+		UQRItemInstance* Item, float X, float Y);
+
+	// Build + show / hide the context menu. ScreenPos is in absolute
+	// screen pixels; the menu is positioned just below that point.
+	void OpenContextMenu(UQRItemInstance* Item, FVector2D ScreenPos);
+	void CloseContextMenu();
+	void ShowInspectPopup(UQRItemInstance* Item);
+	void HideInspectPopup();
+
+	// Predicates so the menu shows only the actions that apply.
+	bool CanEquipItem(UQRItemInstance* Item) const;
+	bool IsItemEquipped(UQRItemInstance* Item) const;
 };
 
 /**
@@ -111,6 +203,62 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UQRItemInstance> Item = nullptr;
+
+	UFUNCTION() void HandleClicked();
+	UFUNCTION() void HandleHovered();
+	UFUNCTION() void HandleUnhovered();
+};
+
+/**
+ * Equipment-slot button. Click toggles equip/unequip; double-click on a
+ * container slot (Rig / Backpack) toggles whether its grid is visible.
+ */
+UCLASS()
+class QUIETRIFTENIGMA_API UQRInventoryEquipButton : public UButton
+{
+	GENERATED_BODY()
+
+public:
+	UQRInventoryEquipButton();
+
+	UPROPERTY()
+	TWeakObjectPtr<UQRInventoryGridWidget> OwnerWidget;
+
+	// 1=Helm 2=Chest armour 3=Legs armour 4=Rig 5=Backpack. Matches
+	// UQRInventoryGridWidget::EEquipKind.
+	UPROPERTY()
+	int32 KindIndex = 0;
+
+	// The item currently in this slot (null when empty) -- lets right-click
+	// open the context menu against an equipped item.
+	UPROPERTY()
+	TObjectPtr<UQRItemInstance> SlotItem = nullptr;
+
+	UFUNCTION() void HandleClicked();
+	UFUNCTION() void HandleHovered();
+	UFUNCTION() void HandleUnhovered();
+};
+
+/**
+ * Context-menu action button. Carries an action id + owner back-ref and
+ * binds OnClicked in its constructor (the pattern the cell/item buttons
+ * use, which works reliably -- binding a plain UButton to a widget method
+ * at runtime did not fire). ActionId: 1=Equip 2=Remove 3=Inspect
+ * 4=Destroy 5=Cancel 6=CloseBackdrop 7=InspectClose.
+ */
+UCLASS()
+class QUIETRIFTENIGMA_API UQRInventoryActionButton : public UButton
+{
+	GENERATED_BODY()
+
+public:
+	UQRInventoryActionButton();
+
+	UPROPERTY()
+	TWeakObjectPtr<UQRInventoryGridWidget> OwnerWidget;
+
+	UPROPERTY()
+	int32 ActionId = 0;
 
 	UFUNCTION() void HandleClicked();
 };

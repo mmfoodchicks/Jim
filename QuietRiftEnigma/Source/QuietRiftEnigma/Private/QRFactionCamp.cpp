@@ -74,6 +74,7 @@ void AQRFactionCamp::HandleRaidLaunched(FQRRaidPlan Plan)
 		AI->TargetLocation = Plan.TargetLocation;
 		AI->CampOrigin     = Origin;
 		AI->SourceCampId   = Plan.SourceCampId;
+		AI->ApplyExperienceTier(Plan.Experience);
 	}
 }
 

@@ -9,6 +9,43 @@ class USkyLightComponent;
 
 
 /**
+ * One Galilean-style moon orbiting QR_Jupiter. The orbital math is
+ * deliberately a flat circular orbit in the XY plane around Jupiter's
+ * world location -- the real Galileans are coplanar within a few
+ * degrees so this reads correctly without a full ecliptic sim. Period
+ * is in seconds (game-scale, not real Jovian months) and InitialPhase
+ * staggers the moons so they don't all line up at t=0.
+ */
+USTRUCT(BlueprintType)
+struct FQRMoonConfig
+{
+	GENERATED_BODY()
+
+	/** Actor label of the placeholder StaticMeshActor in the level
+	 *  (e.g. QR_Moon_Io). Spawn it via qr_setup_sky.py. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
+	FName ActorLabel = NAME_None;
+
+	/** Distance from QR_Jupiter, centimetres. Game-scale, not real. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "1000"))
+	float OrbitRadius = 200000.0f;
+
+	/** Orbital period in seconds. Real Galileans range from Io (1.77
+	 *  days) to Callisto (16.7 days); we keep the same ratio (~2x each
+	 *  step) but compress totals so motion is visible during play. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "1.0"))
+	float PeriodSeconds = 120.0f;
+
+	/** Starting orbital phase, fraction of a full revolution (0..1). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "0", ClampMax = "1"))
+	float InitialPhase = 0.0f;
+};
+
+
+/**
  * Day/night cycle driver. Locates the level's primary
  * ADirectionalLight (sun) and rotates it based on
  * AQRGameMode::GetDayProgress() (0..1 across the game-day).
@@ -33,14 +70,39 @@ public:
 	TObjectPtr<ADirectionalLight> SunLight;
 
 	// Daylight intensity (lux). Sun goes from this at noon down to
-	// NightIntensity at midnight.
+	// NightIntensity at midnight. Default ~2,800 lux is the physically
+	// accurate solar irradiance at Jupiter's orbit (~5.2 AU) -- roughly
+	// 1/27 of Earth's noon (~75,000 lux). Bounded auto-exposure on the
+	// QR_Exposure PostProcessVolume handles the dynamic range so the
+	// scene reads correctly without going pitch black.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
 		meta = (ClampMin = "0", ClampMax = "200000"))
-	float DayIntensity = 75000.0f;
+	float DayIntensity = 2800.0f;
 
+	// Residual sun floor when the sun is below the horizon. Near-zero so
+	// the NIGHT is genuinely lit by the Jovianlight (Jupiter's reflected
+	// glow), not by a ghost sun shining up through the world. A tiny
+	// non-zero value gives a hint of star/zodiacal light. The old 250 lux
+	// "night sun" lit the ground from below and washed out the Jovianlight
+	// shadow -- that was the bug.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
 		meta = (ClampMin = "0", ClampMax = "10000"))
-	float NightIntensity = 200.0f;
+	float NightIntensity = 3.0f;
+
+	// Constant intensity of the Jovianlight (the second directional light
+	// labeled QR_Jovianlight). Per canon ~125 lux (500x our full moon).
+	// It does NOT cycle -- Jupiter is fixed in the sky from a tidally-
+	// locked moon -- so it's the steady night-shadow source. At noon the
+	// ~2,800 lux sun overwhelms it (one shadow); at twilight both the low
+	// sun and Jupiter cast (briefly two shadows); at night Jupiter alone
+	// casts (the Jovianlight shadow).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky",
+		meta = (ClampMin = "0", ClampMax = "10000"))
+	float JovianIntensity = 125.0f;
+
+	// Cream-tan tint of Jupiter's reflected light.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
+	FLinearColor JovianColor = FLinearColor(0.95f, 0.85f, 0.65f, 1.0f);
 
 	// Sun color at noon vs at horizon (sunrise/sunset).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
@@ -52,8 +114,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
 	FLinearColor MidnightColor = FLinearColor(0.10f, 0.18f, 0.45f, 1.0f);
 
+	/** Galilean moons orbiting QR_Jupiter. Spawn the placeholder mesh
+	 *  actors via qr_setup_sky.py; QRSkyManager finds them by ActorLabel
+	 *  at BeginPlay and updates their world positions every tick. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
+	TArray<FQRMoonConfig> Moons;
+
 	virtual void Tick(float DeltaTime) override;
 
 protected:
 	virtual void BeginPlay() override;
+
+	/** Cached Jupiter and moon actor references resolved at BeginPlay. */
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> JupiterActor;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AActor>> MoonActors;
+
+	/** The second directional light (QR_Jovianlight) representing
+	 *  Jupiter's reflected glow. Resolved by label at BeginPlay; the
+	 *  Tick keeps it shadow-casting and aimed from Jupiter so the night
+	 *  side gets a real Jovianlight shadow. */
+	UPROPERTY(Transient)
+	TObjectPtr<ADirectionalLight> JovianLight;
+
+	void ResolveSkyActors();
 };

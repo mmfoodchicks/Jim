@@ -69,6 +69,30 @@ public:
 		meta = (ClampMin = "50", ClampMax = "1000"))
 	float FleeSpeed = 400.0f;
 
+	// ── Fight mode ───────────────────────────────────────────────
+	// Seconds between shots while in Fight. Civilians are not soldiers —
+	// slow, deliberate fire.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Civilian|Fight",
+		meta = (ClampMin = "0.3", ClampMax = "10"))
+	float FireIntervalSeconds = 1.8f;
+
+	// Max engagement range (cm). Beyond this they hold fire and keep
+	// facing the threat.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Civilian|Fight",
+		meta = (ClampMin = "500", ClampMax = "10000"))
+	float EngageRangeCm = 3000.0f;
+
+	// Damage per landed shot. Militia with a real weapon in the hand slot
+	// hit ~50% harder (checked at fire time).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Civilian|Fight",
+		meta = (ClampMin = "1", ClampMax = "100"))
+	float FightDamage = 10.0f;
+
+	// Hit probability per shot — civilians under stress miss a lot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Civilian|Fight",
+		meta = (ClampMin = "0.05", ClampMax = "1"))
+	float FightHitChance = 0.55f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "QR|Civilian|State")
 	EQRCivilianMode Mode = EQRCivilianMode::Normal;
 
@@ -88,6 +112,14 @@ private:
 
 	FVector LastThreatLocation = FVector::ZeroVector;
 	float StateTimer = 0.0f;
+	float FireCooldown = 0.0f;
+
+	// Nearest live raider (actor carrying UQRRaidPartyAI) within
+	// EngageRangeCm, or null. Refreshes LastThreatLocation when found.
+	AActor* AcquireFightTarget();
+	// One aimed shot at the target: hit roll, then engine damage so the
+	// target's TakeDamage/Survival pipeline resolves it.
+	void FireAtTarget(AActor* Target);
 
 	bool IsArmed() const;
 	float GetMorale() const;

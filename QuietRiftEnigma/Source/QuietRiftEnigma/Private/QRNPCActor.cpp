@@ -1,8 +1,11 @@
 #include "QRNPCActor.h"
 #include "QRDialogueComponent.h"
 #include "QRFactionComponent.h"
+#include "QRNPCBrainComponent.h"
+#include "QRCivilianReactionComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 
 AQRNPCActor::AQRNPCActor()
@@ -23,8 +26,28 @@ AQRNPCActor::AQRNPCActor()
 
 	Dialogue = CreateDefaultSubobject<UQRDialogueComponent>(TEXT("Dialogue"));
 	Faction  = CreateDefaultSubobject<UQRFactionComponent>(TEXT("Faction"));
+	Brain    = CreateDefaultSubobject<UQRNPCBrainComponent>(TEXT("Brain"));
+	Reaction = CreateDefaultSubobject<UQRCivilianReactionComponent>(TEXT("Reaction"));
 
 	DisplayName = FText::FromString(TEXT("Survivor"));
+}
+
+
+void AQRNPCActor::BeginPlay()
+{
+	// Resolve the default skeletal mesh BEFORE Super::BeginPlay so the
+	// brain's BeginPlay (which looks up the SMC and starts the idle
+	// animation) sees the mesh already assigned. Otherwise the brain
+	// would force single-node mode on an empty mesh and the first frame
+	// after BeginPlay would T-pose until Tick caught up.
+	if (MeshComp && !MeshComp->GetSkeletalMeshAsset() && !DefaultSkeletalMesh.IsNull())
+	{
+		if (USkeletalMesh* Mesh = DefaultSkeletalMesh.LoadSynchronous())
+		{
+			MeshComp->SetSkeletalMesh(Mesh);
+		}
+	}
+	Super::BeginPlay();
 }
 
 

@@ -321,6 +321,17 @@ enum class EQRSpoilState : uint8
 //  SURVIVAL ENUMS
 // ─────────────────────────────────────────────
 
+// Worn-armour slot. Three layered pieces (helm + chest + legs) feed a
+// total damage-reduction on the survival component.
+UENUM(BlueprintType)
+enum class EQRArmourSlot : uint8
+{
+	None    UMETA(DisplayName = "None"),
+	Helm    UMETA(DisplayName = "Helm / Head"),
+	Chest   UMETA(DisplayName = "Chest"),
+	Legs    UMETA(DisplayName = "Legs"),
+};
+
 UENUM(BlueprintType)
 enum class EQRInjuryType : uint8
 {
@@ -333,6 +344,12 @@ enum class EQRInjuryType : uint8
 	Toxin           UMETA(DisplayName = "Toxin"),
 	Exhaustion      UMETA(DisplayName = "Exhaustion"),
 	Hypothermia     UMETA(DisplayName = "Hypothermia"),
+	// Arrow / projectile status effects.
+	Sedated         UMETA(DisplayName = "Sedated"),         // tranquilizer dart -- progressive fatigue + slow
+	Frostbite       UMETA(DisplayName = "Frostbite"),       // cryo arrow -- slow + cold DOT
+	Shock           UMETA(DisplayName = "Shock"),           // EMP / electric arrow -- stun + electronics off
+	Suffocation     UMETA(DisplayName = "Suffocation"),     // smoke / gas arrow
+	Marked          UMETA(DisplayName = "Marked"),          // tracker arrow -- spotted, no damage
 };
 
 UENUM(BlueprintType)

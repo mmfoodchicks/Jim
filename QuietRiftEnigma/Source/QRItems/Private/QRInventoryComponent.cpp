@@ -3,6 +3,7 @@
 #include "QRItemDefinition.h"
 #include "QRMath.h"
 #include "Net/UnrealNetwork.h"
+#include "Engine/ActorChannel.h"
 
 UQRInventoryComponent::UQRInventoryComponent()
 {
@@ -16,6 +17,7 @@ void UQRInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UQRInventoryComponent, Items);
 	DOREPLIFETIME(UQRInventoryComponent, HandSlot);
+	DOREPLIFETIME(UQRInventoryComponent, OffhandSlot);
 	DOREPLIFETIME(UQRInventoryComponent, HandsSlotState);
 	DOREPLIFETIME(UQRInventoryComponent, ShoulderStackMax);
 	DOREPLIFETIME(UQRInventoryComponent, MaxCarryWeightKg);
@@ -23,9 +25,53 @@ void UQRInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME(UQRInventoryComponent, MaxSlots);
 	DOREPLIFETIME(UQRInventoryComponent, EquippedChestRig);
 	DOREPLIFETIME(UQRInventoryComponent, EquippedBackpack);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedHelm);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedChestArmour);
+	DOREPLIFETIME(UQRInventoryComponent, EquippedLegsArmour);
 	DOREPLIFETIME(UQRInventoryComponent, BaseCarryWeightKg);
 	DOREPLIFETIME(UQRInventoryComponent, BaseVolumeLiters);
 	DOREPLIFETIME(UQRInventoryComponent, BaseSlots);
+}
+
+bool UQRInventoryComponent::ReplicateSubobjects(UActorChannel* Channel, FOutBunch* Bunch,
+	FReplicationFlags* RepFlags)
+{
+	bool bWrote = Super::ReplicateSubobjects(Channel, Bunch, RepFlags);
+	for (UQRItemInstance* Item : Items)
+	{
+		if (Item) bWrote |= Channel->ReplicateSubobject(Item, *Bunch, *RepFlags);
+	}
+	TArray<UQRItemInstance*> Equipped;
+	GetEquippedInstances(Equipped);
+	for (UQRItemInstance* Item : Equipped)
+	{
+		bWrote |= Channel->ReplicateSubobject(Item, *Bunch, *RepFlags);
+	}
+	return bWrote;
+}
+
+void UQRInventoryComponent::GetEquippedInstances(TArray<UQRItemInstance*>& Out) const
+{
+	auto Add = [&Out](UQRItemInstance* I) { if (I) Out.Add(I); };
+	Add(HandSlot);
+	Add(OffhandSlot);
+	Add(EquippedHelm);
+	Add(EquippedChestArmour);
+	Add(EquippedLegsArmour);
+	Add(EquippedChestRig);
+	Add(EquippedBackpack);
+}
+
+void UQRInventoryComponent::ReturnInstanceToGrid(UQRItemInstance* Item)
+{
+	if (!Item) return;
+	Items.AddUnique(Item);
+	// The placement it had before being equipped is stale — those cells may
+	// be occupied by something else now. Clear and re-place fresh.
+	Item->ContainerKind = EQRContainerKind::None;
+	Item->GridX = -1;
+	Item->GridY = -1;
+	(void)TryAutoPlaceItem(Item);
 }
 
 EQRInventoryResult UQRInventoryComponent::TryAddItem(UQRItemInstance* Item, int32& OutRemainder)
@@ -116,7 +162,10 @@ EQRInventoryResult UQRInventoryComponent::TryAddByDefinition(const UQRItemDefini
 		return EQRInventoryResult::InvalidItem;
 	}
 
-	UQRItemInstance* Temp = NewObject<UQRItemInstance>(GetOwner());
+	// Parent to this component (not the owning actor) so the staging
+	// instance has a stable outer while TryAddItem copies it into real
+	// stacks; it becomes unreferenced garbage afterwards either way.
+	UQRItemInstance* Temp = NewObject<UQRItemInstance>(this);
 	Temp->Initialize(Def, Quantity);
 	return TryAddItem(Temp, OutRemainder);
 }
@@ -163,6 +212,34 @@ bool UQRInventoryComponent::TryRemoveItem(FName ItemId, int32 Quantity)
 			Items.RemoveAt(i);
 	}
 
+	// Grid stacks exhausted — drain equipped/held instances last so loose
+	// copies are always consumed before the one you're wearing/wielding.
+	if (Remaining > 0)
+	{
+		auto DrainSlot = [&](TObjectPtr<UQRItemInstance>& SlotRef)
+		{
+			if (Remaining <= 0 || !SlotRef || !SlotRef->Definition) return;
+			if (SlotRef->Definition->ItemId != ItemId) return;
+			const int32 ToRemove = FMath::Min(SlotRef->Quantity, Remaining);
+			SlotRef->Quantity -= ToRemove;
+			Remaining -= ToRemove;
+			OnItemRemoved.Broadcast(SlotRef, ToRemove);
+			if (SlotRef->Quantity <= 0)
+			{
+				if (SlotRef == HandSlot) HandsSlotState = EQRHandsSlotState::Empty;
+				SlotRef = nullptr;
+			}
+		};
+		DrainSlot(HandSlot);
+		DrainSlot(OffhandSlot);
+		DrainSlot(EquippedHelm);
+		DrainSlot(EquippedChestArmour);
+		DrainSlot(EquippedLegsArmour);
+		// Worn rig/backpack are deliberately NOT drainable here — destroying
+		// an equipped container would orphan the items placed in its grid.
+		// Unequip first; the loose container is then a normal grid item.
+	}
+
 	OnInventoryChanged.Broadcast();
 	return Remaining == 0;
 }
@@ -174,26 +251,95 @@ bool UQRInventoryComponent::TryEquipToHandSlot(UQRItemInstance* Item)
 	if (Item->Definition && Item->Definition->bIsBulkItem && HandsSlotState == EQRHandsSlotState::Occupied)
 		return false;
 
-	// Verify the item actually belongs to this inventory (prevents equipping a fake pointer)
-	const int32 SlotIdx = Items.IndexOfByKey(Item);
-	if (SlotIdx == INDEX_NONE) return false;
+	// Already holding this exact instance — nothing to do.
+	if (HandSlot == Item) return true;
 
-	// Move from grid to hand slot so it isn't double-counted
-	Items.RemoveAt(SlotIdx);
+	// Return the previously-held item to the grid before we overwrite it.
+	// Without this, switching hotbar slot 1 (weapon) -> 2 (animal) -> 1
+	// fails on the re-equip because the weapon instance was orphaned out
+	// of Items[] the first time and IndexOfByKey can't find it for the
+	// re-equip.
+	if (HandSlot && HandSlot->IsValid())
+	{
+		ReturnInstanceToGrid(HandSlot);
+	}
+
+	// Take the new instance out of the grid if it's there. Tolerates the
+	// case where Item already came from outside Items (e.g. a hotbar slot
+	// pointing at an instance that was previously held). Its grid placement
+	// is cleared — the cells it occupied are free while it's wielded.
+	const int32 SlotIdx = Items.IndexOfByKey(Item);
+	if (SlotIdx != INDEX_NONE)
+	{
+		Items.RemoveAt(SlotIdx);
+	}
+	Item->ContainerKind = EQRContainerKind::None;
+	Item->GridX = -1;
+	Item->GridY = -1;
+
 	HandSlot = Item;
 	HandsSlotState = EQRHandsSlotState::Occupied;
+
+	// Two-handed primary forces the offhand back into the grid -- you can't
+	// hold a shield while wielding a rifle. Return it to Items so it's still
+	// in the inventory, just no longer wielded.
+	if (Item->Definition && Item->Definition->bIsTwoHanded && OffhandSlot)
+	{
+		if (OffhandSlot->IsValid()) ReturnInstanceToGrid(OffhandSlot);
+		OffhandSlot = nullptr;
+	}
+
 	OnInventoryChanged.Broadcast();
 	return true;
 }
 
+bool UQRInventoryComponent::TryEquipToOffhand(UQRItemInstance* Item)
+{
+	if (!Item || !Item->IsValid()) return false;
+	// Block when the primary is two-handed.
+	if (HandSlot && HandSlot->Definition && HandSlot->Definition->bIsTwoHanded)
+	{
+		return false;
+	}
+	if (OffhandSlot == Item) return true;
+
+	if (OffhandSlot && OffhandSlot->IsValid())
+	{
+		ReturnInstanceToGrid(OffhandSlot);
+	}
+	const int32 SlotIdx = Items.IndexOfByKey(Item);
+	if (SlotIdx != INDEX_NONE)
+	{
+		Items.RemoveAt(SlotIdx);
+	}
+	Item->ContainerKind = EQRContainerKind::None;
+	Item->GridX = -1;
+	Item->GridY = -1;
+	OffhandSlot = Item;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+void UQRInventoryComponent::ClearOffhand()
+{
+	// Same instance returns to the grid — NOT TryAddItem, which would copy
+	// quantity into fresh stacks and silently drop per-instance state like
+	// durability while orphaning the original object.
+	if (OffhandSlot && OffhandSlot->IsValid())
+	{
+		ReturnInstanceToGrid(OffhandSlot);
+	}
+	OffhandSlot = nullptr;
+	OnInventoryChanged.Broadcast();
+}
+
 void UQRInventoryComponent::ClearHandSlot()
 {
+	// Same instance returns to the grid (see ClearOffhand note) — preserves
+	// durability/spoil and keeps hotbar slots pointing at a live instance.
 	if (HandSlot && HandSlot->IsValid())
 	{
-		// Return item to grid; if inventory is now full the item is placed anyway
-		// (it was already "in" the inventory before being equipped)
-		int32 Remainder = 0;
-		TryAddItem(HandSlot, Remainder);
+		ReturnInstanceToGrid(HandSlot);
 	}
 	HandSlot = nullptr;
 	HandsSlotState = EQRHandsSlotState::Empty;
@@ -219,6 +365,18 @@ int32 UQRInventoryComponent::CountItem(FName ItemId) const
 		if (Inst && Inst->Definition && Inst->Definition->ItemId == ItemId)
 			Total += Inst->Quantity;
 	}
+	// Equipped/held instances count too — otherwise "has the player got a
+	// torch?" says no while one is literally in their hand, and crafting/
+	// quest checks desync from TryRemoveItem (which can consume equipped).
+	// Worn rig/backpack are excluded to mirror TryRemoveItem, which refuses
+	// to drain them (destroying a worn container would orphan its contents).
+	const UQRItemInstance* Countable[5] = {
+		HandSlot, OffhandSlot, EquippedHelm, EquippedChestArmour, EquippedLegsArmour };
+	for (const UQRItemInstance* Inst : Countable)
+	{
+		if (Inst && Inst->Definition && Inst->Definition->ItemId == ItemId)
+			Total += Inst->Quantity;
+	}
 	return Total;
 }
 
@@ -235,6 +393,16 @@ float UQRInventoryComponent::GetCurrentWeightKg() const
 		if (Inst && Inst->Definition)
 			Total += Inst->Definition->MassKg * Inst->Quantity;
 	}
+	// Equipped gear lives outside Items[] but you're still carrying it — a
+	// 4 kg rifle in hand or a 3 kg rig on your chest counts toward
+	// encumbrance just like it would loose in the pack.
+	TArray<UQRItemInstance*> Equipped;
+	GetEquippedInstances(Equipped);
+	for (const UQRItemInstance* Inst : Equipped)
+	{
+		if (Inst->Definition)
+			Total += Inst->Definition->MassKg * Inst->Quantity;
+	}
 	return Total;
 }
 
@@ -246,6 +414,8 @@ float UQRInventoryComponent::GetCurrentVolumeLiters() const
 		if (Inst && Inst->Definition)
 			Total += Inst->Definition->VolumeLiters * Inst->Quantity;
 	}
+	// Worn/held gear doesn't consume pack volume — it's on your body, not
+	// in a bag. Weight counts (see above); volume intentionally does not.
 	return Total;
 }
 
@@ -318,8 +488,12 @@ EQRInventoryResult UQRInventoryComponent::TryEquipContainer(UQRItemInstance* Ite
 
 	// Detach from flat inventory if it's living there. Don't touch the array
 	// otherwise — the caller may pass a freshly-spawned instance from a
-	// dropped pickup, world container, or trade flow.
+	// dropped pickup, world container, or trade flow. Placement clears so
+	// the cells it occupied free up while it's worn.
 	Items.Remove(Item);
+	Item->ContainerKind = EQRContainerKind::None;
+	Item->GridX = -1;
+	Item->GridY = -1;
 
 	if (Slot == EQRContainerSlotType::ChestRig) EquippedChestRig = Item;
 	else                                          EquippedBackpack = Item;
@@ -344,25 +518,38 @@ EQRInventoryResult UQRInventoryComponent::TryUnequipContainer(EQRContainerSlotTy
 		if (Inst && Inst->ContainerKind == GridKind) return EQRInventoryResult::WouldNotFit;
 	}
 
-	// Capacity *after* removing the container's bonus.
+	// Capacity *after* removing the container's bonus. Weight already counts
+	// the equipped container (GetCurrentWeightKg includes equip slots), and
+	// it keeps counting once it returns to Items — so the weight comparison
+	// needs no mass adjustment. The slot check does: the container occupies
+	// one flat slot after it returns to the grid.
 	const float WouldLoseKg     = FMath::Max(Container->Definition->ContainerCarryBonusKg, 0.0f);
 	const float WouldLoseLiters = FMath::Max(Container->Definition->ContainerVolumeBonusLiters, 0.0f);
 	const int32 WouldLoseSlots  = FMath::Max(Container->Definition->ContainerGridW * Container->Definition->ContainerGridH, 0);
 
 	const float CurrentWeight = GetCurrentWeightKg();
-	const float CurrentVolume = GetCurrentVolumeLiters();
-	const int32 CurrentSlotsUsed = Items.Num();
+	const float CurrentVolume = GetCurrentVolumeLiters() +
+		FMath::Max(Container->Definition->VolumeLiters, 0.0f);   // it'll take pack volume once stowed
+	const int32 SlotsAfter = Items.Num() + 1;                     // container joins Items
 
-	if (CurrentWeight     > MaxCarryWeightKg - WouldLoseKg)     return EQRInventoryResult::WouldNotFit;
-	if (CurrentVolume     > MaxVolumeLiters  - WouldLoseLiters) return EQRInventoryResult::WouldNotFit;
-	if (CurrentSlotsUsed  > MaxSlots         - WouldLoseSlots)  return EQRInventoryResult::WouldNotFit;
+	if (CurrentWeight > MaxCarryWeightKg - WouldLoseKg)     return EQRInventoryResult::WouldNotFit;
+	if (CurrentVolume > MaxVolumeLiters  - WouldLoseLiters) return EQRInventoryResult::WouldNotFit;
+	if (SlotsAfter    > MaxSlots         - WouldLoseSlots)  return EQRInventoryResult::WouldNotFit;
 
 	if (Slot == EQRContainerSlotType::ChestRig) EquippedChestRig = nullptr;
 	else                                          EquippedBackpack = nullptr;
 
 	RecomputeCapacityFromContainers();
+
+	// Put the container back into the flat grid. Previously it was only
+	// handed back via OutRemovedContainer — and every UI caller ignored
+	// that, leaving the instance unreferenced and GC-collectable. Unequip
+	// used to silently DESTROY your backpack.
+	ReturnInstanceToGrid(Container);
+
 	OutRemovedContainer = Container;
 	OnItemRemoved.Broadcast(Container, 1);
+	OnInventoryChanged.Broadcast();
 	return EQRInventoryResult::Success;
 }
 
@@ -612,4 +799,80 @@ void UQRInventoryComponent::OnRep_EquippedContainers()
 	// Server is authoritative on Max* values, but recompute on clients too so
 	// local prediction sees the same totals during the rep window.
 	RecomputeCapacityFromContainers();
+}
+
+// ── Worn-armour slots ──────────────────────────────────────────────
+
+static EQRArmourSlot _SlotFromItemId(const FName& Id)
+{
+	const FString S = Id.ToString().ToUpper();
+	if (!S.StartsWith(TEXT("ARM_"))) return EQRArmourSlot::None;
+	if (S.Contains(TEXT("HELM")))  return EQRArmourSlot::Helm;
+	if (S.Contains(TEXT("CHEST"))) return EQRArmourSlot::Chest;
+	if (S.Contains(TEXT("LEGS")))  return EQRArmourSlot::Legs;
+	return EQRArmourSlot::None;
+}
+
+TObjectPtr<UQRItemInstance>& UQRInventoryComponent::_ArmourRef(EQRArmourSlot Slot)
+{
+	switch (Slot)
+	{
+	case EQRArmourSlot::Helm:  return EquippedHelm;
+	case EQRArmourSlot::Chest: return EquippedChestArmour;
+	case EQRArmourSlot::Legs:  return EquippedLegsArmour;
+	default: return EquippedHelm; // unreachable for callers that pre-check
+	}
+}
+
+UQRItemInstance* UQRInventoryComponent::GetEquippedArmour(EQRArmourSlot Slot) const
+{
+	switch (Slot)
+	{
+	case EQRArmourSlot::Helm:  return EquippedHelm;
+	case EQRArmourSlot::Chest: return EquippedChestArmour;
+	case EQRArmourSlot::Legs:  return EquippedLegsArmour;
+	default: return nullptr;
+	}
+}
+
+bool UQRInventoryComponent::TryEquipArmour(UQRItemInstance* Item)
+{
+	if (!Item || !Item->Definition) return false;
+	if (Item->Definition->Category != EQRItemCategory::Clothing) return false;
+
+	const EQRArmourSlot Slot = _SlotFromItemId(Item->Definition->ItemId);
+	if (Slot == EQRArmourSlot::None) return false;
+
+	// Bounce the current occupant back to the loose body grid (with a fresh
+	// placement — its old cells may be taken by now).
+	TObjectPtr<UQRItemInstance>& SlotRef = _ArmourRef(Slot);
+	if (UQRItemInstance* Prev = SlotRef)
+	{
+		ReturnInstanceToGrid(Prev);
+	}
+	Items.Remove(Item);
+	Item->ContainerKind = EQRContainerKind::None;
+	Item->GridX = -1;
+	Item->GridY = -1;
+	SlotRef = Item;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+bool UQRInventoryComponent::TryUnequipArmour(EQRArmourSlot Slot, UQRItemInstance*& OutRemoved)
+{
+	OutRemoved = nullptr;
+	if (Slot == EQRArmourSlot::None) return false;
+	TObjectPtr<UQRItemInstance>& SlotRef = _ArmourRef(Slot);
+	if (!SlotRef) return false;
+	OutRemoved = SlotRef;
+	ReturnInstanceToGrid(SlotRef);
+	SlotRef = nullptr;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
+void UQRInventoryComponent::OnRep_EquippedArmour()
+{
+	OnInventoryChanged.Broadcast();
 }

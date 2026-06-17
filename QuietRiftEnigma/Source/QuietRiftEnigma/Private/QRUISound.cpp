@@ -11,11 +11,26 @@ namespace
 	// asset alive while the cache pointer is non-null because
 	// PlaySound2D / PlaySoundAtLocation hands the reference to the
 	// audio component it spawns.
+	//
+	// Layout-proof: the Fab library lived under /Game/Fabs/<Pack> for a
+	// while and now lives at /Game/<Pack> (2026-06-11 re-upload). The
+	// loader tries the root layout first, then the legacy Fabs prefix,
+	// so either checkout state works.
 	USoundBase* LazyLoadSound(const TCHAR* AssetPath, USoundBase*& Cache)
 	{
 		if (!Cache)
 		{
-			Cache = LoadObject<USoundBase>(nullptr, AssetPath);
+			Cache = LoadObject<USoundBase>(nullptr, AssetPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!Cache)
+			{
+				// Retry with the legacy /Game/Fabs/ prefix.
+				FString Legacy(AssetPath);
+				if (Legacy.StartsWith(TEXT("/Game/")) && !Legacy.StartsWith(TEXT("/Game/Fabs/")))
+				{
+					Legacy = TEXT("/Game/Fabs/") + Legacy.RightChop(6);
+					Cache = LoadObject<USoundBase>(nullptr, *Legacy, nullptr, LOAD_NoWarn | LOAD_Quiet);
+				}
+			}
 		}
 		return Cache;
 	}
@@ -75,11 +90,11 @@ namespace
 		if (GFootstepCache[SI][GI]) return GFootstepCache[SI][GI];
 
 		// Cue path convention from the Fab pack:
-		//   /Game/Fabs/Essential_Foosteps_SK/CUE/<Surface>/
+		//   /Game/Essential_Foosteps_SK/CUE/<Surface>/
 		//     Footstep_<Surface>_<Boots_?><Gait>_<n>_Cue.<asset>
 		// Glass omits the "Boots_" infix; everything else keeps it.
 		const FString Path = FString::Printf(
-			TEXT("/Game/Fabs/Essential_Foosteps_SK/CUE/%s/Footstep_%s_%s%s_Cue.Footstep_%s_%s%s_Cue"),
+			TEXT("/Game/Essential_Foosteps_SK/CUE/%s/Footstep_%s_%s%s_Cue.Footstep_%s_%s%s_Cue"),
 			SurfaceFolderName(S),
 			SurfaceFolderName(S),
 			SurfaceBootsInfix(S),
@@ -109,7 +124,7 @@ namespace QRUISound
 	{
 		static USoundBase* Cached = nullptr;
 		USoundBase* S = LazyLoadSound(
-			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Interface_1-1_Cue.Interface_1-1_Cue"), Cached);
+			TEXT("/Game/Free_Sounds_Pack/cue/Interface_1-1_Cue.Interface_1-1_Cue"), Cached);
 		if (S && WC) UGameplayStatics::PlaySound2D(WC, S);
 	}
 
@@ -117,7 +132,7 @@ namespace QRUISound
 	{
 		static USoundBase* Cached = nullptr;
 		USoundBase* S = LazyLoadSound(
-			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Cash_Register_1-2_Cue.Cash_Register_1-2_Cue"), Cached);
+			TEXT("/Game/Free_Sounds_Pack/cue/Cash_Register_1-2_Cue.Cash_Register_1-2_Cue"), Cached);
 		if (S && WC) UGameplayStatics::PlaySound2D(WC, S);
 	}
 
@@ -125,7 +140,7 @@ namespace QRUISound
 	{
 		static USoundBase* Cached = nullptr;
 		USoundBase* S = LazyLoadSound(
-			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Interface_3-3_Cue.Interface_3-3_Cue"), Cached);
+			TEXT("/Game/Free_Sounds_Pack/cue/Interface_3-3_Cue.Interface_3-3_Cue"), Cached);
 		if (S && WC) UGameplayStatics::PlaySound2D(WC, S);
 	}
 
@@ -135,7 +150,7 @@ namespace QRUISound
 		// Gunshot_1-1 is the cleanest generic shot in the pack; per-
 		// weapon SFX can be slotted on the component to override.
 		USoundBase* S = LazyLoadSound(
-			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Gunshot_1-1_Cue.Gunshot_1-1_Cue"), Cached);
+			TEXT("/Game/Free_Sounds_Pack/cue/Gunshot_1-1_Cue.Gunshot_1-1_Cue"), Cached);
 		if (S && WC)
 		{
 			UGameplayStatics::PlaySoundAtLocation(WC, S, Location, VolumeMult);
@@ -146,7 +161,7 @@ namespace QRUISound
 	{
 		static USoundBase* Cached = nullptr;
 		USoundBase* S = LazyLoadSound(
-			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Hit_Generic_2-1_Cue.Hit_Generic_2-1_Cue"), Cached);
+			TEXT("/Game/Free_Sounds_Pack/cue/Hit_Generic_2-1_Cue.Hit_Generic_2-1_Cue"), Cached);
 		if (S && WC)
 		{
 			UGameplayStatics::PlaySoundAtLocation(WC, S, Location, VolumeMult);
@@ -159,7 +174,7 @@ namespace QRUISound
 		// Creature_1-21 has a deep groan that reads as "downed humanoid"
 		// well enough as placeholder; replace per-faction later.
 		USoundBase* S = LazyLoadSound(
-			TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Creature_1-21_Cue.Creature_1-21_Cue"), Cached);
+			TEXT("/Game/Free_Sounds_Pack/cue/Creature_1-21_Cue.Creature_1-21_Cue"), Cached);
 		if (S && WC)
 		{
 			UGameplayStatics::PlaySoundAtLocation(WC, S, Location, VolumeMult);

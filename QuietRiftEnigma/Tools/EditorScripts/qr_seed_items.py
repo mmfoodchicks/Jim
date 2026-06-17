@@ -88,6 +88,11 @@ PREFIX_RULES = {
                             'container_carry_kg': 12.0, 'container_volume_l': 25.0}),
     'COS':  ('Clothing',   {'mass': 0.5,  'vol': 0.5,  'stack': 1}),
     'ANM':  ('Wildlife',   {'mass': 50.0, 'vol': 30.0, 'stack': 1}),
+    # v15 canonical species prefixes -- ANI_* prey / herbivores / mounts,
+    # PRD_* predators. Both file under Wildlife; predators get a higher
+    # default mass to reflect their larger / armored frames.
+    'ANI':  ('Wildlife',   {'mass': 50.0, 'vol': 30.0, 'stack': 1}),
+    'PRD':  ('Wildlife',   {'mass': 80.0, 'vol': 40.0, 'stack': 1}),
     'TRE':  ('Flora',      {'mass': 100.0,'vol': 60.0, 'stack': 1}),
     'PLT':  ('Flora',      {'mass': 0.5,  'vol': 0.5,  'stack': 10}),
     'REM':  ('Component',  {'mass': 1.0,  'vol': 0.5,  'stack': 5}),
@@ -99,7 +104,21 @@ PREFIX_RULES = {
     'TEC':  ('Component',  {'mass': 0.3,  'vol': 0.2,  'stack': 20}),
     'CON':  ('Resource',   {'mass': 0.4,  'vol': 0.3,  'stack': 50}),
     'MAT':  ('Resource',   {'mass': 0.2,  'vol': 0.1,  'stack': 100}),
+    # Equipment / kits / leadership tokens. EQP_ spans hand tools AND
+    # worn armor — _resolve_rule() refines worn items to Clothing by
+    # keyword. KIT_ and LDR_ categories are best-guess (a supply bundle
+    # and a leadership token) — adjust here if the design intends otherwise.
+    'EQP':  ('Tool',       {'mass': 1.5,  'vol': 1.0,  'stack': 1,  'durability': 250.0, 'footprint': (3, 1)}),
+    'KIT':  ('Resource',   {'mass': 3.0,  'vol': 2.5,  'stack': 1,  'footprint': (3, 2)}),
+    'LDR':  ('Component',  {'mass': 0.1,  'vol': 0.1,  'stack': 1}),
 }
+
+# EQP_ items that are worn armor rather than hand tools — routed to the
+# Clothing category by _resolve_rule(), since the bare EQP_ prefix can't
+# tell a hatchet from a vest.
+_EQP_WORN_KEYWORDS = ('VEST', 'JACKET', 'BARDING', 'ARMOR', 'UNDERLAYER')
+_EQP_WORN_RULE = ('Clothing', {'mass': 2.0, 'vol': 1.2, 'stack': 1,
+                               'durability': 150.0, 'footprint': (3, 2)})
 
 # Source folder → bucket name we use under /Game/Meshes and /Game/.../Items.
 FOLDER_TO_BUCKET = {
@@ -158,6 +177,23 @@ def _prefix_of(item_id):
     return m.group(1) if m else ''
 
 
+def _resolve_rule(item_id):
+    """Return (category, defaults) for an item id.
+
+    Handles the EQP_ prefix specially: equipment is a mixed bag — a
+    hatchet is a Tool, a leather vest is Clothing — and the bare prefix
+    can't tell them apart, so worn-armor keywords route to Clothing."""
+    prefix = _prefix_of(item_id)
+    rule = PREFIX_RULES.get(prefix)
+    if rule is None:
+        unreal.log_warning(
+            f"  no prefix rule for {item_id} — defaulting to Resource")
+        return ('Resource', {'mass': 0.5, 'vol': 0.3, 'stack': 10})
+    if prefix == 'EQP' and any(k in item_id for k in _EQP_WORN_KEYWORDS):
+        return _EQP_WORN_RULE
+    return rule
+
+
 # ── FBX import ─────────────────────────────────────────────────
 
 def _build_fbx_options():
@@ -174,6 +210,18 @@ def _build_fbx_options():
     sm_opts.set_editor_property('generate_lightmap_u_vs',          True)
     sm_opts.set_editor_property('auto_generate_collision',         True)
     sm_opts.set_editor_property('remove_degenerates',              True)
+    # Recompute normals + tangents from scratch on import so the procedural
+    # meshes never trip 'nearly zero tangents / bi-normals' warnings caused
+    # by thin primitives in the source FBX.
+    try:
+        sm_opts.set_editor_property('normal_import_method',
+                                    unreal.FBXNormalImportMethod.FBXNIM_COMPUTE_NORMALS)
+        sm_opts.set_editor_property('normal_generation_method',
+                                    unreal.FBXNormalGenerationMethod.MIKK_T_SPACE)
+    except Exception:
+        # Older UE Python builds may not expose these enums; the importer
+        # will fall back to its defaults, which still produce usable meshes.
+        pass
     return opts
 
 
@@ -321,13 +369,34 @@ def _destroy_icon_rig(rig):
 
 
 def _make_icon_render_target(size):
+    """Create a transparent render target. UE 5.x Python's snake_case
+    generator collapses 'Target2D' to 'target2d' (no underscore before
+    '2d'), so the method is unreal.RenderingLibrary.create_render_target2d
+    -- not the 'create_render_target_2d' my prior fix tried. The
+    KismetRenderingLibrary fallback handles UE installs where the
+    method moved.
+    """
     world = unreal.EditorLevelLibrary.get_editor_world()
-    return unreal.RenderingLibrary.create_render_target_2d(
-        world, size, size,
-        unreal.TextureRenderTargetFormat.RTF_RGBA8,
-        unreal.LinearColor(0.0, 0.0, 0.0, 0.0),
-        False  # auto_generate_mip_maps
-    )
+    method_names = ('create_render_target2d', 'create_render_target_2d')
+    class_names = ('RenderingLibrary', 'KismetRenderingLibrary')
+    for cls_name in class_names:
+        cls = getattr(unreal, cls_name, None)
+        if cls is None:
+            continue
+        for m_name in method_names:
+            fn = getattr(cls, m_name, None)
+            if fn is None:
+                continue
+            try:
+                return fn(
+                    world, size, size,
+                    unreal.TextureRenderTargetFormat.RTF_RGBA8,
+                    unreal.LinearColor(0.0, 0.0, 0.0, 0.0),
+                    False  # auto_generate_mip_maps
+                )
+            except Exception:
+                continue
+    return None
 
 
 def _capture_mesh_to_rt(mesh, rig, rt):
@@ -380,8 +449,18 @@ def _render_target_to_texture(rt, full_asset_path):
     # replaces rather than appends a numeric suffix.
     if unreal.EditorAssetLibrary.does_asset_exist(full_asset_path):
         unreal.EditorAssetLibrary.delete_asset(full_asset_path)
+    # Same library drift as create_render_target_2d: prefer KismetRenderingLibrary.
+    lib = None
+    for cls_name in ('KismetRenderingLibrary', 'RenderingLibrary'):
+        cls = getattr(unreal, cls_name, None)
+        if cls is not None and hasattr(cls, 'render_target_create_static_texture2d_editor_only'):
+            lib = cls
+            break
+    if lib is None:
+        unreal.log_warning(f"  RT→Texture2D skipped — no rendering library exposes the API on this UE version.")
+        return None
     try:
-        return unreal.RenderingLibrary.render_target_create_static_texture2d_editor_only(
+        return lib.render_target_create_static_texture2d_editor_only(
             rt, full_asset_path,
             unreal.TextureCompressionSettings.TC_EDITOR_ICON,
             unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS
@@ -406,6 +485,14 @@ def generate_icons(force=False, size=256, max_items=None):
 
     rig = _spawn_icon_rig()
     rt  = _make_icon_render_target(size)
+    if rt is None:
+        unreal.log_warning(
+            "qr_seed_items: icon generation skipped -- this UE version "
+            "doesn't expose create_render_target2d on RenderingLibrary "
+            "or KismetRenderingLibrary. Items were created without "
+            "icons; pass run(with_icons=False) to silence this branch.")
+        _destroy_icon_rig(rig)
+        return
 
     rendered = skipped = failed = 0
     total = len(asset_paths)
@@ -479,8 +566,8 @@ def generate_icons(force=False, size=256, max_items=None):
 
 # ── Main walker ────────────────────────────────────────────────
 
-def run(overwrite=False, rebuild_meshes=False, with_icons=True,
-        icon_size=256, max_items=None):
+def run(overwrite=False, rebuild_meshes=False, with_icons=False,
+        icon_size=256, max_items=None, only_folder=None):
     """Bulk-import FBXs and create UQRItemDefinitions.
 
     overwrite       — recreate item def assets even if they exist.
@@ -489,6 +576,9 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
                       by capturing each WorldMesh with a SceneCapture2D rig.
     icon_size       — square resolution for rendered icons.
     max_items       — cap how many to process (for dry-run testing).
+    only_folder     — restrict to a single subfolder of Content/Meshes/
+                      (e.g. 'wildlife'). Pass a string to filter, or a
+                      list/tuple of strings to allow several.
     """
     if not os.path.isdir(FBX_DISK_ROOT):
         unreal.log_error(f"FBX root not found: {FBX_DISK_ROOT}")
@@ -503,8 +593,14 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
     skipped_items    = 0
     failed           = 0
 
+    folder_filter = None
+    if only_folder is not None:
+        folder_filter = {only_folder} if isinstance(only_folder, str) else set(only_folder)
+
     discovered = []
     for folder_name in sorted(os.listdir(FBX_DISK_ROOT)):
+        if folder_filter is not None and folder_name not in folder_filter:
+            continue
         bucket = FOLDER_TO_BUCKET.get(folder_name)
         if bucket is None:
             continue
@@ -528,20 +624,20 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
     unreal.log(f"qr_seed_items: discovered {total} FBX files")
 
     for idx, (bucket, folder, mesh_name, item_id, fbx_path) in enumerate(discovered):
-        prefix = _prefix_of(item_id)
-        rule   = PREFIX_RULES.get(prefix)
-        if rule is None:
-            unreal.log_warning(f"  no prefix rule for {item_id} — defaulting to Resource")
-            rule = ('Resource', {'mass': 0.5, 'vol': 0.3, 'stack': 10})
+        rule = _resolve_rule(item_id)
 
         dest_pkg = f'{MESH_PKG_ROOT}/{bucket}'
         mesh_pkg_path = f'{dest_pkg}/{mesh_name}'
 
         # Step 1: import the mesh if needed.
-        if rebuild_meshes and unreal.EditorAssetLibrary.does_asset_exist(mesh_pkg_path):
-            unreal.EditorAssetLibrary.delete_asset(mesh_pkg_path)
-
-        if unreal.EditorAssetLibrary.does_asset_exist(mesh_pkg_path):
+        # With rebuild_meshes=True we go straight to _import_fbx (it sets
+        # replace_existing=True), because EditorAssetLibrary.delete_asset
+        # silently fails when an asset is referenced by an existing item
+        # def, leaving everything "skipped" -- the very bug the user hit.
+        # When rebuild_meshes is False, skip the import only if the mesh
+        # already exists.
+        asset_exists = unreal.EditorAssetLibrary.does_asset_exist(mesh_pkg_path)
+        if asset_exists and not rebuild_meshes:
             skipped_meshes += 1
         else:
             result = _import_fbx(fbx_path, dest_pkg, mesh_name, fbx_opts)
@@ -591,4 +687,10 @@ def run(overwrite=False, rebuild_meshes=False, with_icons=True,
 
 
 if __name__ == '__main__':
-    run()
+    # Console-variable controls — set any of these before exec()'ing
+    # this file to override the defaults without editing code:
+    #   QR_SEED_OVERWRITE = True    recreate item defs even if they exist
+    #                               (needed after a prefix-rule change)
+    #   QR_SEED_ICONS     = False   skip the SceneCapture2D icon pass
+    run(overwrite=globals().get("QR_SEED_OVERWRITE", False),
+        with_icons=globals().get("QR_SEED_ICONS", True))

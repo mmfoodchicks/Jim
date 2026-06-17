@@ -8,8 +8,11 @@ script stays focused on its generator functions only.
 import bpy
 import os
 
-# 1 blender unit = 100 UE units (cm). Keep matched across all category scripts.
-SCALE = 100.0
+# Blender scripts author geometry in metres (1 unit = 1 m). UE's FBX
+# importer already converts metres -> centimetres on import, so the FBX
+# export global_scale must be 1.0. A value of 100 here multiplied every
+# exported mesh by 100x — that was the giant-asset bug.
+SCALE = 1.0
 
 
 def clear_scene():
@@ -19,7 +22,13 @@ def clear_scene():
 
 
 def export_fbx(name, filepath):
-    """Export everything currently in the scene as a single FBX."""
+    """Export everything currently in the scene as a single FBX.
+
+    mesh_smooth_type='FACE' emits per-face smoothing groups, which UE's
+    Interchange importer asks for explicitly -- without it every imported
+    mesh logs a 'No smoothing group information was found' warning and
+    falls back to flat shading approximations.
+    """
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.export_scene.fbx(
@@ -30,6 +39,7 @@ def export_fbx(name, filepath):
         axis_forward='-Z',
         axis_up='Y',
         bake_space_transform=True,
+        mesh_smooth_type='FACE',
     )
     print(f"  Exported: {filepath}")
 

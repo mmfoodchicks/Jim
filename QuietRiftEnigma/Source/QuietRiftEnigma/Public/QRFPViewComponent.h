@@ -50,7 +50,7 @@ public:
 	// FOV while aiming down sights — narrower for zoom feel.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
 		meta = (ClampMin = "20", ClampMax = "90"))
-	float ADSFOV = 65.0f;
+	float ADSFOV = 45.0f;
 
 	// FOV when ADSing with a long-range scope equipped (~4× magnification).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
@@ -59,12 +59,24 @@ public:
 
 	// True while the held weapon carries a scope attachment. Set by
 	// AQRCharacter when the active hand-slot item changes. ADS while
-	// this is true uses ScopeFOV + shows the scope overlay widget.
+	// this is true uses ScopeFOV / ScopeZoomMultiplier + shows the scope
+	// overlay widget.
 	UPROPERTY(BlueprintReadOnly, Category = "FP View")
 	bool bScopeAvailable = false;
 
+	// Magnification multiplier for the currently-equipped scope. 1.0 is
+	// the baseline (uses ScopeFOV as-is); a 16× optic narrows further by
+	// dividing ScopeFOV by the multiplier above 4× (the v8 patch's 8X
+	// and 16X scopes). Set by AQRCharacter when the held weapon or its
+	// optic changes.
+	UPROPERTY(BlueprintReadOnly, Category = "FP View")
+	float ScopeZoomMultiplier = 1.0f;
+
 	UFUNCTION(BlueprintCallable, Category = "FP View")
 	void SetScopeAvailable(bool bHasScope);
+
+	UFUNCTION(BlueprintCallable, Category = "FP View")
+	void SetScopeZoomMultiplier(float Mult);
 
 	// How fast FOV interpolates between states (units = lerp speed; ~6 is snappy).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
@@ -86,31 +98,40 @@ public:
 	// Vertical bob amplitude in cm at full sprint speed.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|HeadBob",
 		meta = (ClampMin = "0", ClampMax = "5"))
-	float BobAmplitudeZ = 1.4f;
+	float BobAmplitudeZ = 0.9f;
 
 	// Lateral bob amplitude in cm.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|HeadBob",
 		meta = (ClampMin = "0", ClampMax = "5"))
-	float BobAmplitudeY = 0.8f;
+	float BobAmplitudeY = 0.5f;
 
-	// Bob frequency at full sprint speed (Hz).
+	// Bob frequency at full sprint speed (Hz). Slower than a real footstep
+	// rhythm so the camera doesn't read as "twitchy."
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|HeadBob",
 		meta = (ClampMin = "0.5", ClampMax = "8"))
-	float BobFrequency = 2.5f;
+	float BobFrequency = 1.4f;
 
 	// Disable bob entirely (e.g. cinematics).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View|HeadBob")
 	bool bHeadBobEnabled = true;
 
 	// ── ADS offset ────────────────────────────
-	// Local-space camera offset added when aiming. Lets you nudge the
-	// camera toward the held weapon's iron sight without moving the mesh.
+	// Local-space camera offset added when aiming. The Y/Z move the camera
+	// laterally and vertically onto the gun's sight line; X eases it
+	// slightly forward to read as "leaning into the scope." Tuned to
+	// match AQRCharacter::HeldItemBaseLocation = (38, 9, -14).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View")
-	FVector ADSCameraOffset = FVector(8.0f, 0.0f, -2.0f);
+	FVector ADSCameraOffset = FVector(8.0f, 9.0f, -2.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
 		meta = (ClampMin = "0.5", ClampMax = "30"))
 	float ADSInterpSpeed = 12.0f;
+
+	// Mouse-look multiplier while ADS'd. <1 = slower look (the usual FPS
+	// feel), 1 = no change. Composes with FOV-zoom turn slowdown.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FP View",
+		meta = (ClampMin = "0.05", ClampMax = "1.0"))
+	float ADSLookSensitivityMult = 0.5f;
 
 	// ── Lean ─────────────────────────────────
 	// Camera roll when fully leaned. Positive value = camera rolls toward
@@ -187,6 +208,9 @@ private:
 	// Target lean (-1..+1) set by input; CurrentLean is interpolated toward it.
 	float LeanInput = 0.0f;
 	float CurrentLean = 0.0f;
+
+	// Wall-clamp smoothing state (anti-shake) -- see TickComponent.
+	float SmoothedLeanClamp = 0.0f;
 
 	// Read bIsSprinting reflectively so we don't have a hard dep on AQRCharacter.
 	bool QueryIsSprinting() const;

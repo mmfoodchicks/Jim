@@ -45,14 +45,17 @@ public:
 	float MaxVolumeLiters = 60.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Inventory")
-	int32 MaxSlots = 30;
+	int32 MaxSlots = 4;   // pockets-only until a rig/pack is equipped
 
-	// Spatial grid dimensions for UI layout (W columns × H rows)
+	// Spatial grid dimensions for UI layout (W columns × H rows).
+	// Tarkov-style: the body is POCKETS ONLY (4×1). Real storage space
+	// comes from an equipped chest rig / backpack — without one, four
+	// pocket cells is all you carry. (Design call 2026-06-11.)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
-	int32 InventoryGridW = 6;
+	int32 InventoryGridW = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
-	int32 InventoryGridH = 5;
+	int32 InventoryGridH = 1;
 
 	// Sprint is blocked when CurrentWeightKg / MaxCarryWeightKg >= 0.85
 	// (enforced by owning character movement component)
@@ -67,6 +70,12 @@ public:
 	// Hand slot (currently equipped/held item — typically a weapon or tool)
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
 	TObjectPtr<UQRItemInstance> HandSlot = nullptr;
+
+	// Offhand slot -- shield, torch, secondary tool. Cleared whenever the
+	// primary HandSlot holds an item with bIsTwoHanded; TryEquipToOffhand
+	// rejects new items while the primary is two-handed.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
+	TObjectPtr<UQRItemInstance> OffhandSlot = nullptr;
 
 	// v1.17: Hands slot occupancy FSM, tracks bulk-item carry state separately from HandSlot ptr
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HandSlot, Category = "Inventory")
@@ -88,6 +97,19 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedContainers, Category = "Inventory|Equipment")
 	TObjectPtr<UQRItemInstance> EquippedBackpack = nullptr;
 
+	// ── Worn armour (Clothing category, no container payload) ──────
+	// Three dedicated slots that hold a single ARM_<METAL>_<SLOT> item
+	// each. They contribute to UQRSurvivalComponent::ArmourDamageReduction
+	// via AQRCharacter::RefreshArmour. Equip via TryEquipArmour.
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedArmour, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedHelm = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedArmour, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedChestArmour = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_EquippedArmour, Category = "Inventory|Equipment")
+	TObjectPtr<UQRItemInstance> EquippedLegsArmour = nullptr;
+
 	// Player's base STR-derived carry capacity, separate from the container bonus.
 	// MaxCarryWeightKg is recomputed as BaseCarryWeightKg + sum of container bonuses
 	// every time a container is equipped/unequipped or STR changes.
@@ -98,7 +120,7 @@ public:
 	float BaseVolumeLiters = 60.0f;
 
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Inventory")
-	int32 BaseSlots = 30;
+	int32 BaseSlots = 4;  // pockets
 
 	// ── Events ───────────────────────────────
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
@@ -133,6 +155,14 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
 	void ClearHandSlot();
 
+	// Offhand: shield / torch / secondary tool. Fails if the current primary
+	// HandSlot is two-handed -- caller should swap the primary first.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	bool TryEquipToOffhand(UQRItemInstance* Item);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	void ClearOffhand();
+
 	// Equip a chest rig or backpack. Item must have ContainerSlot != None.
 	// On success the slot is filled and capacity is recomputed; the item is
 	// removed from the flat Items array if it was sitting there. Returns:
@@ -150,6 +180,18 @@ public:
 	// somewhere (returned in OutRemovedContainer).
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
 	EQRInventoryResult TryUnequipContainer(EQRContainerSlotType Slot, UQRItemInstance*& OutRemovedContainer);
+
+	// Worn-armour slots: Helm / Chest / Legs. Equips a Clothing-category
+	// item whose id encodes the slot (ARM_<METAL>_HELM / CHEST / LEGS).
+	// Anything already in that slot returns to the body grid first.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
+	bool TryEquipArmour(UQRItemInstance* Item);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Equipment")
+	bool TryUnequipArmour(EQRArmourSlot Slot, UQRItemInstance*& OutRemoved);
+
+	UFUNCTION(BlueprintPure, Category = "Inventory|Equipment")
+	UQRItemInstance* GetEquippedArmour(EQRArmourSlot Slot) const;
 
 	// Read-only query — current container in a slot (null if empty).
 	UFUNCTION(BlueprintPure, Category = "Inventory|Equipment")
@@ -219,6 +261,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	float GetCurrentVolumeLiters() const;
 
+	// All currently-equipped instances (hand, offhand, 3 armour, rig, pack)
+	// in a flat list — the slots that live OUTSIDE Items[]. Used by weight
+	// accounting, save capture, and replication.
+	void GetEquippedInstances(TArray<UQRItemInstance*>& Out) const;
+
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	bool IsOverEncumbered() const;
 
@@ -242,10 +289,26 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	// UQRItemInstance is a plain UObject — without this, the replicated
+	// TObjectPtr properties arrive null on co-op clients because the
+	// instances themselves were never sent over the actor channel.
+	virtual bool ReplicateSubobjects(UActorChannel* Channel, FOutBunch* Bunch,
+		FReplicationFlags* RepFlags) override;
+
 private:
 	float SpoilAccumulatedHours = 0.0f;
 
+	// Put an instance that was living in an equip slot back into the flat
+	// Items array: clears its (now stale) grid placement so it can't overlap
+	// whatever was placed in those cells while it was equipped, then
+	// auto-places it fresh.
+	void ReturnInstanceToGrid(UQRItemInstance* Item);
+
 	UQRItemInstance* FindExistingStack(FName ItemId, int32 MaxStack) const;
+
+	// Internal helper: reference into the right EquippedHelm / Chest / Legs
+	// slot. Returns EquippedHelm for None (caller pre-checks).
+	TObjectPtr<UQRItemInstance>& _ArmourRef(EQRArmourSlot Slot);
 
 	UFUNCTION()
 	void OnRep_Items();
@@ -255,6 +318,9 @@ private:
 
 	UFUNCTION()
 	void OnRep_EquippedContainers();
+
+	UFUNCTION()
+	void OnRep_EquippedArmour();
 
 	// Recompute MaxCarryWeightKg / MaxVolumeLiters / MaxSlots from
 	// BaseCarryWeightKg + BaseVolumeLiters + BaseSlots plus the bonuses

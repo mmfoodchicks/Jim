@@ -9,8 +9,8 @@ UCX collision, LOD chain).
 Generates placeholder meshes for every variant of AQRRemnantStructure
 (EQRRemnantStructureType: SignalSpire, PowerCore, DataArchive,
 ResonanceChamber) and AQRRemnantArtifact (EQRRemnantArtifactType:
-DataShard, PowerCell, SignalFragment, MemoryCore). Sized for UE5
-import (1 UU = 1 cm).
+DataShard, PowerCell, SignalFragment, MemoryCore). Sized in metres
+(UE imports them as cm).
 
 Per-asset sockets:
     Structures:

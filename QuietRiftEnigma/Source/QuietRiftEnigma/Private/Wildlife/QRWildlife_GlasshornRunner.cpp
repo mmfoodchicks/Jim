@@ -13,6 +13,11 @@ AQRWildlife_GlasshornRunner::AQRWildlife_GlasshornRunner()
 	ThreatDetectionRadius = 3000.0f;
 	NoiseFactor        = 0.1f;
 
+	// Real-world size + attack tuning (small fleet gazelle-analogue)
+	BodyLengthMeters   = 1.3f;
+	BodyHeightMeters   = 1.0f;
+	AttackDamage       = 6.0f;
+
 	// Optics resource from horns + food
 	DeathDrops.Add({ FName("FOD_RUNNER_MEAT"),   2, 4, 1.0f });
 	DeathDrops.Add({ FName("MAT_GLASSHORN"),     1, 2, 0.85f }); // Optics crafting

@@ -211,8 +211,8 @@ def _spawn_floor():
     # checkerboard. Try a few well-known paths from Fab packs we have;
     # fall back silently if none are present.
     candidate_materials = [
-        "/Game/Fabs/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
-        "/Game/Fabs/ScifiJungle/Materials/M_Ground_Forest",
+        "/Game/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
+        "/Game/ScifiJungle/Materials/M_Ground_Forest",
         "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial",  # always available
     ]
     for path in candidate_materials:
@@ -235,20 +235,19 @@ def _spawn_starter_hills():
     import math
     for i in range(8):
         angle = (i / 8.0) * 2 * math.pi
-        dist  = 1500 + (i % 3) * 800   # 1500–3100 cm = 15–31 m
+        dist  = 1500 + (i % 3) * 800   # 15–31 m
         loc   = (math.cos(angle) * dist, math.sin(angle) * dist, -50)
         actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
             unreal.StaticMeshActor,
             unreal.Vector(*loc),
             unreal.Rotator(0, (i * 47) % 360, 0))
         if not actor: continue
-        # Wide + low boxes so they read as terrain mounds rather than walls.
         scale_xy = 4.0 + (i % 4) * 2.5
         scale_z  = 1.5 + (i % 3) * 0.8
         actor.set_actor_scale3d(unreal.Vector(scale_xy, scale_xy, scale_z))
         actor.static_mesh_component.set_static_mesh(cube_mesh)
         actor.set_actor_label("StarterHill_{}".format(i))
-    print("[maps]   placed 8 starter hill cubes (15–31 m radius)")
+    print("[maps]   placed 8 starter hill cubes (15-31 m radius)")
 
 
 def _spawn_scatter_with_biome():
