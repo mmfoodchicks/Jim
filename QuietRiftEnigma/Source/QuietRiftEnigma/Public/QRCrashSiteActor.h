@@ -71,9 +71,24 @@ public:
 	// inventory. Returns true if RequiredToolItemId is NAME_None (no
 	// gate) or the actor's inventory holds the required item. The
 	// successful unlock is one-shot -- subsequent calls just return
-	// true so re-entering the radius doesn't re-scatter loot.
+	// true so re-entering the radius doesn't re-scatter loot. On the
+	// FIRST successful unlock, the stashed PendingLootTemplate (set by
+	// the worldgen spawner for tool-gated sites) scatters its loot.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "QR|CrashSite")
 	bool TryUnlockWithInventory(class UQRInventoryComponent* Inventory);
+
+	// Loot held back until unlock. The spawner stashes the archetype's
+	// template + deterministic seed here for tool-gated sites instead of
+	// scattering immediately (an always-open site never uses these --
+	// the spawner populates it directly).
+	UPROPERTY()
+	FQRCrashLootTemplate PendingLootTemplate;
+
+	UPROPERTY()
+	int32 PendingLootSeed = 0;
+
+	UPROPERTY()
+	bool bHasPendingLoot = false;
 
 	// Populate this wreck by scattering AQRWorldItem actors for each
 	// loot template entry that passes its SpawnChance roll. Quantities

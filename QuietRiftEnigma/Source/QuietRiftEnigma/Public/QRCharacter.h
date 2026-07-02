@@ -18,6 +18,8 @@ class UStaticMeshComponent;
 class USpringArmComponent;
 class UInputMappingContext;
 class UInputAction;
+class UAnimSequence;
+class USkeletalMesh;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteract, AActor*, Target);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCrouchToggled);
@@ -73,6 +75,30 @@ public:
 	// static mesh is set from the item definition's WorldMesh.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Visuals")
 	TObjectPtr<UStaticMeshComponent> HeldItemMesh;
+
+	// ── Third-person body (co-op partners + own shadow) ───────────
+	// Assigned on BeginPlay when GetMesh() has no asset -- same soft-ptr
+	// convention as AQRNPCActor::DefaultSkeletalMesh, stamped by
+	// qr_assign_npc_appearance.py so player + villagers share the
+	// Mannequin.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visuals|ThirdPerson")
+	TSoftObjectPtr<USkeletalMesh> DefaultBodyMesh;
+
+	// Single-node locomotion set for the third-person body. Bypasses the
+	// empty ABP_QRPlayer state machine entirely: BeginPlay flips GetMesh()
+	// into AnimationSingleNode mode; Tick swaps sequences on velocity
+	// edges exactly like the NPC brain. Partners + shadow stop T-posing.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visuals|ThirdPerson")
+	TSoftObjectPtr<UAnimSequence> TPIdleAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visuals|ThirdPerson")
+	TSoftObjectPtr<UAnimSequence> TPWalkAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visuals|ThirdPerson")
+	TSoftObjectPtr<UAnimSequence> TPRunAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visuals|ThirdPerson")
+	TSoftObjectPtr<UAnimSequence> TPCrouchAnim;
 
 	// ── Input ─────────────────────────────────
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -496,6 +522,15 @@ private:
 	// to inventory OnInventoryChanged in BeginPlay.
 	UFUNCTION()
 	void RefreshHeldItemMesh();
+
+	// Third-person single-node anim: swap idle/walk/run/crouch on velocity
+	// edges. Token stops PlayAnimation restarting the current loop.
+	void TickThirdPersonAnim();
+	UPROPERTY()
+	TSoftObjectPtr<UAnimSequence> TPLastPlayed;
+
+	// One-line HUD toast (falls back to log while the widget side is BP).
+	void NotifyHUD(const FText& Message);
 
 	// Left-handed players: mirror the held mesh's position, rotation, and
 	// geometry (via negative Y scale) across the camera's XZ plane so the

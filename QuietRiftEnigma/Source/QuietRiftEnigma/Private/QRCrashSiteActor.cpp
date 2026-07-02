@@ -47,14 +47,21 @@ void AQRCrashSiteActor::ClearScatteredLoot()
 bool AQRCrashSiteActor::TryUnlockWithInventory(UQRInventoryComponent* Inventory)
 {
 	if (bUnlocked) return true;
-	if (RequiredToolItemId.IsNone())
+	if (!RequiredToolItemId.IsNone())
 	{
-		bUnlocked = true;
-		return true;
+		if (!Inventory) return false;
+		if (Inventory->CountItem(RequiredToolItemId) <= 0) return false;
 	}
-	if (!Inventory) return false;
-	if (Inventory->CountItem(RequiredToolItemId) <= 0) return false;
 	bUnlocked = true;
+
+	// First unlock scatters the held-back interior loot. The tool is a
+	// KEY, not a consumable -- breaching the armory with a cutting torch
+	// doesn't destroy the torch.
+	if (bHasPendingLoot)
+	{
+		bHasPendingLoot = false;
+		PopulateLoot(PendingLootTemplate, PendingLootSeed);
+	}
 	return true;
 }
 

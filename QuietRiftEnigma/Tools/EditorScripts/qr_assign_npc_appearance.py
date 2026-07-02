@@ -257,6 +257,29 @@ def run(mesh=None, idle=None, walk=None, run_=None,
     for t in targets:
         _stamp_class_v2(t, mesh_asset, anims)
 
+    # The PLAYER third-person body uses the same mesh + locomotion set
+    # via AQRCharacter's own slots (DefaultBodyMesh / TPIdle / TPWalk /
+    # TPRun). Co-op partners + the player's own shadow animate through
+    # single-node exactly like the villagers -- no AnimBP needed.
+    player_cls = unreal.load_object(None, "/Script/QuietRiftEnigma.QRCharacter")
+    if player_cls:
+        cdo = unreal.get_default_object(player_cls)
+        stamped = []
+        for prop, asset in (
+            ("default_body_mesh", mesh_asset),
+            ("tp_idle_anim",      anims.get("idle_anim")),
+            ("tp_walk_anim",      anims.get("walk_anim")),
+            ("tp_run_anim",       anims.get("run_anim")),
+        ):
+            if not asset:
+                continue
+            try:
+                cdo.set_editor_property(prop, asset)
+                stamped.append(prop)
+            except Exception as e:
+                print("[npc-skin]   {} skipped on QRCharacter: {}".format(prop, e))
+        print("[npc-skin]   {:<22s}: [{}]".format("QRCharacter", ", ".join(stamped)))
+
     print("[npc-skin] DONE -- new NPC spawns wear the assigned mesh + full anim set.")
     print("[npc-skin] Existing villagers in the level must be re-spawned")
     print("[npc-skin] (re-run qr_spawn_starter_village) to pick up the change.")

@@ -195,6 +195,10 @@ void AQRWorldGenSpawner::PopulateDefaultCrashTemplates()
 		T.Entries.Add(MakeEntry(TEXT("RAW_CIRCUIT_BOARD"),    5, 12, 0.95f));
 		T.Entries.Add(MakeEntry(TEXT("TOL_DECRYPT_SPIKE"),    1, 1, 0.65f));
 		T.Entries.Add(MakeEntry(TEXT("TOL_CUTTING_TORCH"),    1, 1, 0.55f));
+		// The medbay override key is LOOT-ONLY (no recipe, per the entry-
+		// tool design) and this hero crash is its guaranteed source --
+		// the command bridge is where the crew keys would be.
+		T.Entries.Add(MakeEntry(TEXT("TOL_MED_KEY"),           1, 1, 1.0f));
 		CrashLootTemplates.Add(TEXT("MajorCrash_CommandBridge"), T);
 	}
 	{
@@ -399,15 +403,24 @@ void AQRWorldGenSpawner::SpawnPOIs()
 					Crash->ArchetypeId        = P.ArchetypeId;
 					Crash->RequiredToolItemId = P.RequiredToolItemId;
 
+					const int32 LootSeed = Sub->WorldSeed
+						^ GetTypeHash(P.ArchetypeId)
+						^ GetTypeHash(P.WorldLocation.ToString());
+
 					// Major (unkeyed) crashes scatter their loot immediately
 					// -- they're the always-accessible hero locations. Tool-
-					// gated minor crashes wait for TryUnlockWithInventory.
+					// gated minor crashes stash the template + seed so
+					// TryUnlockWithInventory (F-interact with the right tool
+					// in the pack) scatters it on first unlock.
 					if (P.RequiredToolItemId.IsNone())
 					{
-						const int32 LootSeed = Sub->WorldSeed
-							^ GetTypeHash(P.ArchetypeId)
-							^ GetTypeHash(P.WorldLocation.ToString());
 						Crash->PopulateLoot(CrashLootTemplates[P.ArchetypeId], LootSeed);
+					}
+					else
+					{
+						Crash->PendingLootTemplate = CrashLootTemplates[P.ArchetypeId];
+						Crash->PendingLootSeed     = LootSeed;
+						Crash->bHasPendingLoot     = true;
 					}
 				}
 			}

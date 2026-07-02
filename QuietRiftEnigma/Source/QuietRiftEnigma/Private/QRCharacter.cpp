@@ -10,6 +10,10 @@
 #include "QRVaultComponent.h"
 #include "QRHotbarComponent.h"
 #include "QRWorldItem.h"
+#include "QRCrashSiteActor.h"
+#include "QRHUD.h"
+#include "Animation/AnimSequence.h"
+#include "Engine/SkeletalMesh.h"
 #include "QRWildlifeActor.h"
 #include "QRBuildModeComponent.h"
 #include "QRInputDefaults.h"
@@ -238,6 +242,30 @@ void AQRCharacter::BeginPlay()
 	RefreshHeldItemMesh();
 	RefreshArmour();
 
+	// Third-person body: assign the default mesh when the BP left the
+	// slot empty, then flip to single-node animation so partners + the
+	// player's own shadow get idle/walk/run instead of a T-pose. Only
+	// when no AnimBP is assigned -- a designer-authored ABP wins.
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		if (!Body->GetSkeletalMeshAsset() && !DefaultBodyMesh.IsNull())
+		{
+			if (USkeletalMesh* BodyMesh = DefaultBodyMesh.LoadSynchronous())
+			{
+				Body->SetSkeletalMesh(BodyMesh);
+			}
+		}
+		if (Body->GetSkeletalMeshAsset() && !Body->GetAnimClass())
+		{
+			Body->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+			if (UAnimSequence* Idle = TPIdleAnim.LoadSynchronous())
+			{
+				Body->PlayAnimation(Idle, /*bLooping*/ true);
+				TPLastPlayed = Idle;
+			}
+		}
+	}
+
 	// Spawn the runtime UI on the local player. Skip on dedicated server
 	// pawns and remote clients (each client makes its own).
 	APlayerController* LocalPC = Cast<APlayerController>(GetController());
@@ -324,6 +352,11 @@ void AQRCharacter::BeginPlay()
 void AQRCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Third-person locomotion loop (single-node) -- cheap velocity-edge
+	// swap, and only when the mesh is in single-node mode (an authored
+	// AnimBP owns the body otherwise).
+	TickThirdPersonAnim();
 
 	// Weapon recoil — decay the held-mesh kick back to its resting pose.
 	if (IsLocallyControlled() && HeldItemMesh &&
@@ -863,6 +896,46 @@ void AQRCharacter::Server_Interact_Implementation(AActor* Target)
 	{
 		WorldItem->TryPickup(this);
 	}
+
+	// Tool-gated crash site: F with the required tool in the pack breaches
+	// the interior and scatters its held-back loot. Without it, tell the
+	// player what they need (the tool is a key, not a consumable).
+	if (AQRCrashSiteActor* Crash = Cast<AQRCrashSiteActor>(Target))
+	{
+		const bool bWasUnlocked = Crash->bUnlocked;
+		if (Crash->TryUnlockWithInventory(Inventory))
+		{
+			if (!bWasUnlocked)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[QRCharacter] Breached crash site %s"),
+					*Crash->ArchetypeId.ToString());
+				NotifyHUD(FText::Format(
+					NSLOCTEXT("QR", "CrashUnlocked", "Breached {0} — interior accessible."),
+					FText::FromName(Crash->ArchetypeId)));
+			}
+		}
+		else
+		{
+			NotifyHUD(FText::Format(
+				NSLOCTEXT("QR", "CrashLocked", "Sealed. Requires: {0}"),
+				FText::FromName(Crash->RequiredToolItemId)));
+		}
+	}
+}
+
+void AQRCharacter::NotifyHUD(const FText& Message)
+{
+	// Route through AQRHUD::PushNotification when the HUD subclass is in
+	// use (BP implements the visual); always mirror to the log so the
+	// message is never silently lost while the widget side is unbuilt.
+	UE_LOG(LogTemp, Log, TEXT("[QR HUD] %s"), *Message.ToString());
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (AQRHUD* HUD = Cast<AQRHUD>(PC->GetHUD()))
+		{
+			HUD->PushNotification(Message, 5.0f, false);
+		}
+	}
 }
 
 void AQRCharacter::HandleJumpPressed()
@@ -1385,6 +1458,38 @@ void AQRCharacter::SetLeftHanded(bool bLeft)
 	if (bIsLeftHanded == bLeft) return;
 	bIsLeftHanded = bLeft;
 	RefreshHeldItemMesh();
+}
+
+void AQRCharacter::TickThirdPersonAnim()
+{
+	USkeletalMeshComponent* Body = GetMesh();
+	if (!Body || !Body->GetSkeletalMeshAsset()) return;
+	if (Body->GetAnimationMode() != EAnimationMode::AnimationSingleNode) return;
+
+	const float Speed = GetVelocity().Size2D();
+
+	// Pick by movement state; each slot falls back to the previous tier
+	// so a partially-authored set still animates.
+	TSoftObjectPtr<UAnimSequence> Want = TPIdleAnim;
+	if (bIsCrouched && !TPCrouchAnim.IsNull())
+	{
+		Want = TPCrouchAnim;
+	}
+	else if (Speed >= SprintSpeed * 0.75f && !TPRunAnim.IsNull())
+	{
+		Want = TPRunAnim;
+	}
+	else if (Speed >= 15.0f && !TPWalkAnim.IsNull())
+	{
+		Want = TPWalkAnim;
+	}
+
+	if (Want.IsNull() || Want == TPLastPlayed) return;
+	if (UAnimSequence* Seq = Want.LoadSynchronous())
+	{
+		Body->PlayAnimation(Seq, /*bLooping*/ true);
+		TPLastPlayed = Want;
+	}
 }
 
 void AQRCharacter::RefreshArmour()
