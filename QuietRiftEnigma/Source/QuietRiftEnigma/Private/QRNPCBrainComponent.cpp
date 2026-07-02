@@ -1,5 +1,6 @@
 #include "QRNPCBrainComponent.h"
 #include "QRCivilianReactionComponent.h"
+#include "QRRaidPartyAI.h"
 #include "QRGameMode.h"
 #include "GameFramework/Actor.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -31,6 +32,10 @@ void UQRNPCBrainComponent::BeginPlay()
 
 		Reaction = Owner->FindComponentByClass<UQRCivilianReactionComponent>();
 
+		// Raiders spawn as AQRNPCActor too -- if a raid FSM is attached
+		// the brain yields all movement to it (but keeps driving anims).
+		bYieldToRaidAI = Owner->FindComponentByClass<UQRRaidPartyAI>() != nullptr;
+
 		// Force the owner's skeletal mesh into single-node anim mode so
 		// PlayAnimation works without an AnimBP. If the mesh slot is
 		// empty (designer didn't pick one) we leave it alone -- the
@@ -57,6 +62,24 @@ void UQRNPCBrainComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	StateTimer += DeltaTime;
+	if (FlashTimeRemaining > 0.0f)
+	{
+		FlashTimeRemaining -= DeltaTime;
+		if (FlashTimeRemaining <= 0.0f)
+		{
+			// Overlay finished -- clear the token so the state loop
+			// re-selects and resumes its looping sequence.
+			LastPlayedAnim = nullptr;
+		}
+	}
+
+	// Raid FSM owns the body entirely; the brain only paints anims.
+	if (bYieldToRaidAI)
+	{
+		ApplyAnimForState(DeltaTime);
+		return;
+	}
+
 	ThinkAccumulator += DeltaTime;
 	if (ThinkAccumulator >= 0.5f)
 	{
@@ -73,6 +96,26 @@ void UQRNPCBrainComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		StepTowardTarget(DeltaTime);
 	}
 	ApplyAnimForState(DeltaTime);
+}
+
+
+void UQRNPCBrainComponent::FlashAnim(UAnimSequence* Seq, float DurationSec)
+{
+	if (!Seq) return;
+	USkeletalMeshComponent* SMC = CachedMesh.Get();
+	if (!SMC) return;
+	SMC->PlayAnimation(Seq, /*bLooping*/ false);
+	LastPlayedAnim = Seq;
+	FlashTimeRemaining = FMath::Max(0.1f, DurationSec);
+}
+
+
+void UQRNPCBrainComponent::FlashAttack()
+{
+	if (UAnimSequence* Seq = AttackAnim.LoadSynchronous())
+	{
+		FlashAnim(Seq, FMath::Max(0.5f, Seq->GetPlayLength()));
+	}
 }
 
 
@@ -96,6 +139,10 @@ void UQRNPCBrainComponent::ApplyAnimForState(float DeltaSeconds)
 	const FVector Now = Owner->GetActorLocation();
 	const float Speed = (Now - LastFrameLocation).Size2D() / DeltaSeconds;
 	LastFrameLocation = Now;
+
+	// A one-shot overlay (FlashAnim) owns the mesh until its countdown
+	// expires; swapping mid-swing would clip the attack pose.
+	if (FlashTimeRemaining > 0.0f) return;
 
 	// Resolve target anim from State + Speed. Each lookup falls back
 	// to a sensible parent so a sparsely-authored NPC still animates.
@@ -141,6 +188,16 @@ void UQRNPCBrainComponent::ApplyAnimForState(float DeltaSeconds)
 void UQRNPCBrainComponent::Think()
 {
 	if (!GetOwner()) return;
+
+	// Raid FSMs attach AFTER spawn (HandleRaidLaunched registers the
+	// component post-SpawnActor, i.e. post-BeginPlay), so the BeginPlay
+	// probe misses them. Re-probe at think rate until one shows up;
+	// raiders never lose the component, so this is a one-way latch.
+	if (!bYieldToRaidAI)
+	{
+		bYieldToRaidAI = GetOwner()->FindComponentByClass<UQRRaidPartyAI>() != nullptr;
+		if (bYieldToRaidAI) return;
+	}
 
 	// Yield to the civilian-reaction FSM whenever it's active.
 	if (UQRCivilianReactionComponent* R = Reaction.Get())

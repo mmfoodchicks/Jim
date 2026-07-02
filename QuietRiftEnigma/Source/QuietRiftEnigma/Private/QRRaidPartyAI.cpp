@@ -1,4 +1,5 @@
 #include "QRRaidPartyAI.h"
+#include "QRNPCBrainComponent.h"
 #include "QRSurvivalComponent.h"
 #include "QRFactionCamp.h"
 #include "QRCampSimComponent.h"
@@ -172,6 +173,12 @@ void UQRRaidPartyAI::TickComponent(float DeltaTime, ELevelTick TickType,
 		if (AttackTimer <= 0.0f)
 		{
 			AttackTimer = AttackInterval;
+			// Visual swing: the brain (dormant for movement while this
+			// FSM owns the body) still paints anims -- flash the melee.
+			if (UQRNPCBrainComponent* Brain = Owner->FindComponentByClass<UQRNPCBrainComponent>())
+			{
+				Brain->FlashAttack();
+			}
 			if (UQRSurvivalComponent* TSurv = T->FindComponentByClass<UQRSurvivalComponent>())
 			{
 				if (T->HasAuthority())

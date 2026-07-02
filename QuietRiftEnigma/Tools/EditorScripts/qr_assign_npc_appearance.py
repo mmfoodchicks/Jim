@@ -110,6 +110,38 @@ DEATH_CANDIDATES = [
     "/Game/QuietRift/Animations/FreeAnimsMix/A_AS_DyingFromWounds.A_AS_DyingFromWounds",
 ]
 
+# Melee swing -- UQRRaidPartyAI flashes this through the brain's
+# FlashAttack() on every attack tick. RamsterZ ships an H2H combat set
+# whose exact spellings vary, so after the fixed guesses miss we sweep
+# the unified pool by keyword instead of failing silently.
+ATTACK_CANDIDATES = [
+    "/Game/QuietRift/Animations/RamsterZ/A_H2H_Punch.A_H2H_Punch",
+    "/Game/QuietRift/Animations/RamsterZ/A_Punching.A_Punching",
+    "/Game/QuietRift/Animations/FreeAnimsMix/A_AS_Punch.A_AS_Punch",
+]
+
+ATTACK_KEYWORDS = ("punch", "jab", "hook", "swing", "attack", "kick", "h2h")
+
+
+def _find_anim_by_keyword(keywords, root="/Game/QuietRift/Animations"):
+    """First AnimSequence under root whose name contains a keyword.
+    Keyword order is preference order."""
+    registry = unreal.AssetRegistryHelpers.get_asset_registry()
+    assets = registry.get_assets_by_path(root, recursive=True)
+    for kw in keywords:
+        for ad in assets:
+            try:
+                if str(ad.asset_class_path.asset_name) != "AnimSequence":
+                    continue
+            except Exception:
+                continue
+            name = str(ad.asset_name).lower()
+            # 'idle' guard: A_H2H_Idle matches 'h2h' but is a stance, not a swing.
+            if kw in name and "idle" not in name:
+                return unreal.load_asset(
+                    "{}.{}".format(ad.package_name, ad.asset_name))
+    return None
+
 
 def _first_existing(candidates):
     for path in candidates:
@@ -219,16 +251,19 @@ def _stamp_class_v2(class_path, mesh, anims):
 
 
 def run(mesh=None, idle=None, walk=None, run_=None,
-        sleep=None, work=None, talk=None, death=None):
+        sleep=None, work=None, talk=None, death=None, attack=None):
     """Resolve a mesh + full anim set and stamp onto AQRNPCActor and
     AQRNPCColonist class defaults.
 
     Args (all optional soft-path overrides):
-      mesh, idle, walk, run_, sleep, work, talk, death
+      mesh, idle, walk, run_, sleep, work, talk, death, attack
     """
     print("\n=== qr_assign_npc_appearance ===")
 
     mesh_asset = _resolve_or(MESH_CANDIDATES, mesh)
+    attack_asset = _resolve_or(ATTACK_CANDIDATES, attack)
+    if not attack_asset:
+        attack_asset = _find_anim_by_keyword(ATTACK_KEYWORDS)
     anims = {
         "idle_anim":  _resolve_or(IDLE_CANDIDATES,  idle),
         "walk_anim":  _resolve_or(WALK_CANDIDATES,  walk),
@@ -237,6 +272,7 @@ def run(mesh=None, idle=None, walk=None, run_=None,
         "work_anim":  _resolve_or(WORK_CANDIDATES,  work),
         "talk_anim":  _resolve_or(TALK_CANDIDATES,  talk),
         "death_anim": _resolve_or(DEATH_CANDIDATES, death),
+        "attack_anim": attack_asset,
     }
 
     if not mesh_asset:

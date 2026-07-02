@@ -135,6 +135,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
 	TSoftObjectPtr<UAnimSequence> DeathAnim;
 
+	// Melee swing flashed by combat AI (raid party / guards).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation")
+	TSoftObjectPtr<UAnimSequence> AttackAnim;
+
+	// Play a one-shot on top of the state loop; the loop resumes after
+	// DurationSec. Combat AI calls this on attack swings.
+	UFUNCTION(BlueprintCallable, Category = "QR|NPC|Brain")
+	void FlashAnim(UAnimSequence* Seq, float DurationSec = 1.0f);
+
+	// Convenience: flash the assigned AttackAnim.
+	UFUNCTION(BlueprintCallable, Category = "QR|NPC|Brain")
+	void FlashAttack();
+
 	// Speed (cm/s) above which the brain swaps to WalkAnim. Hysteresis
 	// covered by ApplyAnimForVelocity only switching on state change.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC|Brain|Animation",
@@ -179,6 +192,16 @@ private:
 	// Flee/Fight/Hide so the brain just yields to it.
 	UPROPERTY()
 	TWeakObjectPtr<UQRCivilianReactionComponent> Reaction;
+
+	// True when the owner carries a UQRRaidPartyAI: raiders spawn as
+	// AQRNPCActor (which has this brain by default), and without this
+	// yield the brain's villager schedule would fight the raid FSM for
+	// the actor transform every frame. The brain stays dormant for
+	// movement but keeps driving anims (velocity-based walk/run).
+	bool bYieldToRaidAI = false;
+
+	// One-shot anim overlay countdown; state-loop swaps pause while > 0.
+	float FlashTimeRemaining = 0.0f;
 
 	// Cached on BeginPlay so the per-frame anim swap doesn't pay for a
 	// FindComponentByClass every tick.
