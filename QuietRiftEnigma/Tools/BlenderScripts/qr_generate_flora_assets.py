@@ -508,6 +508,196 @@ def gen_asterbark_tree():
                    lods=[0.50, 0.20], pivot="bottom_center")
 
 
+# ── Ground cover: shard grass (canon crystalline flora) ──────────────────────
+# World canon: leaves are prismatic cellulose with crystalline light-pipe
+# veins -- stained glass that photosynthesizes. The grass layer is thin
+# glassy blades with a faint emissive so dusk fields shimmer.
+
+def _h(i):
+    """Deterministic 0..1 hash -- same clump every regeneration."""
+    return (math.sin(i * 12.9898) * 43758.5453) % 1.0
+
+
+def _shard_grass(variant, blades, max_h, tint):
+    clear_scene()
+    blade_mat = _mat("Flora_ShardGrass_Blade", tint, roughness=0.25,
+                     emissive=(tint[0] * 0.4, tint[1] * 0.4, tint[2] * 0.4, 1.0))
+    root_mat = _mat("Flora_ShardGrass_Root", (0.30, 0.26, 0.20, 1.0),
+                    roughness=0.95)
+
+    # Low root tussock the blades sprout from.
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.10, segments=10,
+                                         ring_count=6, location=(0, 0, 0.02))
+    dome = bpy.context.active_object
+    dome.scale = (1.6, 1.6, 0.35)
+    bpy.ops.object.transform_apply(scale=True)
+    _add(dome, root_mat)
+
+    vi = {"A": 0, "B": 100, "C": 200}[variant]
+    for i in range(blades):
+        a = 2 * math.pi * _h(i * 3 + vi)
+        r = 0.03 + 0.11 * _h(i * 5 + vi + 1)
+        h = max_h * (0.55 + 0.45 * _h(i * 7 + vi + 2))
+        bpy.ops.mesh.primitive_cone_add(
+            radius1=0.010 + 0.006 * _h(i * 11 + vi + 3), radius2=0.0,
+            depth=h, vertices=5,
+            location=(math.cos(a) * r, math.sin(a) * r, h * 0.5))
+        blade = bpy.context.active_object
+        blade.rotation_euler = (math.sin(a) * 0.35 * _h(i + vi + 4),
+                                -math.cos(a) * 0.35 * _h(i + vi + 5), 0)
+        _add(blade, blade_mat)
+
+    # No collision: grass must never block the player or NavMesh.
+    finalize_asset("SM_PLT_SHARD_GRASS_{}".format(variant),
+                   bevel_width=0.0, smooth_angle_deg=40,
+                   collision="none", lods=[0.40], pivot="bottom_center")
+
+
+def gen_shard_grass_a():
+    _shard_grass("A", blades=14, max_h=0.42, tint=(0.45, 0.75, 0.55, 1.0))
+
+
+def gen_shard_grass_b():
+    _shard_grass("B", blades=10, max_h=0.30, tint=(0.40, 0.68, 0.66, 1.0))
+
+
+def gen_shard_grass_c():
+    _shard_grass("C", blades=18, max_h=0.55, tint=(0.55, 0.72, 0.45, 1.0))
+
+
+# ── The canon stained-glass tree ──────────────────────────────────────────────
+
+def gen_prismleaf_tree():
+    """SM_TRE_PRISMLEAF -- the Visual World Bible's signature tree: faceted
+    pale trunk with emissive light-pipe veins, canopy of flattened
+    prismatic shards in three glass tints. THE crystalline-flora read."""
+    clear_scene()
+    trunk_mat = _mat("Flora_Prismleaf_Trunk", (0.72, 0.70, 0.66, 1.0),
+                     roughness=0.55)
+    vein_mat = _mat("Flora_Prismleaf_Vein", (0.55, 0.85, 0.80, 1.0),
+                    roughness=0.20, emissive=(0.35, 0.80, 0.70, 1.0))
+    tints = [
+        _mat("Flora_Prismleaf_LeafCyan", (0.55, 0.85, 0.88, 1.0),
+             roughness=0.15, emissive=(0.20, 0.45, 0.48, 1.0)),
+        _mat("Flora_Prismleaf_LeafViolet", (0.70, 0.55, 0.88, 1.0),
+             roughness=0.15, emissive=(0.32, 0.20, 0.48, 1.0)),
+        _mat("Flora_Prismleaf_LeafGold", (0.90, 0.80, 0.50, 1.0),
+             roughness=0.15, emissive=(0.48, 0.38, 0.15, 1.0)),
+    ]
+
+    # Faceted trunk (7 sides reads crystalline at low poly).
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.22, depth=3.4, vertices=7,
+                                        location=(0, 0, 1.7))
+    _add(bpy.context.active_object, trunk_mat)
+    # Light-pipe veins: three thin strips up the trunk faces.
+    for i in range(3):
+        a = 2 * math.pi * i / 3
+        bpy.ops.mesh.primitive_cube_add(
+            size=1.0, location=(math.cos(a) * 0.225, math.sin(a) * 0.225, 1.6))
+        vein = bpy.context.active_object
+        vein.scale = (0.015, 0.03, 1.45)
+        vein.rotation_euler = (0, 0, a)
+        bpy.ops.object.transform_apply(scale=True, rotation=True)
+        _add(vein, vein_mat)
+    # Branches.
+    for i in range(4):
+        a = 2 * math.pi * i / 4 + 0.4
+        bpy.ops.mesh.primitive_cylinder_add(
+            radius=0.07, depth=1.3, vertices=6,
+            location=(math.cos(a) * 0.55, math.sin(a) * 0.55, 3.3))
+        br = bpy.context.active_object
+        br.rotation_euler = (math.sin(a) * 0.9, -math.cos(a) * 0.9, 0)
+        bpy.ops.object.transform_apply(rotation=True)
+        _add(br, trunk_mat)
+    # Prismatic shard canopy on a dome, golden-angle spacing.
+    shards = 14
+    for i in range(shards):
+        a = i * 2.399963
+        rad = 1.15 * math.sqrt((i + 0.5) / shards)
+        z = 3.9 + 0.9 * (1.0 - (rad / 1.15) ** 2)
+        bpy.ops.mesh.primitive_ico_sphere_add(
+            radius=0.42, subdivisions=1,
+            location=(math.cos(a) * rad, math.sin(a) * rad, z))
+        shard = bpy.context.active_object
+        shard.scale = (1.0, 0.85, 0.28)
+        shard.rotation_euler = (math.sin(a) * 0.5, math.cos(a) * 0.5, a)
+        bpy.ops.object.transform_apply(scale=True, rotation=True)
+        _add(shard, tints[i % 3])
+
+    add_socket("HarvestPoint", location=(0, 0, 1.2))
+    finalize_asset("SM_TRE_PRISMLEAF",
+                   bevel_width=0.003, bevel_angle_deg=30,
+                   smooth_angle_deg=25, collision="convex",
+                   lods=[0.50, 0.20], pivot="bottom_center")
+
+
+# ── Rocks & crystal spurs ─────────────────────────────────────────────────────
+
+def _boulder(variant, radius, squash, dark=False):
+    clear_scene()
+    rock_mat = get_or_create_material("DarkRock" if dark else "Rock",
+                                      (0.25, 0.24, 0.23, 1.0) if dark
+                                      else (0.42, 0.40, 0.38, 1.0),
+                                      roughness=0.95)
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=radius, subdivisions=2,
+                                          location=(0, 0, radius * squash * 0.75))
+    rock = bpy.context.active_object
+    rock.scale = (1.0, 0.85 + 0.3 * _h(variant), squash)
+    bpy.ops.object.transform_apply(scale=True)
+    # Deterministic lumpy displacement along normals.
+    for idx, v in enumerate(rock.data.vertices):
+        amp = radius * 0.16 * (_h(idx * 13 + variant * 7) - 0.5)
+        v.co += v.normal * amp
+    assign_material(rock, rock_mat)
+
+    finalize_asset("SM_RCK_BOULDER_{}".format("ABC"[variant]),
+                   bevel_width=0.0, smooth_angle_deg=35,
+                   collision="convex", lods=[0.40], pivot="bottom_center")
+
+
+def gen_boulder_a():
+    _boulder(0, radius=0.55, squash=0.75)
+
+
+def gen_boulder_b():
+    _boulder(1, radius=1.10, squash=0.65, dark=True)
+
+
+def gen_boulder_c():
+    _boulder(2, radius=1.80, squash=0.55)
+
+
+def gen_crystal_spur():
+    """Tilted cluster of mineral crystals -- the rocky-biome accent that
+    sells 'high mineral content' next to plain boulders."""
+    clear_scene()
+    spar = _mat("Flora_CrystalSpur_Spar", (0.62, 0.80, 0.86, 1.0),
+                roughness=0.12, emissive=(0.25, 0.55, 0.60, 1.0))
+    base = get_or_create_material("DarkRock", (0.25, 0.24, 0.23, 1.0),
+                                  roughness=0.95)
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=0.35, subdivisions=1,
+                                          location=(0, 0, 0.12))
+    b = bpy.context.active_object
+    b.scale = (1.3, 1.1, 0.4)
+    bpy.ops.object.transform_apply(scale=True)
+    assign_material(b, base)
+    for i in range(5):
+        a = 2 * math.pi * _h(i * 9 + 1)
+        r = 0.16 * _h(i * 5 + 2)
+        h = 0.5 + 0.8 * _h(i * 7 + 3)
+        bpy.ops.mesh.primitive_cone_add(radius1=0.09 + 0.05 * _h(i + 4),
+                                        radius2=0.015, depth=h, vertices=6,
+                                        location=(math.cos(a) * r,
+                                                  math.sin(a) * r, h * 0.45))
+        c = bpy.context.active_object
+        c.rotation_euler = (math.sin(a) * 0.35, -math.cos(a) * 0.35, a)
+        _add(c, spar)
+
+    finalize_asset("SM_RCK_CRYSTAL_SPUR",
+                   bevel_width=0.002, smooth_angle_deg=20,
+                   collision="convex", lods=[0.40], pivot="bottom_center")
+
+
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
 GENERATORS = {
@@ -517,10 +707,20 @@ GENERATORS = {
     "PLT_MAWCAP_BLOOM":   (gen_mawcap_bloom,    "Flora"),
     "PLT_CINDER_THORN":   (gen_cinder_thorn,    "Flora"),
     "PLT_IRONBRINE_CUPS": (gen_ironbrine_cups,  "Flora"),
+    # Ground cover (no collision -- pure dressing)
+    "PLT_SHARD_GRASS_A":  (gen_shard_grass_a,   "Flora"),
+    "PLT_SHARD_GRASS_B":  (gen_shard_grass_b,   "Flora"),
+    "PLT_SHARD_GRASS_C":  (gen_shard_grass_c,   "Flora"),
     # Trees
     "TRE_GLASSBARK":      (gen_glassbark_tree,  "Trees"),
     "TRE_SLAGROOT":       (gen_slagroot_tree,   "Trees"),
     "TRE_ASTERBARK":      (gen_asterbark_tree,  "Trees"),
+    "TRE_PRISMLEAF":      (gen_prismleaf_tree,  "Trees"),
+    # Rocks
+    "RCK_BOULDER_A":      (gen_boulder_a,       "Rocks"),
+    "RCK_BOULDER_B":      (gen_boulder_b,       "Rocks"),
+    "RCK_BOULDER_C":      (gen_boulder_c,       "Rocks"),
+    "RCK_CRYSTAL_SPUR":   (gen_crystal_spur,    "Rocks"),
 }
 
 

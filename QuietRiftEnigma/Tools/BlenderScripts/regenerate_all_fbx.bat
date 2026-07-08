@@ -72,6 +72,7 @@ set FAILED_SCRIPT=
 for %%S in (
     qr_generate_weapons_assets_assets.py
     qr_generate_wildlife_assets.py
+    qr_generate_wildlife_rigged.py
     qr_generate_flora_assets.py
     qr_generate_food_assets_assets.py
     qr_generate_items_handheld_assets.py

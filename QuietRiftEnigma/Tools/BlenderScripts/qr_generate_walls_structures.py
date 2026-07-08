@@ -503,6 +503,92 @@ def gen_ramp():
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
+# ── Camp furniture / utility placeables ──────────────────────────────────────
+
+def gen_storage_crate():
+    """1m plank crate with corner posts and steel strapping. The colony's
+    generic loose-storage placeable."""
+    clear_scene()
+    wood = palette_material("Wood")
+    dark = palette_material("DarkWood")
+    steel = palette_material("Steel")
+    _slab(0, 0, 0.45, 0.95, 0.95, 0.90, wood, "crate_body")
+    _slab(0, 0, 0.92, 1.02, 1.02, 0.06, dark, "crate_lid")
+    for sx in (-0.48, 0.48):
+        for sy in (-0.48, 0.48):
+            _slab(sx, sy, 0.45, 0.08, 0.08, 0.92, dark, "crate_post")
+    for z in (0.25, 0.70):
+        _slab(0, 0, z, 1.00, 1.00, 0.04, steel, "crate_strap")
+    finalize_asset("SM_BLD_STORAGE_CRATE",
+                   bevel_width=0.002, bevel_angle_deg=30,
+                   smooth_angle_deg=45, collision="box",
+                   lods=[0.50], pivot="bottom_center")
+
+
+def gen_defense_palisade():
+    """4m run of sharpened logs on a sill beam -- snaps like a wall."""
+    clear_scene()
+    wood = palette_material("Wood")
+    dark = palette_material("DarkWood")
+    _slab(0, 0, 0.15, 0.35, GRID, 0.30, dark, "palisade_sill")
+    n = 7
+    for i in range(n):
+        y = -GRID / 2 + GRID * (i + 0.5) / n
+        h = 2.4 + 0.25 * math.sin(i * 1.7)
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.16, depth=h, vertices=8,
+                                            location=(0, y, h / 2 + 0.1))
+        _add(bpy.context.active_object, wood)
+        bpy.ops.mesh.primitive_cone_add(radius1=0.16, radius2=0.0, depth=0.35,
+                                        vertices=8, location=(0, y, h + 0.27))
+        _add(bpy.context.active_object, dark)
+    add_socket("SnapLeft",  location=(0, -GRID / 2, 1.2))
+    add_socket("SnapRight", location=(0,  GRID / 2, 1.2))
+    finalize_asset("SM_BLD_DEFENSE_PALISADE",
+                   bevel_width=0.002, bevel_angle_deg=30,
+                   smooth_angle_deg=45, collision="box",
+                   lods=[0.50], pivot="bottom_center")
+
+
+def gen_lighting_torch():
+    """Standing camp torch: post, iron basket, ember head. The Ember slot
+    is emissive so it reads lit even before a light component is added;
+    the build system can attach a point light at SOCKET_FlamePoint."""
+    clear_scene()
+    wood = palette_material("DarkWood")
+    steel = palette_material("Steel")
+    ember = palette_material("Ember")
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.05, depth=1.6, vertices=8,
+                                        location=(0, 0, 0.8))
+    _add(bpy.context.active_object, wood)
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.14, depth=0.18, vertices=8,
+                                        location=(0, 0, 1.68))
+    _add(bpy.context.active_object, steel)
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=0.11, subdivisions=1,
+                                          location=(0, 0, 1.82))
+    _add(bpy.context.active_object, ember)
+    add_socket("FlamePoint", location=(0, 0, 1.85))
+    finalize_asset("SM_BLD_LIGHTING_TORCH",
+                   bevel_width=0.001, bevel_angle_deg=30,
+                   smooth_angle_deg=45, collision="box",
+                   lods=[0.50], pivot="bottom_center")
+
+
+def gen_decor_bench():
+    """Two-plank sitting bench on cross legs."""
+    clear_scene()
+    wood = palette_material("Wood")
+    dark = palette_material("DarkWood")
+    _slab(0, 0, 0.45, 0.40, 1.60, 0.06, wood, "bench_seat")
+    _slab(-0.22, 0, 0.62, 0.06, 1.60, 0.28, wood, "bench_back")
+    for sy in (-0.65, 0.65):
+        _slab(0, sy, 0.21, 0.34, 0.08, 0.42, dark, "bench_leg")
+    add_socket("SitPoint", location=(0.1, 0, 0.55))
+    finalize_asset("SM_BLD_DECOR_BENCH",
+                   bevel_width=0.002, bevel_angle_deg=30,
+                   smooth_angle_deg=45, collision="box",
+                   lods=[0.50], pivot="bottom_center")
+
+
 GENERATORS = {
     "BLD_FOUNDATION_SQUARE_WOOD":   gen_foundation_square_wood,
     "BLD_FOUNDATION_SQUARE_STONE":  gen_foundation_square_stone,
@@ -523,6 +609,12 @@ GENERATORS = {
     "BLD_PILLAR":                   gen_pillar,
     "BLD_STAIRS":                   gen_stairs,
     "BLD_RAMP":                     gen_ramp,
+    # Camp furniture / utility placeables -- fills the four catalog rows
+    # that previously had no mesh at all (crate, palisade, torch, bench).
+    "BLD_STORAGE_CRATE":            gen_storage_crate,
+    "BLD_DEFENSE_PALISADE":         gen_defense_palisade,
+    "BLD_LIGHTING_TORCH":           gen_lighting_torch,
+    "BLD_DECOR_BENCH":              gen_decor_bench,
 }
 
 
