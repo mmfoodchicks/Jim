@@ -56,11 +56,29 @@ void AQRProceduralScatterActor::Generate()
 
 	// Pull palette from BiomeProfile when set so the actor's inline
 	// Palette field can stay empty in the typical case.
-	const TArray<FQRScatterEntry>& EffectivePalette =
+	const TArray<FQRScatterEntry>* EffectivePalettePtr =
 		BiomeProfile && BiomeProfile->Palette.Num() > 0
-			? BiomeProfile->Palette
-			: Palette;
+			? &BiomeProfile->Palette
+			: &Palette;
 
+	// WorldGen mode swaps to the cell's mapped profile per placement, so
+	// an empty inline palette is the NORMAL configuration there -- the
+	// base only covers positions the subsystem can't resolve. Borrow the
+	// first mapped profile as that fallback; without this every worldgen
+	// tile dies on the empty-gate below and dresses nothing.
+	if (EffectivePalettePtr->Num() == 0 && bUseWorldGenSubsystem)
+	{
+		for (const TPair<FName, TObjectPtr<UQRBiomeProfile>>& Pair : BiomeProfileMap)
+		{
+			if (Pair.Value && Pair.Value->Palette.Num() > 0)
+			{
+				EffectivePalettePtr = &Pair.Value->Palette;
+				break;
+			}
+		}
+	}
+
+	const TArray<FQRScatterEntry>& EffectivePalette = *EffectivePalettePtr;
 	if (EffectivePalette.Num() == 0) return;
 
 	ClearGenerated();

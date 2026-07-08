@@ -729,6 +729,84 @@ def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
     print("[dress] DONE -- save the level to keep the dressing.")
 
 
+def enable_streaming(tile_m=500.0, ring=2, per_tile=350,
+                     clear_static=True, skip_biomes=False):
+    """Switch dressing from the static origin bubble to the runtime
+    AQRDressingStreamer: a (2*ring+1)^2 tile bubble that FOLLOWS the
+    player, so the full 64 km map reads dressed everywhere you can
+    walk while only ~9k instances are ever alive.
+
+    Args:
+      tile_m:       tile edge in meters (matches run_full's tiling).
+      ring:         tiles of dressing in every direction (2 -> 5x5).
+      per_tile:     HISM placements per tile.
+      clear_static: delete the static QR_Dress_Tile_* scatter grid --
+                    the streamer replaces it. Sky/terrain/crash decor
+                    are left alone.
+      skip_biomes:  skip qr_seed_biome_profiles (already seeded).
+    """
+    print("\n=== qr_world_dressing.enable_streaming ===")
+    world = _editor_world()
+    if not world:
+        print("[dress] no editor world -- open a map first")
+        return
+
+    streamer_cls = getattr(unreal, "QRDressingStreamer", None)
+    if streamer_cls is None:
+        print("[dress] QRDressingStreamer unavailable -- recompile C++ first")
+        return
+
+    if not skip_biomes:
+        _seed_biomes()
+    profile_map = _build_biome_profile_map()
+    if not profile_map:
+        print("[dress] no biome profiles loaded -- run qr_seed_biome_profiles first")
+        return
+
+    # The streamer's tiles resolve biomes through UQRWorldGenSubsystem,
+    # whose grid is per-world -- a PIE session starts with an EMPTY one.
+    # Auto-generate on BeginPlay closes that: same seed, same world.
+    seed = _ensure_worldgen_seed()
+    world_seed = 1337
+    if seed:
+        seed.set_editor_property("auto_generate_on_begin_play", True)
+        try:
+            world_seed = int(seed.get_editor_property("world_seed"))
+        except Exception:
+            pass
+
+    if clear_static:
+        removed = 0
+        for a in _level_actors():
+            if not a:
+                continue
+            try:
+                label = a.get_actor_label()
+            except Exception:
+                continue
+            if label and label.startswith(DRESS_LABEL_PREFIX + "Tile_"):
+                _destroy_actor(a)
+                removed += 1
+        if removed:
+            print("[dress] removed {} static scatter tiles "
+                  "(streamer takes over)".format(removed))
+
+    streamer = _ensure_singleton_actor(streamer_cls, "QR_DressingStreamer")
+    if not streamer:
+        print("[dress] streamer spawn failed")
+        return
+    streamer.set_editor_property("tile_size_cm", max(tile_m, 50.0) * 100.0)
+    streamer.set_editor_property("ring_radius_tiles", int(ring))
+    streamer.set_editor_property("instances_per_tile", int(per_tile))
+    streamer.set_editor_property("biome_profile_map", profile_map)
+    streamer.set_editor_property("world_seed", world_seed)
+
+    live = (2 * int(ring) + 1) ** 2 * int(per_tile)
+    print("[dress] streamer ready: {}x{} tile bubble, {} instances live "
+          "worst-case. Save the level, then PIE -- dressing follows the "
+          "player.".format(2 * int(ring) + 1, 2 * int(ring) + 1, live))
+
+
 def everything():
     """Fresh-checkout button: sky + nav + biomes + terrain + ground
     materials + four biome scatter zones + 8 colonist village. Use
