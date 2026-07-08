@@ -10,6 +10,8 @@ class UQRSurvivalComponent;
 class UBehaviorTree;
 class UAIPerceptionComponent;
 class UStaticMeshComponent;
+class USkeletalMesh;
+class UAnimSequence;
 
 // Drop entry when the animal is harvested/killed
 USTRUCT(BlueprintType)
@@ -132,6 +134,39 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual")
 	FString FallbackMeshPath;
 
+	// ── Skinned body + single-node animations (optional) ─────────
+	// When DefaultBodyMesh resolves, BeginPlay assigns it to GetMesh()
+	// (unless a designer already picked one) and -- if IdleAnim is also
+	// set -- drives Idle/Walk/Run swaps through AnimationSingleNode on a
+	// slow timer. Same no-AnimBP pattern the NPC brain uses; species
+	// with nothing configured here pay nothing and keep the shape-coded
+	// FallbackMesh placeholder.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual")
+	TSoftObjectPtr<USkeletalMesh> DefaultBodyMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual|Animation")
+	TSoftObjectPtr<UAnimSequence> IdleAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual|Animation")
+	TSoftObjectPtr<UAnimSequence> WalkAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual|Animation")
+	TSoftObjectPtr<UAnimSequence> RunAnim;
+
+	// Held (non-looping) when the animal dies. Falls back to the
+	// FallbackMesh topple when unset.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual|Animation")
+	TSoftObjectPtr<UAnimSequence> DeathAnim;
+
+	// Speed (cm/s) above which WalkAnim / RunAnim take over.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual|Animation",
+		meta = (ClampMin = "1", ClampMax = "500"))
+	float WalkAnimSpeedThreshold = 20.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Visual|Animation",
+		meta = (ClampMin = "50", ClampMax = "2000"))
+	float RunAnimSpeedThreshold = 450.0f;
+
 	// ── Attack (read by AQRWildlifeAIController) ──
 	// Damage applied per swing. Predators set this high; prey leave it
 	// low (only used if a prey species enters the Attacking state, e.g.
@@ -229,4 +264,15 @@ protected:
 	// traces register hits. Called from BeginPlay (must run after profile
 	// registration, otherwise the "Pawn" profile wipes the response).
 	void SetupHitCollision();
+
+	// Assigns DefaultBodyMesh into GetMesh() and starts the anim-swap
+	// timer when IdleAnim is configured. Runs FIRST in BeginPlay so
+	// ApplyBodySizing / SetupFallbackVisual see the real mesh.
+	void SetupSkinnedBody();
+
+	// 0.15s timer: velocity-driven Idle/Walk/Run single-node swap.
+	void TickAnimSwap();
+
+	FTimerHandle AnimSwapTimer;
+	TWeakObjectPtr<UAnimSequence> LastPlayedAnim;
 };

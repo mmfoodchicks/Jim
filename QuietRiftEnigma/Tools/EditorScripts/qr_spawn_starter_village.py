@@ -184,6 +184,24 @@ def run(count=8, radius_m=40.0, center=(0.0, 0.0)):
 
     print("[village] placed {} colonists around ({:.0f},{:.0f})".format(
         placed, center[0], center[1]))
+
+    # Colony dogs. The species class carries its own mesh + anims
+    # (German_Shepherd_3D_Model pack), so they walk out of the spawn
+    # skinned and animated with zero extra wiring.
+    dog_cls = getattr(unreal, "QRWildlife_ColonyDog", None)
+    if dog_cls:
+        dogs = max(1, count // 6)
+        for i in range(dogs):
+            angle = (i / float(dogs)) * 2.0 * math.pi + 0.4
+            x = center[0] + math.cos(angle) * radius_cm * 0.5
+            y = center[1] + math.sin(angle) * radius_cm * 0.5
+            dog = _spawn(dog_cls, unreal.Vector(x, y, 100.0))
+            if dog:
+                dog.set_actor_label("{}dog_{:02d}".format(VILLAGE_LABEL_PREFIX, i))
+        print("[village] released {} colony dog(s)".format(dogs))
+    else:
+        print("[village] QRWildlife_ColonyDog unavailable -- recompile C++ for dogs")
+
     print("[village] DONE -- save the level to keep them.")
 
 

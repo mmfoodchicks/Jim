@@ -97,7 +97,14 @@ PREFIX_KEYWORDS = {
 
 
 MESH_ROOT = "/Game/Meshes"
-FAB_ROOT  = "/Game/Fabs"
+# Since 2026-06-11 the Fab library lives at CONTENT ROOT (/Game/<Pack>);
+# /Game/Fabs holds only LED_Generator + StampIt. Scanning just the old
+# root left the material pool nearly empty, which is why re-runs of
+# this script stopped un-greying anything. Pack roots are discovered
+# at runtime so new packs join the pool without editing this file.
+FAB_LEGACY_ROOT = "/Game/Fabs"
+# Ours, not borrowed packs -- never source materials from these.
+FAB_EXCLUDE = {"QuietRift", "Meshes", "Maps", "Characters"}
 DEFAULT_FALLBACK_KEYWORD = "metal"  # if nothing else fits, give it a metal mat
 
 
@@ -111,18 +118,40 @@ def _scan_paths(paths):
         ar.scan_paths_synchronous([p], True)
 
 
-def _get_fab_materials():
-    """Return list of (object_path:str, lowercase_asset_name:str) for every
-    Material / MaterialInstanceConstant under /Game/."""
+def _fab_roots():
+    """Every content-root pack folder (post-migration layout), plus the
+    legacy /Game/Fabs remnant."""
+    ar = _asset_registry()
+    roots = []
+    try:
+        subs = ar.get_sub_paths("/Game", recurse=False) or []
+    except Exception:
+        subs = []
+    for p in subs:
+        s = str(p)
+        leaf = s.rsplit("/", 1)[-1]
+        if leaf in FAB_EXCLUDE or leaf.startswith("__"):
+            continue
+        roots.append(s)
+    if FAB_LEGACY_ROOT not in roots:
+        roots.append(FAB_LEGACY_ROOT)
+    return roots
+
+
+def _get_fab_materials(roots):
+    """Return sorted list of (object_path:str, lowercase_asset_name:str)
+    for every Material / MaterialInstanceConstant under the pack roots.
+    Sorted so re-runs pick the same material (deterministic matches)."""
     ar = _asset_registry()
     f = unreal.ARFilter(
         class_names=["Material", "MaterialInstanceConstant"],
-        package_paths=[FAB_ROOT],
+        package_paths=roots,
         recursive_paths=True,
     )
     out = []
     for ad in ar.get_assets(f):
         out.append((f"{ad.package_name}.{ad.asset_name}", str(ad.asset_name).lower()))
+    out.sort()
     return out
 
 
@@ -171,13 +200,15 @@ def run(dry_run=False, force=False):
     force   : overwrite slots even if they already have a non-default mat.
     """
     print("[fab-mat] scanning asset registry…")
-    _scan_paths([MESH_ROOT, FAB_ROOT])
-    fab_mats = _get_fab_materials()
+    roots = _fab_roots()
+    _scan_paths([MESH_ROOT] + roots)
+    fab_mats = _get_fab_materials(roots)
     meshes   = _get_game_meshes()
-    print("[fab-mat] {} Fab materials, {} game meshes".format(len(fab_mats), len(meshes)))
+    print("[fab-mat] {} Fab materials across {} pack roots, {} game meshes".format(
+        len(fab_mats), len(roots), len(meshes)))
 
     if not fab_mats:
-        print("[fab-mat] no Fab materials found under {} — aborting".format(FAB_ROOT))
+        print("[fab-mat] no Fab materials found — aborting")
         return
 
     # Cache prefix → chosen material path (single material per prefix, so

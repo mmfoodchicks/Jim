@@ -6,11 +6,14 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/DamageEvents.h"
+#include "Animation/AnimSequence.h"
 #include "AIController.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "TimerManager.h"
 
 AQRWildlifeBase::AQRWildlifeBase()
 {
@@ -74,6 +77,59 @@ void AQRWildlifeBase::SetupHitCollision()
 		FallbackMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 		FallbackMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	}
+}
+
+void AQRWildlifeBase::SetupSkinnedBody()
+{
+	USkeletalMeshComponent* SMC = GetMesh();
+	if (!SMC) return;
+
+	// Respect a designer-assigned mesh; only fill an empty slot.
+	if (!SMC->GetSkeletalMeshAsset())
+	{
+		if (USkeletalMesh* Body = DefaultBodyMesh.LoadSynchronous())
+		{
+			SMC->SetSkeletalMesh(Body);
+		}
+	}
+	if (!SMC->GetSkeletalMeshAsset()) return;   // still nothing -- placeholder path
+
+	// Single-node anims only when the species ships an idle and no
+	// designer AnimBP is in charge of the mesh.
+	UAnimSequence* Idle = IdleAnim.LoadSynchronous();
+	if (!Idle || SMC->GetAnimClass()) return;
+
+	SMC->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	SMC->PlayAnimation(Idle, /*bLooping*/ true);
+	LastPlayedAnim = Idle;
+
+	GetWorldTimerManager().SetTimer(AnimSwapTimer, this,
+		&AQRWildlifeBase::TickAnimSwap, 0.15f, /*bLoop*/ true);
+}
+
+void AQRWildlifeBase::TickAnimSwap()
+{
+	USkeletalMeshComponent* SMC = GetMesh();
+	if (!SMC || bIsDead) return;
+
+	const float Speed = GetVelocity().Size2D();
+	UAnimSequence* Want = nullptr;
+	if (Speed >= RunAnimSpeedThreshold)
+	{
+		Want = RunAnim.LoadSynchronous();
+	}
+	if (!Want && Speed >= WalkAnimSpeedThreshold)
+	{
+		Want = WalkAnim.LoadSynchronous();
+	}
+	if (!Want)
+	{
+		Want = IdleAnim.LoadSynchronous();
+	}
+	if (!Want || LastPlayedAnim.Get() == Want) return;
+
+	SMC->PlayAnimation(Want, /*bLooping*/ true);
+	LastPlayedAnim = Want;
 }
 
 void AQRWildlifeBase::ApplyBodySizing()
@@ -308,6 +364,9 @@ void AQRWildlifeBase::BeginPlay()
 	Super::BeginPlay();
 	CurrentHealth = MaxHealth;
 
+	// Assign the skinned body FIRST so the sizing / fallback / collision
+	// passes below all see the real mesh instead of the placeholder.
+	SetupSkinnedBody();
 	// Size the capsule + mesh to the species' real-world dimensions, and
 	// push the walk speed onto the movement component (subclass constructors
 	// set MoveSpeedWalk after the base constructor ran).
@@ -457,6 +516,19 @@ void AQRWildlifeBase::OnDied_Implementation(AActor* Killer)
 	{
 		Move->StopMovementImmediately();
 		Move->DisableMovement();
+	}
+
+	// Skinned species: stop the swap loop and hold the death pose.
+	GetWorldTimerManager().ClearTimer(AnimSwapTimer);
+	if (USkeletalMeshComponent* SMC = GetMesh())
+	{
+		if (SMC->GetSkeletalMeshAsset())
+		{
+			if (UAnimSequence* Death = DeathAnim.LoadSynchronous())
+			{
+				SMC->PlayAnimation(Death, /*bLooping*/ false);
+			}
+		}
 	}
 
 	// Topple the visible body. GetMesh() ragdolls only work if a real
