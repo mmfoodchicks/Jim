@@ -520,6 +520,7 @@ void AQRWildlifeBase::OnDied_Implementation(AActor* Killer)
 
 	// Skinned species: stop the swap loop and hold the death pose.
 	GetWorldTimerManager().ClearTimer(AnimSwapTimer);
+	bool bPlayedDeathAnim = false;
 	if (USkeletalMeshComponent* SMC = GetMesh())
 	{
 		if (SMC->GetSkeletalMeshAsset())
@@ -527,6 +528,7 @@ void AQRWildlifeBase::OnDied_Implementation(AActor* Killer)
 			if (UAnimSequence* Death = DeathAnim.LoadSynchronous())
 			{
 				SMC->PlayAnimation(Death, /*bLooping*/ false);
+				bPlayedDeathAnim = true;
 			}
 		}
 	}
@@ -546,12 +548,19 @@ void AQRWildlifeBase::OnDied_Implementation(AActor* Killer)
 		FallbackMesh->SetRelativeRotation(R);
 		FallbackMesh->AddLocalOffset(FVector(0.0f, 0.0f, -DropCm));
 	}
-	// Real skeletal mesh path -- ragdoll like before.
-	if (USkeletalMeshComponent* SkelComp = GetMesh())
+	// Real skeletal mesh path -- ragdoll, but only when no DeathAnim is
+	// holding the pose: SetSimulatePhysics takes the mesh out of
+	// animation-driven pose the same frame, so a configured death anim
+	// would never visibly play. Anim wins when authored; physics is the
+	// fallback for meshes that ship a PhysicsAsset but no death clip.
+	if (!bPlayedDeathAnim)
 	{
-		if (SkelComp->GetSkeletalMeshAsset())
+		if (USkeletalMeshComponent* SkelComp = GetMesh())
 		{
-			SkelComp->SetSimulatePhysics(true);
+			if (SkelComp->GetSkeletalMeshAsset())
+			{
+				SkelComp->SetSimulatePhysics(true);
+			}
 		}
 	}
 
