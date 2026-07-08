@@ -332,64 +332,58 @@ implementation-only detail:
 
 ---
 
-## N. The biggest open gaps — priority order (reconciled 2026-05-24)
+## N. The biggest open gaps — priority order (reconciled 2026-07-08)
 
-**Doc state warning:** The previous version of this section listed
-8 "missing" items, half of which actually exist in code per
-`SYSTEM_COHESION_AUDIT.md` and a fresh source survey. Items moved
-to "actually built" below; items still genuinely missing are
-re-ranked by impact on shipping.
+**Doc state warning:** reconciled twice — 2026-05-24 (survey) and
+2026-07-08 (this section had drifted behind CLAUDE.md: the 2026-06-11
+sprint closed items 2, 4-9 but only CLAUDE.md said so). CLAUDE.md's
+"Active priorities" mirrors this list; both move together.
 
 ### Genuinely missing (work to do, in priority order)
 
-1. **AI behavior trees** — 🟡 partial (2026-06-05). Wildlife now driven
-   by `AQRWildlifeAIController` (code-only FSM, 4Hz think, NavMesh
-   pathing via `MoveToLocation`) — covers Prey/Predator/Scavenger/
-   Ambient/Hazard role branching, herd alert on flee, predator prey
-   selection, attack swing cooldowns. Respects designer-supplied
-   `BehaviorTree` if one is later assigned. **Combat + physicality
-   wired (2026-06-05):** `AQRWildlifeBase` now configures walking
-   movement + gravity (animals conform to slopes instead of floating),
-   sizes its capsule + auto-fits its mesh from per-species
-   `BodyLength/HeightMeters` (Pillarback ~10 m … Fogleech ~0.4 m), and
-   bridges the engine damage pipeline into wildlife health via a
-   `TakeDamage` override. Predators deal per-species `AttackDamage`;
-   `AQRCharacter::TakeDamage` routes hits into the Survival component so
-   the player actually takes damage, and the weapon now damages
-   wildlife (was previously SurvivalComponent-only). **Still missing:**
-   NPC colony/leader BTs, mount panic & taming flow, herd-route data
-   driving (currently random wander around HomeLocation), predator
-   pressure-pull weighting between species.
-2. **Mission generator from `DT_ProceduralMissionTemplates`** — the
-   table + `UQRMissionDirector` exist, but the template-instantiator
-   with `MissionLocationFallbackRule` + `RewardSourceValidation` (the
-   GDD's No-Pocket-OP law) isn't wired.
-3. **Hauler / depot pull logic** — ✅ v1 closed (2026-06-11).
-   `UQRCraftingComponent::GetCurrentDemandItem` exposes the first
-   missing ingredient of the queue-head recipe; the hauler fetches
-   that instead of the old hardcoded `RAW_METAL_SCRAP`. Still open
-   for v2: `StorageDeficitMod` weighting across multiple stalled
-   stations (currently first-found wins).
-4. **Long-range optics + sniper (patch v8)** — `ATT_8X_SCOPE`,
-   `ATT_16X_SCOPE`, `WPN_LONGRANGE_SNIPER` not in attachments/weapons
-   code. `DT_ArmoryAttachments.csv` has rows; weapons module doesn't.
-5. **Cross-contamination crop mutation pipeline** — `ToxicSoil +
-   InfectedWater + SporeLoad + FarmerCrossContamScore` → mutated
-   cultivar is a core farming-gameplay loop, not in code.
-6. **Mount husbandry loop** — `BaseTameDays`, `P_tameFailPerDay`,
-   `CurrentStressPool` panic at 85, hazard barding. Wildlife actor
-   exists with mount tags; the taming/stress/panic loop does not.
-7. **Leader directive chains + Moral Compass** — 124 directives × 11
-   condition debuffs × `IssueEscalationScore` → side mission, plus
-   the vector-axis Camp Policy / defection / deserter splinter
-   faction emergence. Components exist; the directive flow doesn't.
-8. **Faction raid leader experience bands** —
-   Inexperienced/Competent/Veteran/Fanatic-Remnant altering raid AI
-   strategy. `DT_RaidExperienceTiers.csv` has rows; raid party AI
-   doesn't branch on them.
-9. **Civilian Fight mode no-op** — `UQRCivilianReactionComponent`
-   Fight state faces threat but doesn't fire. Wire weapon firing
-   when MilitiaKit is equipped.
+1. **AI behavior trees** — 🟡 partial, biggest chunk closed 2026-07-08.
+   Wildlife: `AQRWildlifeAIController` code-only FSM (4 Hz think,
+   NavMesh `MoveToLocation`, role branching, herd alert, per-species
+   sizing/gravity/damage — see 2026-06-05 notes in git history).
+   NPC villagers: `UQRNPCBrainComponent` wander/work/sleep/socialize
+   FSM + single-node anims (idle/walk/run/sleep/work/talk/death/attack).
+   **NEW 2026-07-08:** colonist JOB AI — farmers harvest/replant
+   `AQRFarmPlotActor` tiles + deposit to depots + feed husbandry
+   animals; guards patrol build-piece waypoint loops; medics triage +
+   heal the most-wounded survival component in range. Raiders: the
+   brain yields movement to `UQRRaidPartyAI` (lazy re-probe — the FSM
+   attaches post-spawn) while painting anims, and flashes the melee
+   swing (`FlashAttack`) on each attack tick. Wildlife can now carry
+   skinned bodies + single-node anims via `DefaultBodyMesh`/Idle/Walk/
+   Run/DeathAnim slots on `AQRWildlifeBase` (first user:
+   `AQRWildlife_ColonyDog`, fully skinned German Shepherd).
+   **Still missing:** leader-level BTs, herd-route data driving,
+   predator pressure-pull weighting, dog follow/guard behavior.
+2. **Mission generator + RewardSourceValidation** — ✅ closed 2026-06-11.
+   `InstantiateMission` runs the `MissionLocationFallbackRule` cascade;
+   `GrantRewards` enforces No-Pocket-OP per `EQRRewardSource`;
+   `UQRMissionHUDWidget` surfaces active missions.
+3. **Hauler / depot pull logic** — ✅ v1 closed 2026-06-11
+   (`GetCurrentDemandItem` drives demand). v2 open:
+   `StorageDeficitMod` weighting across multiple stalled stations.
+4. **Long-range optics + sniper (patch v8)** — ✅ closed 2026-06-11.
+   `WPN_LONGRANGE_SNIPER` in `ConfigureForWeaponId`;
+   `UQRFPViewComponent::ScopeZoomMultiplier` gives 8X/16X tiers.
+5. **Cross-contamination crop mutation** — ✅ closed 2026-06-11.
+   `AQRFarmPlotActor` runs `UQRMath::CrossContamExposure` per grow
+   cycle, branches yield to `MUT_<original>`, propagates SporeLoad.
+   2026-07-08: farmer NPCs now actually drive the loop (harvest/replant).
+6. **Mount husbandry loop** — ✅ closed 2026-06-11.
+   `UQRMountHusbandryComponent` (BaseTameDays, stress pool, panic);
+   Courser + Dray subclassed. 2026-07-08: farmer NPCs FeedOrPet daily.
+7. **Leader directive chains + Moral Compass** — ✅ closed 2026-06-11
+   (chain side): `OnQuestIssued` fires at Escalating→QuestIssued;
+   `IssueDirectiveMission` materializes a family-matched mission.
+8. **Faction raid experience bands** — ✅ closed 2026-06-11.
+   `FQRRaidPlan::Experience` via `DetermineRaidTier`; raid AI restamps
+   perception/speed/damage/retreat per tier.
+9. **Civilian Fight mode** — ✅ closed 2026-06-11. Fight state
+   acquires nearest live raider, fires on `FireIntervalSeconds`.
 10. **Codex save persistence** — 🟡 partial (2026-06-11). Save v2
     persists `UQRResearchComponent` state (tech nodes, micro-research,
     `CodexStates`) via `FQRSaveSnapshot`. Still missing: the game-
@@ -402,25 +396,31 @@ re-ranked by impact on shipping.
     Standard UE replication is used; no transaction-ID layer yet.
 12. **Programmatic Landscape import** — heightmap/weightmap bake to
     disk; importing into a Landscape actor is still editor-assisted.
-13. **World partition streaming + chunk delta saves** — chunk save
-    struct defined, no streaming integration.
+13. **World partition streaming + chunk delta saves** — 🟡 the VISUAL
+    side is addressed 2026-07-08 by `AQRDressingStreamer` (a moving
+    (2R+1)² scatter-tile bubble that follows the player, one tile per
+    0.25 s, deterministic per-tile seeds — the whole 64 km map reads
+    dressed at ~9k live instances). True World Partition actor
+    streaming + chunk delta SAVES remain open.
 
 ### Build-blockers (urgent — gameplay fails without these)
 
 - **No NavMesh on any test level** — AI components exist but can't
   path. Manual editor task: drop `NavMeshBoundsVolume` on
   `L_DevTest`. Now scriptable via `qr_dev_test_dressup.py`.
-- **AnimBP state machine empty** — `ABP_QRPlayer` exists but its
-  Locomotion graph is empty; player T-poses. Manual graph authoring
-  is required (Python can't fully author UE state-machine node
-  graphs); helper script wires the asset variables and locomotion
-  anims so the manual step is "just plug them in."
-- **Buildable + looted-container persistence has no save/load glue**
-  — `FQRBuildableSaveData` defined, never written. C++ change of
-  ~1-2 days; built bases vanish on reload without it.
+- **AnimBP state machine empty** — deferred 2026-06-05 and largely
+  moot since 2026-07-02: the game is first-person (own body hidden via
+  `OwnerNoSee`) and the third-person body + all NPCs/wildlife now
+  animate through single-node `PlayAnimation` (no AnimBP needed).
+  Revisit only if co-op testing shows the TP body needs blending.
+- ~~Buildable + looted-container save/load glue~~ — ✅ closed
+  2026-06-11 (`UQRBuildModeComponent::RestoreFromSave` +
+  `LootedContainerIds`).
 - **DataTable rows seeded but empty** — `DT_BuildCatalog`,
   `DT_Recipes`, `DT_NPC_Greetings`, `DT_LootTables`. Now bulk-seeded
-  by `qr_seed_starter_datatables.py`.
+  by `qr_seed_starter_datatables.py`. **User note 2026-06:** CSVs may
+  not be IMPORTED into the editor yet — run `qr_import_datatables.py`
+  then reimport in UE.
 
 ### Already built (no longer count as gaps — fix the prior priority list)
 

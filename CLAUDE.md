@@ -289,7 +289,7 @@ missing-include or signature mismatches fixable in one edit each.
 
 ---
 
-## Active priorities (reconciled 2026-05-24)
+## Active priorities (reconciled 2026-07-08)
 
 **Maintenance rule:** when a big gap closes, update this list AND
 `GDD_IMPLEMENTATION_STATUS.md` §N in the same commit. The previous
@@ -300,20 +300,23 @@ docs must move together.
 Genuinely-missing gaps, in priority order (see §N of
 `GDD_IMPLEMENTATION_STATUS.md` for the full reconciled audit):
 
-1. **AI behavior trees** — 🟡 partial (2026-06-05). Wildlife now driven
-   by `AQRWildlifeAIController` — code-only FSM, 4Hz think, NavMesh
-   `MoveToLocation` pathing. Predator/Prey/Scavenger/Ambient/Hazard
-   role branching + herd alert on flee + attack swing cooldowns are
-   in. Still missing: NPC colony/leader BTs, mount taming/stress/
-   panic loop, herd-route data driving (currently random wander),
-   predator pressure-pull weighting between species. Wildlife BT
-   asset can still be authored later — controller no-ops while a
-   designer-assigned BT runs. **2026-06-05:** wildlife now have
-   gravity/slope-conforming movement, per-species real-world sizing
-   (capsule + auto-fit mesh from `BodyLength/HeightMeters`), and a
-   working two-way damage exchange (predators hurt the player via
-   `AQRCharacter::TakeDamage`→Survival; player weapon + engine damage
-   hurt wildlife via `AQRWildlifeBase::TakeDamage`).
+1. **AI behavior trees** — 🟡 mostly closed 2026-07-08. Wildlife:
+   `AQRWildlifeAIController` code-only FSM (4Hz think, NavMesh pathing,
+   role branching, herd alert, per-species sizing/gravity/two-way
+   damage — 2026-06-05). **NPC job AI (2026-07-08):** colonists execute
+   their roles — farmers harvest/replant `AQRFarmPlotActor` tiles,
+   deposit yield to depots, feed husbandry animals (gated on
+   `FeedIntervalHours`); guards patrol build-piece waypoint loops;
+   medics triage + heal the most-wounded in claim range. Raiders: the
+   villager brain yields movement to `UQRRaidPartyAI` (lazy re-probe —
+   the FSM attaches post-spawn) while still painting anims; melee
+   swings flash via `UQRNPCBrainComponent::FlashAttack`. Wildlife can
+   carry skinned bodies + single-node anims (`DefaultBodyMesh` +
+   Idle/Walk/Run/DeathAnim slots on `AQRWildlifeBase`); first user is
+   `AQRWildlife_ColonyDog` — a fully skinned German Shepherd spawned
+   with the starter village (`qr_spawn_starter_village.run()`).
+   Still missing: leader-level BTs, herd-route data driving, predator
+   pressure-pull weighting, dog follow/guard behavior.
 2. **Mission generator + RewardSourceValidation** — ✅ closed 2026-06-11.
    `InstantiateMission` builds live instances with the
    `MissionLocationFallbackRule` cascade; `GrantRewards` enforces the
@@ -350,7 +353,14 @@ Genuinely-missing gaps, in priority order (see §N of
     module `UQRCodexSubsystem::Entries` map still doesn't.
 11. **Co-op transaction-ID safety net.**
 12. **Programmatic Landscape import.**
-13. **World partition streaming + chunk delta saves.**
+13. **World partition streaming + chunk delta saves** — 🟡 visual side
+    closed 2026-07-08: `AQRDressingStreamer` maintains a moving
+    scatter-tile bubble around the player (one tile per 0.25s,
+    deterministic per-tile seeds), so the full 64km map reads dressed
+    at ~9k live instances. Enable with
+    `qr_world_dressing.enable_streaming()` (also fixes the worldgen
+    tiles' empty-palette early-return that made `run_full` tiles spawn
+    nothing). Actor streaming + chunk delta saves still open.
 
 Build-blockers (urgent — gameplay fails without these):
 - NavMesh on `L_DevTest` (now scriptable via `qr_dev_test_dressup.py`).
