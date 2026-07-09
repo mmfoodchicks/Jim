@@ -200,8 +200,11 @@ def _build_fbx_options():
     opts = unreal.FbxImportUI()
     opts.set_editor_property('import_mesh',          True)
     opts.set_editor_property('import_as_skeletal',   False)
-    opts.set_editor_property('import_materials',     False)
-    opts.set_editor_property('import_textures',      False)
+    # The photoreal overhaul bakes PBR maps and EMBEDS them in each FBX
+    # -- importing materials+textures lets UE rebuild the textured
+    # material automatically (was False in the flat-color era).
+    opts.set_editor_property('import_materials',     True)
+    opts.set_editor_property('import_textures',      True)
     opts.set_editor_property('import_animations',    False)
     opts.set_editor_property('create_physics_asset', False)
     opts.set_editor_property('mesh_type_to_import',  unreal.FBXImportType.FBXIT_STATIC_MESH)

@@ -210,9 +210,14 @@ def _spawn_floor():
     # Assign a ground-ish material so the floor isn't an untextured grey
     # checkerboard. Try a few well-known paths from Fab packs we have;
     # fall back silently if none are present.
+    # NOTE: the two original entries here (M_AutoLandscape_Master,
+    # M_Ground_Forest) never existed in the packs as uploaded -- both
+    # failed to load and every dev floor fell through to the engine
+    # checkerboard. These paths are verified on disk.
     candidate_materials = [
-        "/Game/MWLandscapeAutoMaterial/Materials/M_AutoLandscape_Master",
-        "/Game/ScifiJungle/Materials/M_Ground_Forest",
+        "/Game/ScifiJungle/Materials/Nature/Ground/MI_Soil_Jungle",
+        "/Game/MWLandscapeAutoMaterial/Materials/Landscape/MTL_MWAM_Landscape_IslandExample",
+        "/Game/ROCKY_SAND_PACK/materials/M_LANDSCAPE",
         "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial",  # always available
     ]
     for path in candidate_materials:

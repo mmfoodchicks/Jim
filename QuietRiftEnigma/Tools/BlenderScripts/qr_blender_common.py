@@ -21,16 +21,22 @@ def clear_scene():
     bpy.ops.object.delete()
 
 
-def export_fbx(name, filepath):
+def export_fbx(name, filepath, embed_textures=False):
     """Export everything currently in the scene as a single FBX.
 
     mesh_smooth_type='FACE' emits per-face smoothing groups, which UE's
     Interchange importer asks for explicitly -- without it every imported
     mesh logs a 'No smoothing group information was found' warning and
     falls back to flat shading approximations.
+
+    embed_textures=True packs image-texture files into the FBX so UE's
+    importer rebuilds the textured material (photoreal baked assets).
     """
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     bpy.ops.object.select_all(action='SELECT')
+    kwargs = {}
+    if embed_textures:
+        kwargs = dict(path_mode='COPY', embed_textures=True)
     bpy.ops.export_scene.fbx(
         filepath=filepath,
         use_selection=True,
@@ -40,6 +46,7 @@ def export_fbx(name, filepath):
         axis_up='Y',
         bake_space_transform=True,
         mesh_smooth_type='FACE',
+        **kwargs,
     )
     print(f"  Exported: {filepath}")
 

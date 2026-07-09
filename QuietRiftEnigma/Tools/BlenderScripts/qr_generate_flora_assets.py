@@ -508,151 +508,306 @@ def gen_asterbark_tree():
                    lods=[0.50, 0.20], pivot="bottom_center")
 
 
-# ── Ground cover: shard grass (canon crystalline flora) ──────────────────────
-# World canon: leaves are prismatic cellulose with crystalline light-pipe
-# veins -- stained glass that photosynthesizes. The grass layer is thin
-# glassy blades with a faint emissive so dusk fields shimmer.
+# ── Photoreal layer (2026-07-09 overhaul) ────────────────────────────────────
+# Trees are rebuilt the way real games build them: bark-displaced trunk
+# geometry + alpha-card canopies using a baked leaf-cluster texture.
+# The procedural PBR shading is baked to PNG maps and embedded in the
+# FBX, so UE imports fully textured materials. Verified by rendering
+# in-container before commit.
+
+from qr_blender_photoreal import (  # noqa: E402
+    pbr_material, refine, bake_pbr, _n,
+)
+
 
 def _h(i):
-    """Deterministic 0..1 hash -- same clump every regeneration."""
+    """Deterministic 0..1 hash -- same asset every regeneration."""
     return (math.sin(i * 12.9898) * 43758.5453) % 1.0
 
 
-def _shard_grass(variant, blades, max_h, tint):
+TEX_DIR = os.path.join(OUTPUT_DIR, "Textures")
+
+
+def _leaf_card_texture(name, dark, mid, bright, blades=False, seed=0):
+    """Bake a flat-albedo leaf/blade cluster card with alpha to
+    TEX_DIR/T_<name>_CARD.png and return the path. Rendered with an
+    emission shader so the PNG is pure albedo (no lighting/specular)."""
+    os.makedirs(TEX_DIR, exist_ok=True)
+    out = os.path.join(TEX_DIR, "T_{}_CARD.png".format(name))
+
     clear_scene()
-    blade_mat = _mat("Flora_ShardGrass_Blade", tint, roughness=0.25,
-                     emissive=(tint[0] * 0.4, tint[1] * 0.4, tint[2] * 0.4, 1.0))
-    root_mat = _mat("Flora_ShardGrass_Root", (0.30, 0.26, 0.20, 1.0),
-                    roughness=0.95)
+    mat = bpy.data.materials.new("QR_CardCapture_" + name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    for n in list(nt.nodes):
+        nt.nodes.remove(n)
+    outn = nt.nodes.new("ShaderNodeOutputMaterial")
+    em = nt.nodes.new("ShaderNodeEmission")
+    coord = nt.nodes.new("ShaderNodeTexCoord")
+    grad = nt.nodes.new("ShaderNodeTexGradient")
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    e = ramp.color_ramp.elements
+    e[0].position, e[0].color = 0.0, dark + (1.0,)
+    e[1].position, e[1].color = 1.0, bright + (1.0,)
+    mid_e = ramp.color_ramp.elements.new(0.5)
+    mid_e.color = mid + (1.0,)
+    nt.links.new(coord.outputs["Object"], grad.inputs["Vector"])
+    nt.links.new(grad.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], em.inputs["Color"])
+    em.inputs["Strength"].default_value = 1.0
+    nt.links.new(em.outputs["Emission"], outn.inputs["Surface"])
 
-    # Low root tussock the blades sprout from.
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.10, segments=10,
-                                         ring_count=6, location=(0, 0, 0.02))
-    dome = bpy.context.active_object
-    dome.scale = (1.6, 1.6, 0.35)
-    bpy.ops.object.transform_apply(scale=True)
-    _add(dome, root_mat)
-
-    vi = {"A": 0, "B": 100, "C": 200}[variant]
-    for i in range(blades):
-        a = 2 * math.pi * _h(i * 3 + vi)
-        r = 0.03 + 0.11 * _h(i * 5 + vi + 1)
-        h = max_h * (0.55 + 0.45 * _h(i * 7 + vi + 2))
+    count = 34 if blades else 30
+    for i in range(count):
+        a = (i / float(count)) * 2 * math.pi
+        r = 0.10 + 0.42 * _h(i * 7 + seed + 1)
+        L = (0.55 if blades else 0.30) + 0.26 * _h(i * 11 + seed + 2)
         bpy.ops.mesh.primitive_cone_add(
-            radius1=0.010 + 0.006 * _h(i * 11 + vi + 3), radius2=0.0,
-            depth=h, vertices=5,
-            location=(math.cos(a) * r, math.sin(a) * r, h * 0.5))
-        blade = bpy.context.active_object
-        blade.rotation_euler = (math.sin(a) * 0.35 * _h(i + vi + 4),
-                                -math.cos(a) * 0.35 * _h(i + vi + 5), 0)
-        _add(blade, blade_mat)
+            radius1=0.018 if blades else 0.05, radius2=0.004,
+            depth=L, vertices=4,
+            location=(math.cos(a) * r * 0.8, math.sin(a) * r * 0.8, 0.02))
+        leaf = bpy.context.active_object
+        leaf.scale = (1.0, 0.22 if blades else 0.26, 1.0)
+        tilt = (0.55 if blades else 0.85) + 0.25 * _h(i + seed + 3)
+        leaf.rotation_euler = (math.pi / 2 * tilt, 0, a)
+        bpy.ops.object.transform_apply(scale=True, rotation=True)
+        leaf.data.materials.append(mat)
 
-    # No collision: grass must never block the player or NavMesh.
+    scene = bpy.context.scene
+    scene.render.engine = 'CYCLES'
+    scene.cycles.samples = 16
+    scene.render.film_transparent = True
+    scene.render.resolution_x = scene.render.resolution_y = 512
+    scene.render.image_settings.color_mode = 'RGBA'
+    try:
+        scene.view_settings.view_transform = 'Standard'
+    except Exception:
+        pass
+    cd = bpy.data.cameras.new("CardCam")
+    cd.type = 'ORTHO'
+    cd.ortho_scale = 2.6 if blades else 2.4
+    cam = bpy.data.objects.new("CardCam", cd)
+    bpy.context.collection.objects.link(cam)
+    cam.location = (0, 0, 3)
+    scene.camera = cam
+    scene.render.filepath = out
+    bpy.ops.render.render(write_still=True)
+    scene.render.film_transparent = False
+    return out
+
+
+def _card_material(name, png_path, emissive_strength=0.15):
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    img = bpy.data.images.load(png_path, check_existing=True)
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = img
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    nt.links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
+    bsdf.inputs["Roughness"].default_value = 0.45
+    if "Emission Color" in bsdf.inputs and emissive_strength > 0:
+        nt.links.new(tex.outputs["Color"], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = emissive_strength
+    mat.blend_method = 'CLIP'
+    return mat
+
+
+def _cards_at(cx, cy, cz, n, size, seed, mat):
+    for k in range(n):
+        bpy.ops.mesh.primitive_plane_add(
+            size=size,
+            location=(cx + (_h(seed + k * 3) - 0.5) * size * 0.55,
+                      cy + (_h(seed + k * 5 + 1) - 0.5) * size * 0.55,
+                      cz + (_h(seed + k * 7 + 2) - 0.5) * size * 0.55))
+        card = bpy.context.active_object
+        card.rotation_euler = (1.3 * (_h(seed + k * 11) - 0.5),
+                               1.3 * (_h(seed + k * 13 + 1) - 0.5),
+                               _h(seed + k) * math.pi)
+        bpy.ops.object.transform_apply(rotation=True)
+        card.data.materials.append(mat)
+
+
+def _photoreal_tree(entity_id, card_name, leaf_dark, leaf_mid, leaf_bright,
+                    bark_tint, bark_tint2, trunk_h=4.2, trunk_r=0.40,
+                    branches=8, leaf_glow=0.15, seed=0):
+    """Shared photoreal tree builder: bark trunk + flare + branches
+    (joined + baked to one atlas), alpha-card canopy, trunk-only UCX."""
+    card_png = _leaf_card_texture(card_name, leaf_dark, leaf_mid,
+                                  leaf_bright, seed=seed)
+    clear_scene()
+
+    bark = pbr_material("QR_Bark_" + entity_id, "bark",
+                        tint=bark_tint, tint2=bark_tint2, scale=2.2)
+    nt = bark.node_tree
+    wave = next((n for n in nt.nodes if n.bl_idname == "ShaderNodeTexWave"), None)
+    coord = next((n for n in nt.nodes if n.bl_idname == "ShaderNodeTexCoord"), None)
+    if wave is not None and coord is not None and             not any(n.bl_idname == "ShaderNodeMapping" for n in nt.nodes):
+        wave.bands_direction = 'X'
+        mapping = _n(nt, "ShaderNodeMapping", -1050, 100)
+        mapping.inputs["Scale"].default_value = (1.0, 1.0, 0.10)
+        nt.links.new(coord.outputs["Object"], mapping.inputs["Vector"])
+        nt.links.new(mapping.outputs["Vector"], wave.inputs["Vector"])
+
+    bpy.ops.mesh.primitive_cone_add(radius1=trunk_r, radius2=trunk_r * 0.38,
+                                    depth=trunk_h, vertices=12,
+                                    location=(0, 0, trunk_h * 0.5))
+    trunk = bpy.context.active_object
+    trunk.data.materials.append(bark)
+    bpy.ops.mesh.primitive_cone_add(radius1=trunk_r * 2.6, radius2=trunk_r * 0.9,
+                                    depth=0.7, vertices=12, location=(0, 0, 0.18))
+    flare = bpy.context.active_object
+    flare.data.materials.append(bark)
+    for t in (trunk, flare):
+        refine(t, subdiv=2,
+               displace=[("fine", 0.3, 0.045), ("angular", 2.0, 0.035)],
+               smooth_angle=45)
+
+    tips = []
+    for i in range(branches):
+        a = 2 * math.pi * i / branches + 0.5 * _h(i + seed)
+        z0 = trunk_h * 0.50 + trunk_h * 0.45 * _h(i * 5 + seed + 1)
+        L = trunk_h * 0.26 + trunk_h * 0.21 * _h(i * 7 + seed + 2)
+        droop = 0.55 + 0.7 * _h(i * 13 + seed + 3)
+        bpy.ops.mesh.primitive_cone_add(
+            radius1=trunk_r * 0.22, radius2=trunk_r * 0.06, depth=L, vertices=7,
+            location=(math.cos(a) * (0.22 + L * 0.30),
+                      math.sin(a) * (0.22 + L * 0.30), z0 + L * 0.30))
+        br = bpy.context.active_object
+        br.rotation_euler = (math.sin(a) * droop, -math.cos(a) * droop, 0)
+        bpy.ops.object.transform_apply(rotation=True)
+        br.data.materials.append(bark)
+        tips.append((math.cos(a) * (0.30 + L * 0.55),
+                     math.sin(a) * (0.30 + L * 0.55),
+                     z0 + L * 0.50, (i + 1) * 31 + seed))
+
+    # Join bark parts and bake to one atlas.
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    barks = [o for o in bpy.context.scene.objects if o.type == 'MESH']
+    for o in barks:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = barks[0]
+    if len(barks) > 1:
+        bpy.ops.object.join()
+    wood = bpy.context.view_layer.objects.active
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bake_pbr(wood, entity_id + "_Bark", TEX_DIR, size=1024, samples=8)
+
+    # Canopy cards.
+    card_mat = _card_material("QR_Leaves_" + entity_id, card_png, leaf_glow)
+    csize = trunk_h * 0.43
+    for tx, ty, tz, s in tips:
+        _cards_at(tx, ty, tz, n=5, size=csize * 0.8, seed=s, mat=card_mat)
+    _cards_at(0, 0, trunk_h * 1.05, n=7, size=csize, seed=seed + 777, mat=card_mat)
+    _cards_at(0, 0, trunk_h * 1.21, n=5, size=csize * 0.8, seed=seed + 555, mat=card_mat)
+
+    # Trunk-only collision so the canopy doesn't block players.
+    bpy.ops.mesh.primitive_cylinder_add(radius=trunk_r * 1.15, depth=trunk_h,
+                                        vertices=8, location=(0, 0, trunk_h * 0.5))
+    bpy.context.active_object.name = "UCX_{}_00".format("SM_" + entity_id)
+
+    add_socket("HarvestPoint", location=(0, 0, 1.2))
+    finalize_asset("SM_" + entity_id, bevel_width=0.0, uv_unwrap=False,
+                   smooth_angle_deg=40, collision="none",
+                   lods=[0.50], pivot="bottom_center")
+
+
+def gen_glassbark_tree():
+    _photoreal_tree("TRE_GLASSBARK", "GLASSBARK",
+                    (0.10, 0.18, 0.20), (0.30, 0.48, 0.52), (0.62, 0.80, 0.82),
+                    bark_tint=(0.55, 0.55, 0.52), bark_tint2=(0.28, 0.28, 0.27),
+                    trunk_h=4.6, trunk_r=0.36, leaf_glow=0.30, seed=11)
+
+
+def gen_slagroot_tree():
+    _photoreal_tree("TRE_SLAGROOT", "SLAGROOT",
+                    (0.05, 0.03, 0.02), (0.28, 0.10, 0.04), (0.65, 0.28, 0.08),
+                    bark_tint=(0.12, 0.10, 0.09), bark_tint2=(0.05, 0.04, 0.04),
+                    trunk_h=3.6, trunk_r=0.46, branches=6, leaf_glow=0.55, seed=23)
+
+
+def gen_asterbark_tree():
+    _photoreal_tree("TRE_ASTERBARK", "ASTERBARK",
+                    (0.16, 0.10, 0.22), (0.38, 0.26, 0.44), (0.78, 0.62, 0.38),
+                    bark_tint=(0.38, 0.34, 0.30), bark_tint2=(0.16, 0.14, 0.13),
+                    trunk_h=4.0, trunk_r=0.38, leaf_glow=0.25, seed=37)
+
+
+def gen_prismleaf_tree():
+    _photoreal_tree("TRE_PRISMLEAF", "PRISMLEAF",
+                    (0.045, 0.16, 0.13), (0.07, 0.26, 0.20), (0.10, 0.34, 0.24),
+                    bark_tint=(0.30, 0.26, 0.22), bark_tint2=(0.10, 0.085, 0.075),
+                    trunk_h=4.2, trunk_r=0.40, leaf_glow=0.18, seed=51)
+
+
+# ── Ground cover: card-based shard grass ─────────────────────────────────────
+
+def _shard_grass(variant, tint_dark, tint_mid, tint_bright, size, seed):
+    card = _leaf_card_texture("GRASS_" + variant, tint_dark, tint_mid,
+                              tint_bright, blades=True, seed=seed)
+    clear_scene()
+    mat = _card_material("QR_Grass_" + variant, card, emissive_strength=0.12)
+    for k in range(3):
+        bpy.ops.mesh.primitive_plane_add(size=size, location=(0, 0, size * 0.32))
+        c = bpy.context.active_object
+        c.rotation_euler = (math.pi / 2, 0, k * math.pi / 3)
+        bpy.ops.object.transform_apply(rotation=True)
+        c.data.materials.append(mat)
     finalize_asset("SM_PLT_SHARD_GRASS_{}".format(variant),
-                   bevel_width=0.0, smooth_angle_deg=40,
-                   collision="none", lods=[0.40], pivot="bottom_center")
+                   bevel_width=0.0, uv_unwrap=False, smooth_angle_deg=60,
+                   collision="none", lods=None, pivot="bottom_center")
 
 
 def gen_shard_grass_a():
-    _shard_grass("A", blades=14, max_h=0.42, tint=(0.45, 0.75, 0.55, 1.0))
+    _shard_grass("A", (0.06, 0.16, 0.10), (0.14, 0.34, 0.20),
+                 (0.30, 0.52, 0.30), size=0.8, seed=101)
 
 
 def gen_shard_grass_b():
-    _shard_grass("B", blades=10, max_h=0.30, tint=(0.40, 0.68, 0.66, 1.0))
+    _shard_grass("B", (0.05, 0.14, 0.13), (0.11, 0.30, 0.27),
+                 (0.24, 0.48, 0.42), size=0.55, seed=202)
 
 
 def gen_shard_grass_c():
-    _shard_grass("C", blades=18, max_h=0.55, tint=(0.55, 0.72, 0.45, 1.0))
+    _shard_grass("C", (0.09, 0.15, 0.07), (0.20, 0.32, 0.14),
+                 (0.40, 0.52, 0.24), size=1.0, seed=303)
 
 
-# ── The canon stained-glass tree ──────────────────────────────────────────────
-
-def gen_prismleaf_tree():
-    """SM_TRE_PRISMLEAF -- the Visual World Bible's signature tree: faceted
-    pale trunk with emissive light-pipe veins, canopy of flattened
-    prismatic shards in three glass tints. THE crystalline-flora read."""
-    clear_scene()
-    trunk_mat = _mat("Flora_Prismleaf_Trunk", (0.72, 0.70, 0.66, 1.0),
-                     roughness=0.55)
-    vein_mat = _mat("Flora_Prismleaf_Vein", (0.55, 0.85, 0.80, 1.0),
-                    roughness=0.20, emissive=(0.35, 0.80, 0.70, 1.0))
-    tints = [
-        _mat("Flora_Prismleaf_LeafCyan", (0.55, 0.85, 0.88, 1.0),
-             roughness=0.15, emissive=(0.20, 0.45, 0.48, 1.0)),
-        _mat("Flora_Prismleaf_LeafViolet", (0.70, 0.55, 0.88, 1.0),
-             roughness=0.15, emissive=(0.32, 0.20, 0.48, 1.0)),
-        _mat("Flora_Prismleaf_LeafGold", (0.90, 0.80, 0.50, 1.0),
-             roughness=0.15, emissive=(0.48, 0.38, 0.15, 1.0)),
-    ]
-
-    # Faceted trunk (7 sides reads crystalline at low poly).
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.22, depth=3.4, vertices=7,
-                                        location=(0, 0, 1.7))
-    _add(bpy.context.active_object, trunk_mat)
-    # Light-pipe veins: three thin strips up the trunk faces.
-    for i in range(3):
-        a = 2 * math.pi * i / 3
-        bpy.ops.mesh.primitive_cube_add(
-            size=1.0, location=(math.cos(a) * 0.225, math.sin(a) * 0.225, 1.6))
-        vein = bpy.context.active_object
-        vein.scale = (0.015, 0.03, 1.45)
-        vein.rotation_euler = (0, 0, a)
-        bpy.ops.object.transform_apply(scale=True, rotation=True)
-        _add(vein, vein_mat)
-    # Branches.
-    for i in range(4):
-        a = 2 * math.pi * i / 4 + 0.4
-        bpy.ops.mesh.primitive_cylinder_add(
-            radius=0.07, depth=1.3, vertices=6,
-            location=(math.cos(a) * 0.55, math.sin(a) * 0.55, 3.3))
-        br = bpy.context.active_object
-        br.rotation_euler = (math.sin(a) * 0.9, -math.cos(a) * 0.9, 0)
-        bpy.ops.object.transform_apply(rotation=True)
-        _add(br, trunk_mat)
-    # Prismatic shard canopy on a dome, golden-angle spacing.
-    shards = 14
-    for i in range(shards):
-        a = i * 2.399963
-        rad = 1.15 * math.sqrt((i + 0.5) / shards)
-        z = 3.9 + 0.9 * (1.0 - (rad / 1.15) ** 2)
-        bpy.ops.mesh.primitive_ico_sphere_add(
-            radius=0.42, subdivisions=1,
-            location=(math.cos(a) * rad, math.sin(a) * rad, z))
-        shard = bpy.context.active_object
-        shard.scale = (1.0, 0.85, 0.28)
-        shard.rotation_euler = (math.sin(a) * 0.5, math.cos(a) * 0.5, a)
-        bpy.ops.object.transform_apply(scale=True, rotation=True)
-        _add(shard, tints[i % 3])
-
-    add_socket("HarvestPoint", location=(0, 0, 1.2))
-    finalize_asset("SM_TRE_PRISMLEAF",
-                   bevel_width=0.003, bevel_angle_deg=30,
-                   smooth_angle_deg=25, collision="convex",
-                   lods=[0.50, 0.20], pivot="bottom_center")
-
-
-# ── Rocks & crystal spurs ─────────────────────────────────────────────────────
+# ── Rocks & crystal spurs (photoreal bake) ───────────────────────────────────
 
 def _boulder(variant, radius, squash, dark=False):
     clear_scene()
-    rock_mat = get_or_create_material("DarkRock" if dark else "Rock",
-                                      (0.25, 0.24, 0.23, 1.0) if dark
-                                      else (0.42, 0.40, 0.38, 1.0),
-                                      roughness=0.95)
-    bpy.ops.mesh.primitive_ico_sphere_add(radius=radius, subdivisions=2,
+    tint = (0.24, 0.22, 0.20) if dark else (0.36, 0.33, 0.29)
+    tint2 = (0.09, 0.085, 0.08) if dark else (0.14, 0.125, 0.11)
+    rock_mat = pbr_material("QR_Boulder_{}".format(variant), "rock",
+                            tint=tint, tint2=tint2)
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=radius, subdivisions=3,
                                           location=(0, 0, radius * squash * 0.75))
     rock = bpy.context.active_object
-    rock.scale = (1.0, 0.85 + 0.3 * _h(variant), squash)
+    rock.scale = (1.0 + 0.35 * _h(variant), 0.85 + 0.3 * _h(variant + 5), squash)
     bpy.ops.object.transform_apply(scale=True)
-    # Deterministic lumpy displacement along normals.
-    for idx, v in enumerate(rock.data.vertices):
-        amp = radius * 0.16 * (_h(idx * 13 + variant * 7) - 0.5)
-        v.co += v.normal * amp
-    assign_material(rock, rock_mat)
-
-    finalize_asset("SM_RCK_BOULDER_{}".format("ABC"[variant]),
-                   bevel_width=0.0, smooth_angle_deg=35,
-                   collision="convex", lods=[0.40], pivot="bottom_center")
+    rock.data.materials.append(rock_mat)
+    refine(rock, subdiv=1,
+           displace=[("angular", radius * 1.0, radius * 0.28),
+                     ("fine", radius * 0.18, radius * 0.045)],
+           smooth_angle=30)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    name = "RCK_BOULDER_{}".format("ABC"[variant])
+    bake_pbr(rock, name, TEX_DIR, size=1024, samples=8)
+    finalize_asset("SM_" + name, bevel_width=0.0, uv_unwrap=False,
+                   smooth_angle_deg=30, collision="convex",
+                   lods=[0.40], pivot="bottom_center")
 
 
 def gen_boulder_a():
@@ -668,34 +823,50 @@ def gen_boulder_c():
 
 
 def gen_crystal_spur():
-    """Tilted cluster of mineral crystals -- the rocky-biome accent that
-    sells 'high mineral content' next to plain boulders."""
+    """Mineral crystal cluster. Opaque crystal shading (transmission
+    bakes black) with vein emissive baked into the albedo."""
     clear_scene()
-    spar = _mat("Flora_CrystalSpur_Spar", (0.62, 0.80, 0.86, 1.0),
-                roughness=0.12, emissive=(0.25, 0.55, 0.60, 1.0))
-    base = get_or_create_material("DarkRock", (0.25, 0.24, 0.23, 1.0),
-                                  roughness=0.95)
-    bpy.ops.mesh.primitive_ico_sphere_add(radius=0.35, subdivisions=1,
+    spar = pbr_material("QR_CrystalSpur", "leaf_alien",
+                        tint=(0.55, 0.74, 0.80), tint2=(0.22, 0.38, 0.44),
+                        emissive=(0.25, 0.55, 0.60), emissive_strength=2.0)
+    base = pbr_material("QR_SpurBase", "rock",
+                        tint=(0.24, 0.22, 0.20), tint2=(0.09, 0.085, 0.08))
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=0.35, subdivisions=2,
                                           location=(0, 0, 0.12))
     b = bpy.context.active_object
     b.scale = (1.3, 1.1, 0.4)
     bpy.ops.object.transform_apply(scale=True)
-    assign_material(b, base)
+    b.data.materials.append(base)
     for i in range(5):
         a = 2 * math.pi * _h(i * 9 + 1)
         r = 0.16 * _h(i * 5 + 2)
-        h = 0.5 + 0.8 * _h(i * 7 + 3)
+        hgt = 0.5 + 0.8 * _h(i * 7 + 3)
         bpy.ops.mesh.primitive_cone_add(radius1=0.09 + 0.05 * _h(i + 4),
-                                        radius2=0.015, depth=h, vertices=6,
+                                        radius2=0.015, depth=hgt, vertices=6,
                                         location=(math.cos(a) * r,
-                                                  math.sin(a) * r, h * 0.45))
+                                                  math.sin(a) * r, hgt * 0.45))
         c = bpy.context.active_object
         c.rotation_euler = (math.sin(a) * 0.35, -math.cos(a) * 0.35, a)
-        _add(c, spar)
+        bpy.ops.object.transform_apply(rotation=True)
+        c.data.materials.append(spar)
 
-    finalize_asset("SM_RCK_CRYSTAL_SPUR",
-                   bevel_width=0.002, smooth_angle_deg=20,
-                   collision="convex", lods=[0.40], pivot="bottom_center")
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    parts = [o for o in bpy.context.scene.objects if o.type == 'MESH']
+    for o in parts:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = parts[0]
+    if len(parts) > 1:
+        bpy.ops.object.join()
+    spur = bpy.context.view_layer.objects.active
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bake_pbr(spur, "RCK_CRYSTAL_SPUR", TEX_DIR, size=1024, samples=8)
+    finalize_asset("SM_RCK_CRYSTAL_SPUR", bevel_width=0.0, uv_unwrap=False,
+                   smooth_angle_deg=20, collision="convex",
+                   lods=[0.40], pivot="bottom_center")
 
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
@@ -730,7 +901,7 @@ def main():
         print(f"\n[{entity_id}]")
         gen_fn()
         out_path = os.path.join(OUTPUT_DIR, subfolder, f"SM_{entity_id}.fbx")
-        export_fbx(entity_id, out_path)
+        export_fbx(entity_id, out_path, embed_textures=True)
 
     print("\n=== Generation complete ===")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
