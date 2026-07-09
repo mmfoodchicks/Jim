@@ -103,6 +103,15 @@ def _list_anims_in(package_path):
         pkg = p.split(".")[0] if "." in p else p
         a = unreal.load_asset(pkg)
         if isinstance(a, unreal.AnimSequence):
+            # Skip anims whose skeleton is broken/missing (the MPMECH
+            # pack ships MM_*_ANIM sequences with a <None> skeleton --
+            # wiring one poisons the ABP with 'missing skeleton' compile
+            # errors on every editor start).
+            try:
+                if a.get_editor_property("skeleton") is None:
+                    continue
+            except Exception:
+                continue
             out.append((pkg, a))
     return out
 

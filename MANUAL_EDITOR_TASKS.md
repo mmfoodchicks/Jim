@@ -85,9 +85,12 @@ placeables in the walls pass. Then, in UE's Python console, in order:
 - [ ] `qr_seed_data_tables.py` — re-run so `DT_BuildCatalog` picks up
       the four new `SM_BLD_*` placeables as build rows.
 
-How to run each:
+How to run each (paste verbatim — the path is literal, swap only the
+script name; passing `<full-path>` literally throws
+`OSError: [Errno 22] Invalid argument`):
 ```python
-exec(open(r'<full-path>/Tools/EditorScripts/<scriptname>.py').read())
+exec(open(r'D:\QuietRiftEnigma\Jim\QuietRiftEnigma\Tools\EditorScripts\qr_seed_items.py').read())
+run()
 ```
 
 ---

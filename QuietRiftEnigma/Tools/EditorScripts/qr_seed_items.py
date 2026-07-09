@@ -429,7 +429,20 @@ def _capture_mesh_to_rt(mesh, rig, rt):
 
     cap_actor.set_actor_location_and_rotation(cam_loc, cam_rot, False, False)
 
-    cap_comp = cap_actor.scene_capture_component2d
+    # UE 5.7 renamed the accessor: ASceneCapture2D exposes
+    # 'capture_component2d' (the old 'scene_capture_component2d' spelling
+    # raises AttributeError and killed every icon render).
+    cap_comp = None
+    for prop in ("capture_component2d", "scene_capture_component2d"):
+        try:
+            cap_comp = cap_actor.get_editor_property(prop)
+            break
+        except Exception:
+            cap_comp = getattr(cap_actor, prop, None)
+            if cap_comp is not None:
+                break
+    if cap_comp is None:
+        return False
     cap_comp.texture_target  = rt
     try:
         cap_comp.capture_source = unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR

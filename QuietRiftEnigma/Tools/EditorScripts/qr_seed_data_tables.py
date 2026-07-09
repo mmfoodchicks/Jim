@@ -82,6 +82,29 @@ def _load_struct(struct_path):
     return unreal.load_object(None, struct_path)
 
 
+def _fill_table_from_csv(dt, csv_text):
+    """UE 5.7 Python has NO per-row mutation API (the add_data_table_row
+    this script used to call never existed as a binding -- it threw
+    AttributeError on every run). The supported surface is a whole-table
+    CSV (re)fill. Replaces the table's contents."""
+    try:
+        ok = unreal.DataTableFunctionLibrary.fill_data_table_from_csv_string(
+            dt, csv_text)
+    except Exception as e:
+        print("[seed-dt]   CSV fill failed: {}".format(e))
+        return False
+    if not ok:
+        print("[seed-dt]   CSV fill reported problems (check Output Log)")
+    return bool(ok)
+
+
+def _fill_rows_minimal(dt, row_ids):
+    """Create rows whose fields are all struct defaults (name column
+    only; missing CSV columns import as defaults). Net result matches
+    what the old per-row path intended."""
+    return _fill_table_from_csv(dt, "---\n" + "\n".join(row_ids) + "\n")
+
+
 # ─── DT_BuildCatalog ──────────────────────────────────────────────────
 
 # Lookup table mapping filename tokens to FQRBuildPieceRow.Category enum
@@ -114,6 +137,13 @@ def _build_pretty_name(mesh_name):
 
 
 def seed_build_catalog(overwrite=False):
+    """(Re)generate DT_BuildCatalog from the SM_BLD_* meshes on disk.
+
+    Every row is derived from a mesh, so the table is rebuilt in full
+    through the CSV fill API whenever new meshes appear (or on
+    overwrite=True). NOTE: a rebuild resets hand-edited MaterialCost /
+    RequiredTechNodeId cells to defaults -- the script prints a warning
+    when that happens."""
     struct = _load_struct("/Script/QuietRiftEnigma.QRBuildPieceRow")
     if not struct:
         print("[seed-dt] FQRBuildPieceRow not found — skipping build catalog")
@@ -124,62 +154,49 @@ def seed_build_catalog(overwrite=False):
         print("[seed-dt] failed to create DT_BuildCatalog")
         return 0
 
-    if overwrite:
-        for row_name in list(dt.get_row_names()):
-            unreal.DataTableFunctionLibrary.remove_data_table_row(dt, row_name)
-
     ar = unreal.AssetRegistryHelpers.get_asset_registry()
     ar.scan_paths_synchronous([BLD_MESH_ROOT], True)
     f = unreal.ARFilter(
         class_names=["StaticMesh"],
         package_paths=[BLD_MESH_ROOT],
         recursive_paths=True)
-    rows_added = 0
-    existing = set(dt.get_row_names())
 
+    rows = []
     for ad in ar.get_assets(f):
         name = str(ad.asset_name)
         if not name.startswith("SM_BLD_"): continue
         if "_LOD" in name: continue
-
-        # RowName matches the item ID convention (BLD_WALL_WOOD).
-        row_id = name.replace("SM_BLD_", "BLD_")
-        if not overwrite and unreal.Name(row_id) in existing:
-            continue
-
+        row_id   = name.replace("SM_BLD_", "BLD_")
         category = _build_category(name)
         pretty   = _build_pretty_name(name)
-        mesh_obj = unreal.load_asset(f"{ad.package_name}.{ad.asset_name}")
+        obj_path = "{}.{}".format(ad.package_name, ad.asset_name)
+        rows.append((row_id, pretty, category, obj_path))
 
-        # We populate the row via the editor scripting library.
-        # PropertyAsString writes through reflection so any USTRUCT field
-        # name works without us depending on Python having a wrapper for it.
-        unreal.DataTableFunctionLibrary.add_data_table_row(dt, row_id, struct)
-        # NB: setting nested struct fields via Python is finicky; the
-        # safest path is to use SetEditorProperty on the row handle.
-        # add_data_table_row returns nothing in 5.7, so we set fields
-        # via the helper below.
-        _set_row_fields(dt, row_id, {
-            "DisplayName": unreal.Text(pretty),
-            "Category":    unreal.Name(category),  # enum field accepts the name
-            "Mesh":        mesh_obj,
-        })
-        rows_added += 1
+    if not rows:
+        print("[seed-dt] no SM_BLD_* meshes under {} — import them first "
+              "(qr_seed_items)".format(BLD_MESH_ROOT))
+        return 0
+
+    existing = {str(n) for n in dt.get_row_names()}
+    wanted = {r[0] for r in rows}
+    if not overwrite and wanted.issubset(existing):
+        print("[seed-dt] DT_BuildCatalog : all {} piece rows present — "
+              "skipped (run(overwrite=True) to rebuild)".format(len(wanted)))
+        return 0
+    if existing:
+        print("[seed-dt] DT_BuildCatalog : rebuilding {} rows (hand-edited "
+              "costs/tech gates reset to defaults)".format(len(wanted)))
+
+    lines = ["---,DisplayName,Category,Mesh,MaterialCost,RequiredTechNodeId"]
+    for row_id, pretty, category, obj_path in sorted(rows):
+        lines.append('{},"{}",{},"{}",,'.format(
+            row_id, pretty, category, obj_path))
+    if not _fill_table_from_csv(dt, "\n".join(lines) + "\n"):
+        return 0
 
     unreal.EditorAssetLibrary.save_loaded_asset(dt)
-    print("[seed-dt] DT_BuildCatalog : {} rows added".format(rows_added))
-    return rows_added
-
-
-def _set_row_fields(dt, row_name, fields):
-    """Best-effort row-field setter. The Python API for DataTable row
-    mutation is limited — we use the GetDataTableRowAsString /
-    AddDataTableRow round-trip with set_editor_property on the proxy."""
-    # In UE5.7 the canonical path is unreal.DataTableFunctionLibrary
-    # but its setter API is narrow. The fallback: rewrite the table via
-    # JSON. For now we punt and let the row exist with default values;
-    # designer fills in details in the table editor.
-    pass
+    print("[seed-dt] DT_BuildCatalog : {} rows".format(len(rows)))
+    return len(rows)
 
 
 # ─── DT_Recipes ───────────────────────────────────────────────────────
@@ -205,21 +222,21 @@ def seed_recipes(overwrite=False):
         print("[seed-dt] failed to create DT_Recipes")
         return 0
 
-    if overwrite:
-        for row_name in list(dt.get_row_names()):
-            unreal.DataTableFunctionLibrary.remove_data_table_row(dt, row_name)
+    # DT_Recipes' REAL content is the 100+ row DT_Recipes.csv imported by
+    # qr_import_datatables -- never overwrite a populated table with the
+    # 5 bootstrap samples (a CSV fill replaces the whole table).
+    existing = list(dt.get_row_names())
+    if existing:
+        print("[seed-dt] DT_Recipes : {} rows present (managed by "
+              "qr_import_datatables) — skipped".format(len(existing)))
+        return 0
 
-    rows_added = 0
-    existing = set(dt.get_row_names())
-    for row_id, *_ in SAMPLE_RECIPES:
-        if not overwrite and unreal.Name(row_id) in existing:
-            continue
-        unreal.DataTableFunctionLibrary.add_data_table_row(dt, row_id, struct)
-        rows_added += 1
-
+    if not _fill_rows_minimal(dt, [r[0] for r in SAMPLE_RECIPES]):
+        return 0
     unreal.EditorAssetLibrary.save_loaded_asset(dt)
-    print("[seed-dt] DT_Recipes : {} sample rows added (designer fills ingredients)".format(rows_added))
-    return rows_added
+    print("[seed-dt] DT_Recipes : {} bootstrap rows (run "
+          "qr_import_datatables for the full set)".format(len(SAMPLE_RECIPES)))
+    return len(SAMPLE_RECIPES)
 
 
 # ─── DT_NPC_Greetings ─────────────────────────────────────────────────
@@ -249,21 +266,18 @@ def seed_npc_dialogue(overwrite=False):
     if not dt:
         return 0
 
-    if overwrite:
-        for row_name in list(dt.get_row_names()):
-            unreal.DataTableFunctionLibrary.remove_data_table_row(dt, row_name)
+    existing = list(dt.get_row_names())
+    if existing and not overwrite:
+        print("[seed-dt] DT_NPC_Greetings : {} rows present — "
+              "skipped".format(len(existing)))
+        return 0
 
-    rows_added = 0
-    existing = set(dt.get_row_names())
-    for row_id, _lines in SAMPLE_DIALOGUE_NODES:
-        if not overwrite and unreal.Name(row_id) in existing:
-            continue
-        unreal.DataTableFunctionLibrary.add_data_table_row(dt, row_id, struct)
-        rows_added += 1
-
+    row_ids = [row_id for row_id, _lines in SAMPLE_DIALOGUE_NODES]
+    if not _fill_rows_minimal(dt, row_ids):
+        return 0
     unreal.EditorAssetLibrary.save_loaded_asset(dt)
-    print("[seed-dt] DT_NPC_Greetings : {} sample nodes added".format(rows_added))
-    return rows_added
+    print("[seed-dt] DT_NPC_Greetings : {} sample nodes".format(len(row_ids)))
+    return len(row_ids)
 
 
 # ─── DT_LootTables ────────────────────────────────────────────────────
@@ -286,20 +300,17 @@ def seed_loot_tables(overwrite=False):
     dt = _load_or_create_data_table(DT_LOOT_PATH, struct)
     if not dt: return 0
 
-    if overwrite:
-        for row_name in list(dt.get_row_names()):
-            unreal.DataTableFunctionLibrary.remove_data_table_row(dt, row_name)
+    existing = list(dt.get_row_names())
+    if existing and not overwrite:
+        print("[seed-dt] DT_LootTables : {} rows present — "
+              "skipped".format(len(existing)))
+        return 0
 
-    rows_added = 0
-    existing = set(dt.get_row_names())
-    for row_id in SAMPLE_LOOT:
-        if not overwrite and unreal.Name(row_id) in existing:
-            continue
-        unreal.DataTableFunctionLibrary.add_data_table_row(dt, row_id, struct)
-        rows_added += 1
+    if not _fill_rows_minimal(dt, SAMPLE_LOOT):
+        return 0
     unreal.EditorAssetLibrary.save_loaded_asset(dt)
-    print("[seed-dt] DT_LootTables : {} sample rows added".format(rows_added))
-    return rows_added
+    print("[seed-dt] DT_LootTables : {} sample rows".format(len(SAMPLE_LOOT)))
+    return len(SAMPLE_LOOT)
 
 
 # ─── Entry point ──────────────────────────────────────────────────────
