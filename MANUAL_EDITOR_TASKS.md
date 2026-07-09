@@ -60,30 +60,32 @@ them is safe.
 - [ ] `qr_catalog_mannequin_anims.py` — _optional_, prints AnimBP slot
       recommendations from your current anim pack inventory.
 
-### Content-pass additions (2026-07-08) — skins, materials, rigged wildlife
+### Content-pass additions (2026-07-09) — photoreal overhaul
 
-Run **`Tools/BlenderScripts/regenerate_all_fbx.bat`** first (double-click
-from Explorer — NOT inside UE). It now also runs
-`qr_generate_wildlife_rigged.py` (37 skeletal species with baked
-Idle/Walk/Run/Death takes), the shard-grass/prismleaf-tree/boulder
-additions in the flora pass, and the crate/palisade/torch/bench
-placeables in the walls pass. Then, in UE's Python console, in order:
+**Do NOT run `regenerate_all_fbx.bat` anymore unless you change a
+generator** — the repo now SHIPS the final FBX (baked PBR textures
+embedded), generated and QA-rendered in Claude's cloud container.
+Running the .bat locally just recreates the same files. Pull, then in
+UE's Python console, in order:
 
-- [ ] `qr_seed_items.py` → `run(rebuild_meshes=True)` — reimport all
-      static FBX including the new grass/tree/rock/placeable meshes.
-- [ ] `qr_import_wildlife_rigged.py` → `run()` — imports the skeletal
-      wildlife FBX with anim takes and stamps every `AQRWildlife_*`
-      class default (body mesh + 4 anim slots). Wildlife walks out
-      skinned and animated, same single-node path as the colony dog.
-- [ ] `qr_build_qr_materials.py` → `run()` — builds the QR master
-      materials + one tuned MaterialInstance per material slot
-      (wildlife zone colors, crystalline flora glass, palette metals/
-      woods/stones) and assigns them across every mesh under
-      `/Game/Meshes`. Re-run after any FBX reimport. To retint
-      anything, edit its `MI_*` under
-      `/Game/QuietRift/Materials/Instances` — no Blender round-trip.
+- [ ] `qr_seed_items.py` → `run(rebuild_meshes=True)` — reimports every
+      static FBX. Materials+textures now import WITH the mesh (baked
+      atlases are embedded), so assets arrive textured.
+- [ ] `qr_import_wildlife_rigged.py` → `run()` — imports the 37
+      skeletal wildlife (anims + baked hide atlases) and stamps every
+      `AQRWildlife_*` class default (body mesh + 4 anim slots).
+- [ ] `qr_import_scan_textures.py` → `run()` — imports the CC0
+      photo-scan library (Content/QuietRift/ScanTextures — ambientCG,
+      public domain), builds the tiling M_QR_Scan master + one MI per
+      surface, and re-dresses walls/rocks/tree-bark with REAL scanned
+      surfaces. Also points every biome profile's landscape material
+      at photo ground.
 - [ ] `qr_seed_data_tables.py` — re-run so `DT_BuildCatalog` picks up
       the four new `SM_BLD_*` placeables as build rows.
+- [ ] `qr_create_test_maps.py` — re-run; the dev floor now prefers the
+      scanned forest-floor material (no more checkerboard).
+- [ ] Optional cleanup: `qr_build_qr_materials.py` `run()` still works
+      for anything that slipped through with a grey slot.
 
 How to run each (paste verbatim — the path is literal, swap only the
 script name; passing `<full-path>` literally throws

@@ -215,6 +215,7 @@ def _spawn_floor():
     # failed to load and every dev floor fell through to the engine
     # checkerboard. These paths are verified on disk.
     candidate_materials = [
+        "/Game/QuietRift/Materials/Scan/MI_QR_Scan_GroundForest",  # photo scan
         "/Game/ScifiJungle/Materials/Nature/Ground/MI_Soil_Jungle",
         "/Game/MWLandscapeAutoMaterial/Materials/Landscape/MTL_MWAM_Landscape_IslandExample",
         "/Game/ROCKY_SAND_PACK/materials/M_LANDSCAPE",
