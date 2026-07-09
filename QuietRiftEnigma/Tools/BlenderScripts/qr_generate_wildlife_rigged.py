@@ -49,6 +49,7 @@ from qr_blender_detail import (  # noqa: E402
     assign_material,
     smart_uv_unwrap,
 )
+from qr_blender_photoreal import pbr_material, bake_pbr  # noqa: E402
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "../../Content/Meshes/wildlife_rigged")
@@ -717,6 +718,8 @@ def _export_skeletal(filepath):
         bake_anim_simplify_factor=0.0,
         mesh_smooth_type='FACE',
         bake_space_transform=False,
+        path_mode='COPY',
+        embed_textures=True,    # baked hide atlas travels inside the FBX
     )
     print("  Exported: {}".format(filepath))
 
@@ -745,6 +748,48 @@ def gen_species(species_id, p):
     body = bpy.context.active_object
     body.name = "SK_{}".format(species_id)
     smart_uv_unwrap(body)
+
+    # ── Photoreal skin: rebuild each flat part material as procedural
+    # PBR (hide for flesh, rock-chitin for plates/shells, emissive
+    # crystal for glow zones) and bake the whole body to one atlas.
+    # Runs BEFORE armature binding; bake uses the rest pose.
+    _PART_KINDS = [
+        (("plate", "armor", "mantle", "shell", "collar", "drill",
+          "faceplate"), "rock"),
+        (("glow", "mane", "horn", "canopy"), "leaf_alien"),
+        (("eyeglint",), "leaf_alien"),
+    ]
+    for idx, mat in enumerate(list(body.data.materials)):
+        if mat is None:
+            continue
+        tint = (0.5, 0.5, 0.5)
+        emissive = None
+        if mat.use_nodes:
+            bsdf = mat.node_tree.nodes.get("Principled BSDF")
+            if bsdf:
+                c = bsdf.inputs["Base Color"].default_value
+                tint = (c[0], c[1], c[2])
+                for em_name in ("Emission Color", "Emission"):
+                    if em_name in bsdf.inputs:
+                        ec = bsdf.inputs[em_name].default_value
+                        try:
+                            if (ec[0] + ec[1] + ec[2]) > 0.05:
+                                emissive = (ec[0], ec[1], ec[2])
+                        except TypeError:
+                            pass
+                        break
+        low = mat.name.lower()
+        kind = "hide"
+        for tokens, k in _PART_KINDS:
+            if any(t in low for t in tokens):
+                kind = k
+                break
+        body.data.materials[idx] = pbr_material(
+            "QRSK_{}_{}".format(species_id, idx), kind, tint=tint,
+            emissive=emissive, emissive_strength=3.0 if emissive else 0.0)
+    bake_pbr(body, "SK_{}".format(species_id),
+             os.path.join(OUTPUT_DIR, "Textures"), size=1024, samples=8)
+
     body.parent = arm
     mod = body.modifiers.new("Armature", 'ARMATURE')
     mod.object = arm
