@@ -438,7 +438,11 @@ def _build_body(token, p, legs, arm):
     for i, name in enumerate(legs):
         bone = arm.data.bones[name]
         sx, sy, _ = bone.head_local
-        _cyl((sx, sy, leg_h * 0.5), max(W * 0.06, 0.008), leg_h,
+        # Legs run up INTO the body ellipsoid: the belly curves away
+        # from leg_h at the hip stations, so a leg that stops exactly
+        # at leg_h floats visibly detached under the haunch.
+        leg_top = leg_h + core_h * 0.40
+        _cyl((sx, sy, leg_top * 0.5), max(W * 0.06, 0.008), leg_top,
              name, body_mat)
 
     # Tail
