@@ -146,15 +146,37 @@ def _import_textures():
 
 # ─── 2. Scan master material ─────────────────────────────────────────
 
-def _build_scan_master():
-    path = "{}/M_QR_Scan".format(MASTER_DIR)
+def _force_delete(path):
     if unreal.EditorAssetLibrary.does_asset_exist(path):
-        return unreal.load_asset(path)
+        try:
+            unreal.EditorAssetLibrary.delete_asset(path)
+        except Exception as e:
+            print("[scan]   delete {} skipped: {}".format(path, e))
+
+
+def _build_scan_master(default_maps):
+    """(Re)build the tiling scan master. default_maps is one family's
+    {suffix: texture_asset_path} used for the parameter DEFAULT textures.
+
+    Why defaults matter: a Material compiles with its parameter DEFAULT
+    values, before any instance override. A TextureSampleParameter2D
+    whose sampler_type is Normal/LinearColor but whose default texture
+    is the engine's sRGB DefaultTexture is a type MISMATCH -> the whole
+    master fails to compile -> every instance falls back to the default
+    checkerboard. Seeding each param with a matching-type scan texture
+    fixes it (this is exactly how Quixel/auto-material masters are set
+    up). Always rebuilt so the fix lands on existing installs."""
+    path = "{}/M_QR_Scan".format(MASTER_DIR)
+    _force_delete(path)
     _ensure_dir(MASTER_DIR)
     mat = _asset_tools().create_asset("M_QR_Scan", MASTER_DIR, unreal.Material,
                                       unreal.MaterialFactoryNew())
     if not mat:
         return None
+
+    def _tex(suffix):
+        p = default_maps.get(suffix)
+        return unreal.load_asset(p) if p else None
 
     coord = MEL.create_material_expression(
         mat, unreal.MaterialExpressionTextureCoordinate, -1100, 0)
@@ -167,31 +189,36 @@ def _build_scan_master():
     MEL.connect_material_expressions(coord, "", mul, "A")
     MEL.connect_material_expressions(tiling, "", mul, "B")
 
-    def tex_param(name, y, sampler=None):
+    def tex_param(name, y, default_tex, sampler=None):
         node = MEL.create_material_expression(
             mat, unreal.MaterialExpressionTextureSampleParameter2D, -650, y)
         node.set_editor_property("parameter_name", name)
+        # Default texture FIRST -- setting sampler_type validates against
+        # whatever texture is currently on the node.
+        if default_tex is not None:
+            node.set_editor_property("texture", default_tex)
         if sampler is not None:
             node.set_editor_property("sampler_type", sampler)
         MEL.connect_material_expressions(mul, "", node, "UVs")
         return node
 
-    base = tex_param("ColorMap", -250)
+    base = tex_param("ColorMap", -250, _tex("Color"),
+                     unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
     MEL.connect_material_property(base, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
-    rough = tex_param("RoughnessMap", 0,
+    rough = tex_param("RoughnessMap", 0, _tex("Roughness"),
                       unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     MEL.connect_material_property(rough, "R", unreal.MaterialProperty.MP_ROUGHNESS)
-    nrm = tex_param("NormalMap", 250,
+    nrm = tex_param("NormalMap", 250, _tex("NormalGL"),
                     unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
     MEL.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
-    ao = tex_param("AOMap", 500,
+    ao = tex_param("AOMap", 500, _tex("AmbientOcclusion"),
                    unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     MEL.connect_material_property(ao, "R",
                                   unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
 
     MEL.recompile_material(mat)
     unreal.EditorAssetLibrary.save_loaded_asset(mat)
-    print("[scan] master M_QR_Scan created")
+    print("[scan] master M_QR_Scan rebuilt (param defaults seeded)")
     return mat
 
 
@@ -199,8 +226,10 @@ def _get_or_create_mi(family, maps, master, tiling=1.0):
     _ensure_dir(MI_DIR)
     name = "MI_QR_Scan_{}".format(family)
     path = "{}/{}".format(MI_DIR, name)
-    if unreal.EditorAssetLibrary.does_asset_exist(path):
-        return unreal.load_asset(path)
+    # Rebuild in place: the master is force-rebuilt each run, so a stale
+    # instance would still carry the OLD (broken) parent. Recreating
+    # re-parents to the freshly-compiling master.
+    _force_delete(path)
     mi = _asset_tools().create_asset(name, MI_DIR,
                                      unreal.MaterialInstanceConstant,
                                      unreal.MaterialInstanceConstantFactoryNew())
@@ -312,7 +341,11 @@ def run():
     families = _import_textures()
     if not families:
         return
-    master = _build_scan_master()
+    # Seed the master's parameter defaults from a ground family (any
+    # complete set works; GroundForest is the canonical fallback).
+    default_maps = families.get("GroundForest") or next(
+        (m for m in families.values() if m.get("Color")), {})
+    master = _build_scan_master(default_maps)
     if not master:
         print("[scan] master creation failed -- aborting")
         return

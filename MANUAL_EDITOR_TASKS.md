@@ -79,13 +79,29 @@ UE's Python console, in order:
       public domain), builds the tiling M_QR_Scan master + one MI per
       surface, and re-dresses walls/rocks/tree-bark with REAL scanned
       surfaces. Also points every biome profile's landscape material
-      at photo ground.
+      at photo ground. **(Fixed 2026-07-11: the master now seeds its
+      texture params with default scans so it actually compiles — the
+      first version failed to compile and everything fell back to the
+      checkerboard. The script force-rebuilds the master + instances,
+      so just re-run it.)**
+- [ ] `qr_fix_broken_anims.py` → `run(delete=True)` — deletes the
+      MPMECH pack's corrupt `MM_*_ANIM` sequences (skeleton == None)
+      that spam `ABP_QRPlayer` with 'missing skeleton' compile errors
+      on every editor start. The ABP is otherwise unused (the game
+      animates via single-node), so this just silences the noise. Then
+      open ABP_QRPlayer once and Compile — it should be clean.
 - [ ] `qr_seed_data_tables.py` — re-run so `DT_BuildCatalog` picks up
       the four new `SM_BLD_*` placeables as build rows.
 - [ ] `qr_create_test_maps.py` — re-run; the dev floor now prefers the
       scanned forest-floor material (no more checkerboard).
 - [ ] Optional cleanup: `qr_build_qr_materials.py` `run()` still works
       for anything that slipped through with a grey slot.
+
+> The `LogStaticMesh: nearly zero tangents/normals` warnings on some
+> meshes are **non-fatal** — UE recomputes tangents (MikkTSpace) on
+> import, so they render correctly. The Blender pipeline now runs a
+> degenerate-geometry cleanup (`clean_mesh` in `qr_blender_photoreal`)
+> so regenerated meshes stop emitting them.
 
 How to run each (paste verbatim — the path is literal, swap only the
 script name; passing `<full-path>` literally throws

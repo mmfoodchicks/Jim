@@ -101,11 +101,15 @@ def _list_anims_in(package_path):
         # list_assets returns object paths like "/Game/Foo/Bar.Bar"; we
         # want the package path for load_asset.
         pkg = p.split(".")[0] if "." in p else p
+        # Hard blocklist: MPMECH ships MM_*_ANIM whose skeleton dependency
+        # was never synced, so they load with skeleton == None and poison
+        # the ABP. Never source anims from these packs.
+        if any(bad in pkg for bad in ("/MPMECH/",)):
+            continue
         a = unreal.load_asset(pkg)
         if isinstance(a, unreal.AnimSequence):
-            # Skip anims whose skeleton is broken/missing (the MPMECH
-            # pack ships MM_*_ANIM sequences with a <None> skeleton --
-            # wiring one poisons the ABP with 'missing skeleton' compile
+            # Belt-and-suspenders: skip any anim whose skeleton is broken/
+            # missing (a wired one throws 'missing skeleton' compile
             # errors on every editor start).
             try:
                 if a.get_editor_property("skeleton") is None:

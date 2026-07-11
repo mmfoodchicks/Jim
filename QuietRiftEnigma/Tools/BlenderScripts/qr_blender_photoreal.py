@@ -282,8 +282,34 @@ def _displace_tex(kind, scale):
     return tex
 
 
+def clean_mesh(obj):
+    """Remove the degenerate geometry that displacement/subdivision can
+    leave behind -- the source of UE's 'nearly zero tangents/normals'
+    and 'degenerate tangent bases' import warnings. Merges coincident
+    verts, dissolves zero-area faces, and recomputes consistent
+    outward normals. Safe on any mesh; no-op if already clean."""
+    if obj is None or obj.type != 'MESH':
+        return obj
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.remove_doubles(threshold=0.0001)
+    # Dissolve degenerate (zero-area/zero-length) elements.
+    try:
+        bpy.ops.mesh.dissolve_degenerate(threshold=0.0002)
+    except Exception:
+        pass
+    bpy.ops.mesh.delete_loose()
+    bpy.ops.mesh.normals_make_consistent(inside=False)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return obj
+
+
 def refine(obj, subdiv=2, displace=None, smooth_angle=40.0):
-    """Subdivision + layered displacement, applied destructively.
+    """Subdivision + layered displacement, applied destructively, then
+    a degenerate-geometry cleanup so the export imports without tangent
+    warnings.
 
     displace: list of (kind, scale, strength_m) layers, e.g. a rock is
         [("angular", 0.9, 0.30), ("fine", 0.18, 0.04)]
@@ -310,6 +336,8 @@ def refine(obj, subdiv=2, displace=None, smooth_angle=40.0):
             bpy.ops.object.modifier_apply(modifier=mod.name)
         except Exception as e:
             print("  refine: apply {} failed: {}".format(mod.name, e))
+
+    clean_mesh(obj)
 
     try:
         bpy.ops.object.shade_smooth_by_angle(angle=math.radians(smooth_angle))
