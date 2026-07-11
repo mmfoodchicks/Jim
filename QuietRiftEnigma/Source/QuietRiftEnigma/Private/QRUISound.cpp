@@ -66,19 +66,22 @@ namespace
 		return (S == EQRFootSurface::Glass) ? TEXT("") : TEXT("Boots_");
 	}
 
-	// Many cues have a numeric suffix per surface. We pick "_1_Cue" as the
-	// canonical variant because every surface ships at least one; some
-	// have _8_Cue (Concrete Jog / Run, Gravel Run) but _1_ is universal.
-	const TCHAR* GaitInfix(EQRFootGait G)
+	// Gait base name WITHOUT the numeric variant -- the variant number
+	// differs per surface (Concrete ships Run_8/Jog_8/Jump_4/Land_4 but
+	// Walk_1; the old "_1 is universal" assumption was wrong, so Run/Jog
+	// footsteps silently fell back to the Walk sound). GetFootstepCue
+	// now probes a candidate list of numbers and takes the first that
+	// resolves.
+	const TCHAR* GaitBase(EQRFootGait G)
 	{
 		switch (G)
 		{
-		case EQRFootGait::Jog:   return TEXT("Jog_1");
-		case EQRFootGait::Run:   return TEXT("Run_1");
-		case EQRFootGait::Jump:  return TEXT("Jump_1");
-		case EQRFootGait::Land:  return TEXT("Land_1");
+		case EQRFootGait::Jog:   return TEXT("Jog");
+		case EQRFootGait::Run:   return TEXT("Run");
+		case EQRFootGait::Jump:  return TEXT("Jump");
+		case EQRFootGait::Land:  return TEXT("Land");
 		case EQRFootGait::Walk:
-		default:                 return TEXT("Walk_1");
+		default:                 return TEXT("Walk");
 		}
 	}
 
@@ -92,18 +95,22 @@ namespace
 		// Cue path convention from the Fab pack:
 		//   /Game/Essential_Foosteps_SK/CUE/<Surface>/
 		//     Footstep_<Surface>_<Boots_?><Gait>_<n>_Cue.<asset>
-		// Glass omits the "Boots_" infix; everything else keeps it.
-		const FString Path = FString::Printf(
-			TEXT("/Game/Essential_Foosteps_SK/CUE/%s/Footstep_%s_%s%s_Cue.Footstep_%s_%s%s_Cue"),
-			SurfaceFolderName(S),
-			SurfaceFolderName(S),
-			SurfaceBootsInfix(S),
-			GaitInfix(G),
-			SurfaceFolderName(S),
-			SurfaceBootsInfix(S),
-			GaitInfix(G));
-
-		USoundBase* S2 = LoadObject<USoundBase>(nullptr, *Path);
+		// Glass omits the "Boots_" infix; everything else keeps it. The
+		// variant number <n> is inconsistent across surfaces, so probe a
+		// candidate list and take the first that resolves.
+		static const int32 Variants[] = { 1, 8, 4, 2, 3, 5, 6, 7 };
+		USoundBase* S2 = nullptr;
+		for (int32 N : Variants)
+		{
+			const FString Stem = FString::Printf(
+				TEXT("Footstep_%s_%s%s_%d_Cue"),
+				SurfaceFolderName(S), SurfaceBootsInfix(S), GaitBase(G), N);
+			const FString Path = FString::Printf(
+				TEXT("/Game/Essential_Foosteps_SK/CUE/%s/%s.%s"),
+				SurfaceFolderName(S), *Stem, *Stem);
+			S2 = LoadObject<USoundBase>(nullptr, *Path);
+			if (S2) break;
+		}
 		GFootstepCache[SI][GI] = S2;
 
 		// Concrete Walk is the universal fallback if the surface-gait
@@ -147,10 +154,11 @@ namespace QRUISound
 	void PlayWeaponFire(UObject* WC, FVector Location, float VolumeMult)
 	{
 		static USoundBase* Cached = nullptr;
-		// Gunshot_1-1 is the cleanest generic shot in the pack; per-
-		// weapon SFX can be slotted on the component to override.
+		// Gunshot_7-1 is the generic shot the pack actually ships (there
+		// is no Gunshot_1-1_Cue on disk -- the old path loaded nothing,
+		// which is why shooting was silent).
 		USoundBase* S = LazyLoadSound(
-			TEXT("/Game/Free_Sounds_Pack/cue/Gunshot_1-1_Cue.Gunshot_1-1_Cue"), Cached);
+			TEXT("/Game/Free_Sounds_Pack/cue/Gunshot_7-1_Cue.Gunshot_7-1_Cue"), Cached);
 		if (S && WC)
 		{
 			UGameplayStatics::PlaySoundAtLocation(WC, S, Location, VolumeMult);

@@ -649,8 +649,12 @@ void UQRWeaponComponent::Multicast_PlayFireFX_Implementation(
 		if (!bTriedLoad)
 		{
 			bTriedLoad = true;
+			// Root layout (packs live at /Game/<Pack> since 2026-06-11)
+			// and Gunshot_7-1 is the cue the pack actually ships -- the
+			// old "/Game/Fabs/.../Gunshot_1-1_Cue" was doubly wrong
+			// (stale prefix + nonexistent cue), so no shot ever sounded.
 			CachedDefault = LoadObject<USoundBase>(nullptr,
-				TEXT("/Game/Fabs/Free_Sounds_Pack/cue/Gunshot_1-1_Cue.Gunshot_1-1_Cue"));
+				TEXT("/Game/Free_Sounds_Pack/cue/Gunshot_7-1_Cue.Gunshot_7-1_Cue"));
 		}
 		SoundToPlay = CachedDefault;
 	}
