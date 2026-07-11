@@ -396,9 +396,34 @@ def run(exposure_ev=0.0, sun_lux=10.0):
             print("[sky] exposure = bounded AUTO, bias {} (+ brighter / - darker)"
                   .format(exposure_ev))
 
+    # DURABLE SAVE: the sky is all editor-placed actors (QR_Jupiter, the
+    # moons, the lights). If the level isn't saved they evaporate on the
+    # next reload -- which is exactly how "Jupiter and the moons vanished"
+    # happened. Save the current level automatically so the sky persists.
+    _save_current_level()
+
     print("[sky] done — re-run any time, it re-tunes instead of duplicating.")
-    print("[sky] SAVE THE LEVEL (Ctrl+S). QR_Jupiter is a plain sphere —")
-    print("[sky] assign a gas-giant material to it for the final look.")
+    print("[sky] Level saved. QR_Jupiter is a plain sphere — assign a")
+    print("[sky] gas-giant material to it for the final look.")
+
+
+def _save_current_level():
+    """Save the open level so the spawned sky actors persist across
+    reloads. Tries the modern subsystem first, then legacy fallbacks."""
+    try:
+        les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+        if les:
+            les.save_current_level()
+            print("[sky] level saved (LevelEditorSubsystem).")
+            return
+    except Exception as e:
+        print("[sky]   LevelEditorSubsystem save skipped: {}".format(e))
+    try:
+        unreal.EditorLevelLibrary.save_current_level()
+        print("[sky] level saved (EditorLevelLibrary).")
+    except Exception as e:
+        print("[sky]   auto-save failed ({}). Press Ctrl+S to persist "
+              "the sky.".format(e))
 
 
 if __name__ == "__main__":

@@ -367,7 +367,26 @@ def run(skip_biomes=False, skip_terrain=False, skip_sky=False, skip_dev_test=Fal
     _paint_terrain_geometry()
     _spawn_biome_scatters()
 
-    print("[dress] DONE -- save the level to keep the dressing.")
+    _save_current_level()
+    print("[dress] DONE -- level saved; the dressing persists across reloads.")
+
+
+def _save_current_level():
+    """Persist spawned dressing/sky/village actors so they don't
+    evaporate on reload (they are editor-placed, not runtime-spawned)."""
+    try:
+        les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+        if les:
+            les.save_current_level()
+            print("[dress] level saved (LevelEditorSubsystem).")
+            return
+    except Exception as e:
+        print("[dress]   LevelEditorSubsystem save skipped: {}".format(e))
+    try:
+        unreal.EditorLevelLibrary.save_current_level()
+        print("[dress] level saved (EditorLevelLibrary).")
+    except Exception as e:
+        print("[dress]   auto-save failed ({}). Press Ctrl+S.".format(e))
 
 
 # ─── Production worldgen tiling ──────────────────────────────────────

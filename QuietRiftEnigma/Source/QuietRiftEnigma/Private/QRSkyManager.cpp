@@ -12,20 +12,24 @@ AQRSkyManager::AQRSkyManager()
 	PrimaryActorTick.TickInterval = 0.5f;  // 2 Hz is plenty for sky
 
 	// Default Galilean moons. Orbital radii (in cm) preserve the real
-	// ratios to Jupiter's body radius: Io ~6 RJ, Europa ~9.4 RJ, Ganymede
-	// ~15 RJ, Callisto ~26 RJ. Jupiter's game radius is 700,000 cm
-	// (scale 7000 on a 1m sphere -> 7 km radius), so orbits become:
-	//   Io        4.2 Mm,  Europa     6.6 Mm,
-	//   Ganymede 10.5 Mm,  Callisto  18.2 Mm.
+	// Orbit radii keep the real Galilean RATIOS (1 : 1.6 : 2.55 : 4.4)
+	// but are scaled to Jupiter's DISTANCE from the player (~65 km), not
+	// its body radius. The old radii (4.2-18.2 Mm = 42-182 km) were
+	// larger than Jupiter's 65 km distance, so once the tick ran the
+	// moons flung out to 42-182 km orbits -- Callisto swung up to 247 km
+	// away and even behind the origin, scattering the moons across (and
+	// off) the sky. Capping Callisto at ~11 km keeps all four within
+	// ~10 deg of Jupiter -- a tight, always-visible moon cluster on
+	// Jupiter's side of the dome.
 	// Period ratios preserve real Jovian (each ~2x previous, ~2.3x for
 	// Callisto) compressed to seconds so motion is visible during play:
 	// Io ~2 min, Europa ~4 min, Ganymede ~8 min, Callisto ~18 min.
 	// Initial phases stagger them so they don't line up at world start.
 	Moons.Reset();
-	Moons.Add({ TEXT("QR_Moon_Io"),         4200000.f,  120.f,  0.00f });
-	Moons.Add({ TEXT("QR_Moon_Europa"),     6600000.f,  240.f,  0.25f });
-	Moons.Add({ TEXT("QR_Moon_Ganymede"),  10500000.f,  480.f,  0.50f });
-	Moons.Add({ TEXT("QR_Moon_Callisto"),  18200000.f, 1110.f,  0.75f });
+	Moons.Add({ TEXT("QR_Moon_Io"),          250000.f,  120.f,  0.00f });
+	Moons.Add({ TEXT("QR_Moon_Europa"),      400000.f,  240.f,  0.25f });
+	Moons.Add({ TEXT("QR_Moon_Ganymede"),    640000.f,  480.f,  0.50f });
+	Moons.Add({ TEXT("QR_Moon_Callisto"),   1100000.f, 1110.f,  0.75f });
 }
 
 
