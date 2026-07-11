@@ -127,6 +127,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wildlife|Size")
 	bool bAutoFitMeshToBody = true;
 
+	// If true, BeginPlay drops the skinned body so its ACTUAL lowest
+	// vertex rests on the capsule bottom (grounds meshes whose pivot
+	// isn't at their feet -- e.g. a hip-pivoted Fab mesh, which is why
+	// the German Shepherd looked like it floated). Set FALSE on the
+	// floater-archetype species (gas bladders, wisps, swarms) whose
+	// canon is to hover above the ground.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wildlife|Size")
+	bool bGroundBodyToFeet = true;
+
 	// Optional explicit override for the placeholder mesh. Leave blank to
 	// let BeginPlay auto-derive from the class name (e.g. AQRWildlife_
 	// AshbackBoar -> /Game/Meshes/wildlife/SM_ANM_AshbackBoar). Only used

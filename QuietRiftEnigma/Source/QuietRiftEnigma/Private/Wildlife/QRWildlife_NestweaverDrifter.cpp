@@ -6,6 +6,9 @@ AQRWildlife_NestweaverDrifter::AQRWildlife_NestweaverDrifter()
 	SpeciesId          = FName("ANI_NESTWEAVER_DRIFTER");
 	SpeciesDisplayName = FText::FromString("Nestweaver Drifter");
 	BehaviorRole       = EQRWildlifeBehaviorRole::Prey;
+	// Canon floater: hovers above the ground -- don't drop the mesh
+	// to the capsule bottom.
+	bGroundBodyToFeet = false;
 	MaxHealth          = 80.0f;
 	MassKg             = 12.0f;
 	MoveSpeedWalk      = 120.0f;

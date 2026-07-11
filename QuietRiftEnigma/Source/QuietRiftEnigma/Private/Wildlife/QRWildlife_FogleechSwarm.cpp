@@ -6,6 +6,9 @@ AQRWildlife_FogleechSwarm::AQRWildlife_FogleechSwarm()
 	SpeciesId          = FName("PRD_FOGLEECH_SWARM");
 	SpeciesDisplayName = FText::FromString("Fogleech Swarm");
 	BehaviorRole       = EQRWildlifeBehaviorRole::Predator;
+	// Canon floater: hovers above the ground -- don't drop the mesh
+	// to the capsule bottom.
+	bGroundBodyToFeet = false;
 	MaxHealth          = 10.0f; // Each leech is nearly trivial alone
 	MassKg             = 2.0f;
 	MoveSpeedWalk      = 200.0f;

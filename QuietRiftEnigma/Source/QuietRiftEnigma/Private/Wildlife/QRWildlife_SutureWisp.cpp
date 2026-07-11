@@ -6,6 +6,9 @@ AQRWildlife_SutureWisp::AQRWildlife_SutureWisp()
 	SpeciesId          = FName("PRD_SUTURE_WISP");
 	SpeciesDisplayName = FText::FromString("Suture Wisp");
 	BehaviorRole       = EQRWildlifeBehaviorRole::Predator;
+	// Canon floater: hovers above the ground -- don't drop the mesh
+	// to the capsule bottom.
+	bGroundBodyToFeet = false;
 	MaxHealth          = bIsPrimeElite ? 350.0f : 180.0f;
 	MassKg             = 90.0f;
 	MoveSpeedWalk      = 300.0f;

@@ -67,10 +67,16 @@ void AQRWildlifeBase::SetupHitCollision()
 	{
 		Cap->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	}
-	// Also make the visible body itself shootable so hits register on the
-	// silhouette, not just the capsule. Query-only (no physics) keeps it
-	// out of movement/overlap logic while still catching weapon traces.
-	if (FallbackMesh && FallbackMesh->IsVisible())
+	// Also make the body itself shootable so hits register on the whole
+	// silhouette, not just the small centre capsule. This runs whether
+	// the FallbackMesh is the VISIBLE placeholder OR an invisible
+	// body-sized hitbox behind a skinned mesh (see SetupFallbackVisual)
+	// -- gate on "has a mesh", NOT on visibility, or skinned species end
+	// up with only the capsule catching traces and a long/low animal's
+	// head, tail and flanks take no damage. Query-only (no physics)
+	// keeps it out of movement/overlap logic while catching weapon
+	// traces on ECC_Visibility.
+	if (FallbackMesh && FallbackMesh->GetStaticMesh())
 	{
 		FallbackMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 		FallbackMesh->SetCollisionObjectType(ECC_WorldDynamic);
@@ -181,12 +187,15 @@ void AQRWildlifeBase::ApplyBodySizing()
 	}
 
 	USkeletalMeshComponent* MeshComp = GetMesh();
-	if (!MeshComp) return;
+	if (!MeshComp || !MeshComp->GetSkeletalMeshAsset()) return;
 
-	// Drop the mesh so its feet rest at the bottom of the capsule.
+	// ACharacter sets a default -90 deg yaw on GetMesh() (the Mannequin
+	// faces -Y). Our wildlife are authored nose-forward (+X), so clear it
+	// or every animal renders 90 deg off its travel direction.
+	MeshComp->SetRelativeRotation(FRotator::ZeroRotator);
 	MeshComp->SetRelativeLocation(FVector(0.0f, 0.0f, -HalfHeight));
 
-	if (bAutoFitMeshToBody && MeshComp->GetSkeletalMeshAsset())
+	if (bAutoFitMeshToBody)
 	{
 		// Measure the mesh at unit scale, then rescale so its rendered
 		// height matches BodyHeightMeters. The source FBX scale is then
@@ -197,19 +206,52 @@ void AQRWildlifeBase::ApplyBodySizing()
 		const float Fit = HeightCm / MeshHeightCm;
 		MeshComp->SetRelativeScale3D(FVector(Fit));
 	}
+
+	// Ground the mesh's ACTUAL bottom (not its pivot) to the capsule
+	// bottom -- the static FallbackMesh path already does this, but the
+	// skinned path skipped it, so any species whose skeletal pivot isn't
+	// at its lowest vertex (a hip-pivoted Fab mesh like the German
+	// Shepherd, or the hover-authored floaters) rendered above -- or sunk
+	// into -- the ground even though the capsule is correctly grounded.
+	// That mesh-vs-capsule offset is exactly the "animal floats, ignores
+	// gravity" report. Skipped for canon floaters (bGroundBodyToFeet=false).
+	if (bGroundBodyToFeet)
+	{
+		const FBoxSphereBounds GB = MeshComp->CalcBounds(MeshComp->GetRelativeTransform());
+		const float MeshBottomZ = GB.Origin.Z - GB.BoxExtent.Z;
+		MeshComp->AddLocalOffset(FVector(0.0f, 0.0f, -HalfHeight - MeshBottomZ));
+	}
 }
 
 void AQRWildlifeBase::SetupFallbackVisual()
 {
 	if (!FallbackMesh) return;
 
-	// If a real skeletal mesh is assigned (designer wired one in a BP),
-	// the placeholder isn't needed — hide it and bail.
+	// If a real skeletal mesh is the visible body, the placeholder isn't
+	// shown -- but keep the FallbackMesh as an INVISIBLE, body-sized
+	// collision hull. The rigged wildlife import uses
+	// create_physics_asset=False, so a simple ECC_Visibility weapon trace
+	// cannot hit the skeletal mesh at all; without this hull only the thin
+	// vertical capsule is shootable and most shots on a horizontal animal
+	// pass straight through (this is why animals took no damage).
 	USkeletalMeshComponent* SkelComp = GetMesh();
 	if (SkelComp && SkelComp->GetSkeletalMeshAsset())
 	{
+		if (UStaticMesh* Hull = LoadObject<UStaticMesh>(
+				nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")))
+		{
+			const float LenM = FMath::Max(BodyLengthMeters, 0.2f);
+			const float HtM  = FMath::Max(BodyHeightMeters, 0.2f);
+			const float WidM = FMath::Max(LenM * 0.45f, 0.15f);
+			FallbackMesh->SetStaticMesh(Hull);
+			FallbackMesh->SetRelativeRotation(FRotator::ZeroRotator);
+			FallbackMesh->SetRelativeLocation(FVector::ZeroVector);  // centred on capsule
+			FallbackMesh->SetRelativeScale3D(FVector(LenM, WidM, HtM));
+		}
 		FallbackMesh->SetVisibility(false);
-		return;
+		FallbackMesh->SetHiddenInGame(true);   // invisible, still collides
+		FallbackMesh->SetCastShadow(false);
+		return;                                // SetupHitCollision arms the hull
 	}
 
 	const float HalfHeightCm = GetCapsuleComponent()
