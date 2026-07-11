@@ -44,19 +44,38 @@ MAP_SUFFIXES = {
     "Displacement": dict(srgb=False),
 }
 
-# Mesh-name regex fragment -> (family, uv_tiling). Order matters.
-BUILD_RULES = [
-    ("REINFORCED", ("MetalPlates", 1.5)),
-    ("METAL",      ("MetalPlates", 1.5)),
-    ("STONE",      ("StoneWall", 2.0)),
-    ("WOOD",       ("PlanksWorn", 2.0)),
-    ("THATCH",     ("PlanksWorn", 2.0)),
-    ("PALISADE",   ("BarkRough", 2.0)),
-    ("TORCH",      ("BarkRough", 1.0)),
-    ("BENCH",      ("PlanksClean", 1.5)),
-    ("CRATE",      ("PlanksClean", 1.5)),
-    ("",           ("PlanksWorn", 2.0)),      # BLD fallback
+# PER-SLOT classifier: match a build-piece material SLOT NAME (the
+# Blender palette names -- Wood/Stone/Glass/Steel/Ember/...) to a
+# (family, uv_tiling) scan, so a window's Glass pane and a torch's
+# emissive Ember head are PRESERVED (family None) while metal straps
+# get metal and plank slots get planks. First match wins.
+SLOT_FAMILY = [
+    # Preserve translucent / emissive / light-emitting slots untouched.
+    (("glass", "ember", "glow", "emiss", "eye", "led", "lamp",
+      "lantern", "light", "fire", "coal", "crystal"), None),
+    (("steel", "gunmetal", "metal", "iron", "chrome", "alloy",
+      "hinge", "bolt", "strap", "plate"), ("MetalPlates", 1.5)),
+    (("stone", "rock", "concrete", "basalt", "granite"), ("StoneWall", 2.0)),
+    (("thatch", "straw", "reed"), ("PlanksWorn", 3.0)),
+    (("wood", "plank", "timber", "log", "bark"), ("PlanksWorn", 2.0)),
+    (("rope", "fabric", "cloth", "canvas", "leather", "hide"),
+     ("FabricCanvas", 2.0)),
+    (("ash", " kiln", "placard"), ("StoneWall", 2.0)),
 ]
+# Fallback when a build-piece slot matches nothing above. Keyed off the
+# MESH name so a stone pillar's unnamed slot still reads as stone.
+def _build_default(mesh_name):
+    up = mesh_name.upper()
+    if any(t in up for t in ("STONE", "PILLAR", "FOUNDATION_SQUARE_STONE")):
+        return ("StoneWall", 2.0)
+    if "REINFORCED" in up:
+        return ("MetalPlates", 1.5)
+    if any(t in up for t in ("CRATE", "BENCH")):
+        return ("PlanksClean", 1.5)
+    if any(t in up for t in ("PALISADE", "TORCH")):
+        return ("BarkRough", 1.5)
+    return ("PlanksWorn", 2.0)
+
 
 BOULDER_FAMILIES = ["RockGrey", "RockCliff", "RockMossy"]
 
@@ -67,14 +86,18 @@ TREE_BARK = {
     "PRISMLEAF": "BarkRough",
 }
 
-# Biome profile keyword -> ground family.
+# Biome PROFILE NAME (BP_<Name>, lowercased) -> ground family. The 14
+# canonical profiles from qr_seed_biome_profiles.py are matched by name,
+# not by generic keywords (the old swamp/burn tokens matched none).
 BIOME_GROUND = [
-    (("basalt", "ridge", "highland", "cliff"), "RockCliff"),
-    (("sand", "dune", "sink"), "GroundSand"),
-    (("swamp", "mire", "silt"), "GroundRocky"),
-    (("burn", "ash", "cinder"), "Gravel"),
-    (("", ), "GroundForest"),
+    (("basaltshelf", "magneticridges", "highrims", "canyonwebs",
+      "ridgeshadows"), "RockCliff"),
+    (("glassdunes", "windplains"), "GroundSand"),
+    (("wetbasins", "shallowfens", "coldbasins"), "GroundRocky"),
+    (("mossfields", "meltlineedges"), "Moss"),
+    (("thermalcracks", "craterfloors"), "Gravel"),
 ]
+BIOME_GROUND_DEFAULT = "GroundForest"
 
 
 def _asset_tools():
@@ -222,18 +245,34 @@ def _build_scan_master(default_maps):
     return mat
 
 
-def _get_or_create_mi(family, maps, master, tiling=1.0):
+# Lazy (family, tiling) -> MaterialInstanceConstant factory. Populated
+# by run(); one MI per distinct (family, tiling) so BarkRough@1.5 and
+# BarkRough@2.0 are different assets carrying their tuned UVTiling.
+_MI = {"families": {}, "master": None, "cache": {}}
+
+
+def _mi_for(family, tiling):
+    if not family:
+        return None
+    maps = _MI["families"].get(family)
+    master = _MI["master"]
+    if not maps or not master:
+        return None
+    key = (family, round(float(tiling), 2))
+    if key in _MI["cache"]:
+        return _MI["cache"][key]
     _ensure_dir(MI_DIR)
-    name = "MI_QR_Scan_{}".format(family)
+    tag = "x{}".format(str(key[1]).replace(".", "p"))
+    name = "MI_QR_Scan_{}_{}".format(family, tag)
     path = "{}/{}".format(MI_DIR, name)
-    # Rebuild in place: the master is force-rebuilt each run, so a stale
-    # instance would still carry the OLD (broken) parent. Recreating
-    # re-parents to the freshly-compiling master.
+    # Force-rebuild: the master is rebuilt each run, so a stale MI would
+    # carry the OLD (broken) parent shader map.
     _force_delete(path)
     mi = _asset_tools().create_asset(name, MI_DIR,
                                      unreal.MaterialInstanceConstant,
                                      unreal.MaterialInstanceConstantFactoryNew())
     if not mi:
+        _MI["cache"][key] = None
         return None
     mi.set_editor_property("parent", master)
     param_map = {"ColorMap": "Color", "NormalMap": "NormalGL",
@@ -243,9 +282,21 @@ def _get_or_create_mi(family, maps, master, tiling=1.0):
         tex = unreal.load_asset(asset_path) if asset_path else None
         if tex:
             MEL.set_material_instance_texture_parameter_value(mi, param, tex)
-    MEL.set_material_instance_scalar_parameter_value(mi, "UVTiling", tiling)
+    MEL.set_material_instance_scalar_parameter_value(mi, "UVTiling", float(tiling))
     unreal.EditorAssetLibrary.save_loaded_asset(mi)
+    _MI["cache"][key] = mi
     return mi
+
+
+def _slot_target(slot_name):
+    """(family, tiling) for a build-piece material slot, or None to
+    PRESERVE it (glass/emissive/etc). Returns the sentinel 'unmatched'
+    when no keyword hits so the caller can apply the mesh default."""
+    low = slot_name.lower()
+    for tokens, fam_tiling in SLOT_FAMILY:
+        if any(t in low for t in tokens):
+            return fam_tiling            # may be None (preserve)
+    return "unmatched"
 
 
 # ─── 4. Surface re-dress ─────────────────────────────────────────────
@@ -266,7 +317,33 @@ def _assign_static(mesh, slot_filter, mi):
     return changed
 
 
-def _redress_meshes(mis):
+def _redress_build_piece(mesh, mesh_name):
+    """Per-slot re-dress: each slot resolved by its OWN material name so
+    glass/emissive slots survive and metal/wood/stone each get the right
+    scan. Unmatched slots take the mesh's structural default."""
+    default = _build_default(mesh_name)
+    mats = list(mesh.static_materials)
+    changed = False
+    for i, sm in enumerate(mats):
+        slot = str(sm.material_slot_name)
+        tgt = _slot_target(slot)
+        if tgt is None:
+            continue                      # preserve (glass, ember, ...)
+        if tgt == "unmatched":
+            tgt = default
+        mi = _mi_for(tgt[0], tgt[1])
+        if not mi:
+            continue
+        mats[i] = unreal.StaticMaterial(material_interface=mi,
+                                        material_slot_name=slot)
+        changed = True
+    if changed:
+        mesh.set_editor_property("static_materials", mats)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    return changed
+
+
+def _redress_meshes():
     registry = unreal.AssetRegistryHelpers.get_asset_registry()
     registry.scan_paths_synchronous([MESH_ROOT], True)
     dressed = 0
@@ -277,37 +354,37 @@ def _redress_meshes(mis):
         except Exception:
             continue
         name = str(ad.asset_name)
-        target = None
+        obj = "{}.{}".format(ad.package_name, ad.asset_name)
+
         if name.startswith("SM_BLD_"):
-            for token, (family, tiling) in BUILD_RULES:
-                if token in name.upper():
-                    target = mis.get(family)
-                    break
+            mesh = unreal.load_asset(obj)
+            if mesh and _redress_build_piece(mesh, name):
+                dressed += 1
         elif name.startswith("SM_RCK_BOULDER_"):
             idx = "ABC".find(name[-1]) if name[-1] in "ABC" else 0
-            target = mis.get(BOULDER_FAMILIES[idx % len(BOULDER_FAMILIES)])
+            mi = _mi_for(BOULDER_FAMILIES[idx % len(BOULDER_FAMILIES)], 1.0)
+            mesh = unreal.load_asset(obj)
+            if mesh and mi and _assign_static(mesh, None, mi):
+                dressed += 1
         elif name.startswith("SM_TRE_"):
-            for token, family in TREE_BARK.items():
+            family = None
+            for token, fam in TREE_BARK.items():
                 if token in name:
-                    target = mis.get(family)
+                    family = fam
                     break
-            if target:
-                mesh = unreal.load_asset("{}.{}".format(ad.package_name, ad.asset_name))
+            mi = _mi_for(family, 1.0) if family else None
+            if mi:
+                mesh = unreal.load_asset(obj)
+                # Only the bark slots (leaf-card slots must stay alpha).
                 if mesh and _assign_static(
-                        mesh, lambda s: "Bark" in s or "bark" in s, target):
+                        mesh, lambda s: "bark" in s.lower(), mi):
                     dressed += 1
-                continue
-        if target is None:
-            continue
-        mesh = unreal.load_asset("{}.{}".format(ad.package_name, ad.asset_name))
-        if mesh and _assign_static(mesh, None, target):
-            dressed += 1
     print("[scan] {} meshes re-dressed with tiling scans".format(dressed))
 
 
 # ─── 5. Biome landscape restamp ──────────────────────────────────────
 
-def _restamp_biomes(mis):
+def _restamp_biomes():
     biome_dir = "/Game/QuietRift/Data/Biomes"
     registry = unreal.AssetRegistryHelpers.get_asset_registry()
     if not unreal.EditorAssetLibrary.does_directory_exist(biome_dir):
@@ -319,12 +396,12 @@ def _restamp_biomes(mis):
         if not profile:
             continue
         low = str(ad.asset_name).lower()
-        family = "GroundForest"
+        family = BIOME_GROUND_DEFAULT
         for tokens, fam in BIOME_GROUND:
-            if any(t and t in low for t in tokens):
+            if any(t in low for t in tokens):
                 family = fam
                 break
-        mi = mis.get(family)
+        mi = _mi_for(family, 1.0)          # ground tiles at 1x (large UVs)
         if not mi:
             continue
         try:
@@ -349,16 +426,22 @@ def run():
     if not master:
         print("[scan] master creation failed -- aborting")
         return
-    mis = {}
-    for family, maps in families.items():
-        mi = _get_or_create_mi(family, maps, master)
-        if mi:
-            mis[family] = mi
-    print("[scan] {} scan material instances ready".format(len(mis)))
-    _redress_meshes(mis)
-    _restamp_biomes(mis)
-    print("[scan] DONE. Dev floor: qr_create_test_maps now prefers")
-    print("[scan] MI_QR_Scan_GroundForest when present.")
+    # Prime the lazy MI factory. Instances are created on demand per
+    # (family, tiling) as _redress/_restamp request them.
+    _MI["families"] = families
+    _MI["master"] = master
+    _MI["cache"] = {}
+    # Pre-create the ground MIs so a mostly-empty mesh set still yields
+    # the dev-floor material.
+    ground_fams = set(fam for _tokens, fam in BIOME_GROUND)
+    ground_fams.add(BIOME_GROUND_DEFAULT)
+    for fam in ground_fams:
+        _mi_for(fam, 1.0)
+    _redress_meshes()
+    _restamp_biomes()
+    print("[scan] {} scan material instances built".format(
+        len([v for v in _MI["cache"].values() if v])))
+    print("[scan] DONE. Dev floor uses MI_QR_Scan_GroundForest_x1p0.")
 
 
 if __name__ == "__main__":
