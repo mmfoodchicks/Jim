@@ -418,10 +418,19 @@ def run():
     families = _import_textures()
     if not families:
         return
-    # Seed the master's parameter defaults from a ground family (any
-    # complete set works; GroundForest is the canonical fallback).
-    default_maps = families.get("GroundForest") or next(
-        (m for m in families.values() if m.get("Color")), {})
+    # Seed the master's parameter defaults from a COMPLETE family (all
+    # four maps present), else the missing-map params keep the engine's
+    # sRGB DefaultTexture and the Normal/Linear sampler override re-
+    # introduces the compile mismatch this rewrite exists to kill.
+    # GroundForest is the canonical choice; fall back to any complete set.
+    _needed = ("Color", "NormalGL", "Roughness", "AmbientOcclusion")
+    def _complete(m):
+        return m and all(m.get(k) for k in _needed)
+    default_maps = (families.get("GroundForest") if _complete(
+        families.get("GroundForest")) else None)
+    if default_maps is None:
+        default_maps = next((m for m in families.values() if _complete(m)),
+                            families.get("GroundForest") or {})
     master = _build_scan_master(default_maps)
     if not master:
         print("[scan] master creation failed -- aborting")
