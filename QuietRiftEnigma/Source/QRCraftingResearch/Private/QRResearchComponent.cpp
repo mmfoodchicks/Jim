@@ -133,6 +133,11 @@ bool UQRResearchComponent::QueueMicroResearch(FName MicroResearchId, UQRInventor
 	auto* DefPtr = MicroResearchDefinitions.Find(MicroResearchId);
 	if (!DefPtr || !(*DefPtr)) return false;
 
+	// Already queued: refuse BEFORE charging — the old order consumed the
+	// cost items and then the Contains() check silently skipped the add,
+	// eating the payment for nothing.
+	if (MicroResearchQueue.Contains(MicroResearchId)) return false;
+
 	// Check stack cap
 	int32 Stacks = GetMicroResearchStacks(MicroResearchId);
 	if (Stacks >= (*DefPtr)->MaxStacks) return false;
@@ -149,8 +154,7 @@ bool UQRResearchComponent::QueueMicroResearch(FName MicroResearchId, UQRInventor
 		CostSource->TryRemoveItem(ItemId, 1);
 	}
 
-	if (!MicroResearchQueue.Contains(MicroResearchId))
-		MicroResearchQueue.Add(MicroResearchId);
+	MicroResearchQueue.Add(MicroResearchId);
 
 	OnResearchQueued.Broadcast(MicroResearchId);
 	return true;
@@ -233,8 +237,10 @@ void UQRResearchComponent::TickResearchQueue(float DeltaTime)
 		RT->CompletedStacks   = FMath::Min(RT->CompletedStacks + 1, (*DefPtr)->MaxStacks);
 		OnMicroResearchStacked.Broadcast(CurrentId, RT->CompletedStacks);
 
-		if (RT->CompletedStacks >= (*DefPtr)->MaxStacks)
-			MicroResearchQueue.RemoveAt(0);
+		// One queued (and paid-for) run grants ONE stack. Leaving the
+		// entry queued until MaxStacks let a single payment buy every
+		// remaining stack in the family.
+		MicroResearchQueue.RemoveAt(0);
 	}
 }
 

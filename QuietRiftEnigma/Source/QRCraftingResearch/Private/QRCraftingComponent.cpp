@@ -90,6 +90,21 @@ bool UQRCraftingComponent::QueueRecipe(FName RecipeId)
 
 void UQRCraftingComponent::CancelCurrentTask()
 {
+	// Refund the in-flight recipe's consumed ingredients — cancelling
+	// used to silently destroy them (they were consumed at start).
+	if (!CurrentRecipeId.IsNone())
+	{
+		if (const FQRRecipeTableRow* Row = FindRecipeRow(CurrentRecipeId))
+		{
+			for (const FQRRecipeIngredient& Ing : Row->GetIngredients())
+			{
+				if (!Ing.bIsReusable)
+				{
+					DepositToInputs(Ing.ItemId, Ing.Quantity);
+				}
+			}
+		}
+	}
 	CurrentRecipeId = NAME_None;
 	CurrentTaskTimeRemaining = 0.0f;
 	CurrentTaskTotalTime = 0.0f;

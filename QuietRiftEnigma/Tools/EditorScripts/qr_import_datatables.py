@@ -26,7 +26,10 @@ Run from the UE Python console:
   run(overwrite=True)      # delete + recreate every table
 """
 
+import csv
+import io
 import os
+import re
 import unreal
 
 
@@ -55,6 +58,133 @@ TABLES = [
 ]
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# DT_Recipes.csv is authored in the DESIGN format
+#   RecipeId,Output,Inputs,Time,Building / Station Required,Unlocked By,...
+# with display names ("Fiber Bundle ×2; Cloth Patch ×2") and "60s" times,
+# while FQRRecipeTableRow wants id-keyed struct columns (Ingredient1..6,
+# OutputItemId, CraftTimeSeconds...). Importing the design CSV directly
+# produced 243 EMPTY rows — every field defaulted, so runtime crafting had
+# no outputs, no ingredients, and 5s times. The converter below rewrites
+# the design CSV into a struct-format temp CSV at import time:
+#   • id-shaped tokens (AMO_ARROW_FIRE) pass through as-is — many exist
+#     only as seeded UQRItemDefinition assets, not in DT_Items_Master.csv
+#   • display names resolve via DT_Items_Master.csv's Item column
+#   • RequiredTechNodeId comes from DT_TechNodes.csv's UnlockedRecipeIds
+#     reverse mapping (the "+"-separated mirror-rule column)
+#   • unresolvable outputs drop the row; unresolvable inputs drop the
+#     ingredient — both land in the conversion report
+# ─────────────────────────────────────────────────────────────────────────
+
+_ID_TOKEN_RE  = re.compile(r'^[A-Z][A-Z0-9]{1,5}_[A-Z0-9_]+$')
+_QTY_TOKEN_RE = re.compile(r'^(.*?)\s*[×xX]\s*(\d+)\s*$')
+
+
+def _parse_time_seconds(raw):
+    raw = (raw or "").strip().lower()
+    m = re.match(r'^(?:(\d+)m)?\s*(?:(\d+)s?)?$', raw)
+    if not m or (m.group(1) is None and m.group(2) is None):
+        return 5.0
+    return float(m.group(1) or 0) * 60.0 + float(m.group(2) or 0)
+
+
+def _convert_recipes_to_struct_csv(src_path, items_csv, technodes_csv, out_path):
+    """Pure-python transform (no unreal API) — testable outside the editor.
+    Returns (row_count, report_lines)."""
+    items_by_name = {}
+    if os.path.isfile(items_csv):
+        with io.open(items_csv, newline='', encoding='utf-8-sig') as f:
+            for row in csv.DictReader(f):
+                rid = (row.get('ItemId') or '').strip()
+                dn  = (row.get('Item') or '').strip().lower()
+                if rid and dn:
+                    items_by_name.setdefault(dn, rid)
+
+    recipe_to_tech = {}
+    if os.path.isfile(technodes_csv):
+        with io.open(technodes_csv, newline='', encoding='utf-8-sig') as f:
+            for row in csv.DictReader(f):
+                tid = (row.get('TechNodeId') or '').strip()
+                for rc in (row.get('UnlockedRecipeIds') or '').split('+'):
+                    rc = rc.strip()
+                    if rc.startswith('RC_') and tid:
+                        recipe_to_tech[rc] = tid
+
+    def resolve_token(tok):
+        m = _QTY_TOKEN_RE.match(tok.strip())
+        name, qty = ((m.group(1), int(m.group(2))) if m else (tok.strip(), 1))
+        name = name.strip()
+        if not name:
+            return None, 0
+        if _ID_TOKEN_RE.match(name):
+            return name, qty
+        return items_by_name.get(name.lower()), qty
+
+    report = []
+    out_rows = []
+    with io.open(src_path, newline='', encoding='utf-8-sig') as f:
+        for row in csv.DictReader(f):
+            rid = (row.get('RecipeId') or '').strip()
+            if not rid:
+                continue
+            out_id, out_qty = resolve_token(row.get('Output') or '')
+            if not out_id:
+                report.append("DROPPED {}: unresolvable output '{}'".format(
+                    rid, row.get('Output')))
+                continue
+
+            ings = []
+            for tok in (row.get('Inputs') or '').split(';'):
+                if not tok.strip():
+                    continue
+                iid, iqty = resolve_token(tok)
+                if iid:
+                    ings.append((iid, iqty))
+                else:
+                    report.append("{}: dropped unresolvable input '{}'".format(
+                        rid, tok.strip()))
+            ings = ings[:6]
+
+            rec = {
+                '---':                    rid,
+                'DisplayName':            (row.get('Output') or '').split('×')[0].strip(),
+                'RequiredStation':        '',
+                'RequiredTier':           'T0_Primitive',
+                'RequiredTechNodeId':     recipe_to_tech.get(rid, ''),
+                'RequiredReferenceComponentId': '',
+                'OutputItemId':           out_id,
+                'OutputQty':              out_qty,
+                'Output2ItemId':          '',
+                'Output2Qty':             0,
+                'Output2YieldChance':     0.0,
+                'CraftTimeSeconds':       _parse_time_seconds(row.get('Time')),
+                'bNPCOnly':               'False',
+            }
+            for i in range(6):
+                iid, iqty = (ings[i] if i < len(ings) else ('', 0))
+                rec['Ingredient{}'.format(i + 1)]         = iid
+                rec['Ingredient{}Qty'.format(i + 1)]      = iqty
+                rec['Ingredient{}Reusable'.format(i + 1)] = 'False'
+            out_rows.append(rec)
+
+    header = ['---', 'DisplayName', 'RequiredStation', 'RequiredTier',
+              'RequiredTechNodeId', 'RequiredReferenceComponentId']
+    for i in range(6):
+        header += ['Ingredient{}'.format(i + 1), 'Ingredient{}Qty'.format(i + 1),
+                   'Ingredient{}Reusable'.format(i + 1)]
+    header += ['OutputItemId', 'OutputQty', 'Output2ItemId', 'Output2Qty',
+               'Output2YieldChance', 'CraftTimeSeconds', 'bNPCOnly']
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with io.open(out_path, 'w', newline='', encoding='utf-8') as f:
+        w = csv.DictWriter(f, fieldnames=header)
+        w.writeheader()
+        for rec in out_rows:
+            w.writerow(rec)
+
+    return len(out_rows), report
+
+
 def _resolve_struct(struct_name, module):
     """Return the UScriptStruct OBJECT for /Script/<module>.F<name>. UE
     5.7's CSVImportSettings.import_row_struct expects a ScriptStruct
@@ -78,6 +208,26 @@ def _import_one(csv_basename, asset_name, struct_name, module, overwrite):
     if not os.path.isfile(csv_path):
         print("[dt-import] SKIP {} (CSV not on disk)".format(csv_basename))
         return False
+
+    # Recipes need the design→struct conversion pass (see comment above).
+    if csv_basename == "DT_Recipes.csv":
+        gen_dir  = os.path.join(DATA_DISK, "_generated")
+        gen_path = os.path.join(gen_dir, "DT_Recipes_struct.csv")
+        n, report = _convert_recipes_to_struct_csv(
+            csv_path,
+            os.path.join(DATA_DISK, "DT_Items_Master.csv"),
+            os.path.join(DATA_DISK, "DT_TechNodes.csv"),
+            gen_path)
+        report_path = os.path.join(gen_dir, "DT_Recipes_conversion_report.txt")
+        with io.open(report_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(report))
+        print("[dt-import] recipes converted: {} rows, {} warnings -> {}".format(
+            n, len(report), report_path))
+        for line in report[:10]:
+            print("[dt-import]   " + line)
+        if len(report) > 10:
+            print("[dt-import]   ... ({} more in the report file)".format(len(report) - 10))
+        csv_path = gen_path
 
     asset_path = "{}/{}".format(DATA_PKG, asset_name)
     if unreal.EditorAssetLibrary.does_asset_exist(asset_path):

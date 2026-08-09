@@ -1,6 +1,7 @@
 #include "QRCraftingWidget.h"
 #include "QRCraftingBench.h"
 #include "QRCraftingComponent.h"
+#include "QRInventoryComponent.h"
 #include "QRRecipeDefinition.h"
 #include "QRUISound.h"
 #include "Blueprint/WidgetTree.h"
@@ -146,6 +147,23 @@ void UQRCraftingWidget::Bind(AQRCraftingBench* InBench)
 {
 	Bench    = InBench;
 	Crafting = Bench ? Bench->Crafting : nullptr;
+
+	// Wire the interacting player's inventory as ingredient source and
+	// output sink. The bench actor has no inventory of its own, so
+	// without this every CanCraft counted zero ingredients and finished
+	// crafts had nowhere to deliver — bench crafting could never work.
+	if (Crafting)
+	{
+		if (APawn* P = GetOwningPlayerPawn())
+		{
+			if (UQRInventoryComponent* PlayerInv =
+				P->FindComponentByClass<UQRInventoryComponent>())
+			{
+				Crafting->InputInventory  = PlayerInv;
+				Crafting->OutputInventory = PlayerInv;
+			}
+		}
+	}
 
 	if (TitleText && Bench)
 	{
