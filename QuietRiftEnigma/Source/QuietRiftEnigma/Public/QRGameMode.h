@@ -224,6 +224,11 @@ private:
 	// OnLoadComplete.AddUObject does NOT dedupe — bind exactly once.
 	bool bLoadDelegateBound = false;
 
+	// Saved build pieces the last load couldn't respawn (missing catalog
+	// row / mesh). QuickSave appends these so they survive until the
+	// catalog can resolve them again.
+	TArray<FQRBuildableSaveData> UnrestoredBuildables;
+
 	void HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data);
 
 	// Driven by AutosaveIntervalSeconds. Set in BeginPlay, cleared in

@@ -488,6 +488,10 @@ private:
 	UPROPERTY()
 	TObjectPtr<class UQRDialogueWidget> DialogueWidgetOpen = nullptr;
 
+	// Piece picker mounted on entering build mode; G-exit dismisses it.
+	UPROPERTY()
+	TObjectPtr<class UQRBuildPieceSelectorWidget> BuildSelectorOpen = nullptr;
+
 	// Look() multiplier, persisted by the settings widget ("MouseSensitivity").
 	float MouseSensitivityMult = 1.0f;
 

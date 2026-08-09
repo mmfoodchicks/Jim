@@ -192,9 +192,14 @@ bool UQRBuildModeComponent::FindSnapTransform(const FVector& AroundLocation,
 	// Overlap query for actors with UQRBuildPieceTag within snap radius.
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(QRBuildSnap), false, GetOwner());
+	// Static AND dynamic: legacy placed pieces (pre-object-type fix) and
+	// designer-placed dynamic actors both need to be snappable.
+	FCollisionObjectQueryParams SnapObjTypes;
+	SnapObjTypes.AddObjectTypesToQuery(ECC_WorldStatic);
+	SnapObjTypes.AddObjectTypesToQuery(ECC_WorldDynamic);
 	W->OverlapMultiByObjectType(
 		Overlaps, AroundLocation, FQuat::Identity,
-		FCollisionObjectQueryParams::AllStaticObjects,
+		SnapObjTypes,
 		FCollisionShape::MakeSphere(SnapSearchRadius), Params);
 
 	const TArray<FName> SnapSocketNames = {
@@ -259,9 +264,12 @@ bool UQRBuildModeComponent::ValidatePlacement(const FVector& Location, const FRo
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(QRBuildValidate), false, GetOwner());
 	if (GhostActor) Params.AddIgnoredActor(GhostActor);
+	FCollisionObjectQueryParams ValidateObjTypes;
+	ValidateObjTypes.AddObjectTypesToQuery(ECC_WorldStatic);
+	ValidateObjTypes.AddObjectTypesToQuery(ECC_WorldDynamic);
 	W->OverlapMultiByObjectType(
 		Overlaps, Xform.GetLocation(), Xform.GetRotation(),
-		FCollisionObjectQueryParams::AllStaticObjects,
+		ValidateObjTypes,
 		FCollisionShape::MakeBox(Extent), Params);
 
 	for (const FOverlapResult& O : Overlaps)
@@ -363,6 +371,10 @@ AActor* UQRBuildModeComponent::SpawnPlacedPiece(UWorld* World, UStaticMesh* Mesh
 	SMC->SetStaticMesh(Mesh);
 	SMC->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	SMC->SetMobility(EComponentMobility::Static);
+	// Match the object type to the mobility — a runtime StaticMeshComponent
+	// defaults to WorldDynamic, which the snap/overlap queries (and this
+	// class's own AllStaticObjects searches) never saw.
+	SMC->SetCollisionObjectType(ECC_WorldStatic);
 	Piece->SetRootComponent(SMC);
 	SMC->SetWorldTransform(Xform);
 
@@ -375,9 +387,17 @@ AActor* UQRBuildModeComponent::SpawnPlacedPiece(UWorld* World, UStaticMesh* Mesh
 }
 
 int32 UQRBuildModeComponent::RestoreFromSave(UWorld* World, UDataTable* Catalog,
-	const TArray<FQRBuildableSaveData>& Saved)
+	const TArray<FQRBuildableSaveData>& Saved,
+	TArray<FQRBuildableSaveData>* OutUnrestored)
 {
-	if (!World || !Catalog) return 0;
+	if (OutUnrestored) OutUnrestored->Reset();
+	if (!World || !Catalog)
+	{
+		// Can't restore anything — everything is "unrestored" so the
+		// caller keeps the data instead of losing the whole base.
+		if (OutUnrestored) *OutUnrestored = Saved;
+		return 0;
+	}
 
 	// Tear down whatever tagged pieces already exist — loading mid-session
 	// must not duplicate the base.
@@ -396,20 +416,28 @@ int32 UQRBuildModeComponent::RestoreFromSave(UWorld* World, UDataTable* Catalog,
 	{
 		if (S.PieceId.IsNone()) continue;
 		const FQRBuildPieceRow* Row = Catalog->FindRow<FQRBuildPieceRow>(S.PieceId, TEXT("QRBuildRestore"), false);
-		if (!Row)
+		UStaticMesh* Mesh = Row ? Row->Mesh.LoadSynchronous() : nullptr;
+		if (!Mesh)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[QRBuild] Saved piece '%s' not in catalog — skipped"),
+			// Unresolvable today (catalog row missing / mesh not imported
+			// yet). Hand it back so the next autosave RETAINS it — the old
+			// silent skip meant one bad catalog reimport permanently
+			// erased those pieces from the save.
+			UE_LOG(LogTemp, Warning, TEXT("[QRBuild] Saved piece '%s' unresolvable — carried forward"),
 				*S.PieceId.ToString());
+			if (OutUnrestored) OutUnrestored->Add(S);
 			continue;
 		}
-		UStaticMesh* Mesh = Row->Mesh.LoadSynchronous();
-		if (!Mesh) continue;
 
 		const FTransform Xform(S.Rotation, S.Location);
 		if (SpawnPlacedPiece(World, Mesh, S.PieceId, Xform,
 			S.BuildableGuid.IsValid() ? S.BuildableGuid : FGuid::NewGuid()))
 		{
 			++Restored;
+		}
+		else if (OutUnrestored)
+		{
+			OutUnrestored->Add(S);
 		}
 	}
 	return Restored;

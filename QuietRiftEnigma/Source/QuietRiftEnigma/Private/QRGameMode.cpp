@@ -356,15 +356,17 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 		{
 			Codex->ImportEntries(PendingLoadedData.CodexEntries);
 		}
-		if (PendingLoadedData.ColonyBuildables.Num() > 0)
 		{
-			// Catalog comes off the player's build component — same table
-			// placement used, so saved PieceIds resolve identically.
+			// Run UNCONDITIONALLY — RestoreFromSave owns the teardown of
+			// existing tagged pieces, so a zero-piece save must still
+			// clear the world (the old >0 gate duplicated pieces when a
+			// pieceless save loaded mid-session). Unresolvable entries
+			// are carried forward so the next autosave keeps them.
 			UDataTable* Catalog = (Player->Build) ? Player->Build->PieceCatalog.Get() : nullptr;
 			const int32 N = UQRBuildModeComponent::RestoreFromSave(
-				W, Catalog, PendingLoadedData.ColonyBuildables);
-			UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d/%d build pieces"),
-				N, PendingLoadedData.ColonyBuildables.Num());
+				W, Catalog, PendingLoadedData.ColonyBuildables, &UnrestoredBuildables);
+			UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d/%d build pieces (%d carried forward)"),
+				N, PendingLoadedData.ColonyBuildables.Num(), UnrestoredBuildables.Num());
 		}
 
 		// Despawn any AQRNPCActor that's still in the level from the
@@ -705,6 +707,10 @@ void AQRGameMode::QuickSave()
 				Data.NPCActors.Add(MoveTemp(N));
 			}
 		}
+
+		// Pieces that failed to respawn on the last load (missing catalog
+		// row / mesh) ride along so they aren't erased from the save.
+		Data.ColonyBuildables.Append(UnrestoredBuildables);
 
 		if (UQRLootedRegistry* Looted = W->GetSubsystem<UQRLootedRegistry>())
 		{

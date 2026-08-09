@@ -822,6 +822,14 @@ void AQRCharacter::TryInteract()
 
 void AQRCharacter::OnFirePressed()
 {
+	// Build mode owns LMB: confirm the ghost placement instead of firing.
+	// (Confirm/rotate/exit had NO bindings at all — entering build mode
+	// was a one-way trap with an immortal ghost.)
+	if (Build && Build->bBuildModeActive)
+	{
+		Build->TryConfirmPlacement();
+		return;
+	}
 	bFireHeld = true;
 	TryFireWeapon();
 }
@@ -950,6 +958,12 @@ void AQRCharacter::ApplyWeaponRecoilKick(float PitchUnits, float YawUnits)
 
 void AQRCharacter::TryReload()
 {
+	// Build mode owns R: rotate the ghost a quarter turn.
+	if (Build && Build->bBuildModeActive)
+	{
+		Build->RotateGhost(90.0f);
+		return;
+	}
 	if (!Weapon) return;
 	if (!HasAuthority()) { Server_Reload(); return; }
 	Weapon->BeginReload();
@@ -1071,6 +1085,18 @@ void AQRCharacter::UpdateLeanInput()
 
 void AQRCharacter::OnDropPressed()
 {
+	// Build mode owns G: leave build mode (and dismiss the piece picker
+	// if it's still up) instead of dropping the held blueprint item.
+	if (Build && Build->bBuildModeActive)
+	{
+		Build->ExitBuildMode();
+		if (BuildSelectorOpen)
+		{
+			BuildSelectorOpen->RemoveFromParent();
+			BuildSelectorOpen = nullptr;
+		}
+		return;
+	}
 	TryDropHeld();
 }
 
@@ -1135,6 +1161,7 @@ void AQRCharacter::DoDropHeld()
 				{
 					W->AddToViewport(/*ZOrder*/ 220);
 					W->Bind(Build);
+					BuildSelectorOpen = W;
 				}
 			}
 		}

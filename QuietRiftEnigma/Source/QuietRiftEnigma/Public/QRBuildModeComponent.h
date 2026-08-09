@@ -119,8 +119,12 @@ public:
 	// Respawn every saved build piece. Destroys existing tagged pieces
 	// first so loading mid-session doesn't duplicate the base. Returns
 	// how many pieces were restored. Catalog resolves PieceId -> mesh.
+	// OutUnrestored (optional) receives the entries that could NOT be
+	// respawned (missing catalog row / mesh) — the caller must carry
+	// them forward into the next save or they are erased forever.
 	static int32 RestoreFromSave(UWorld* World, UDataTable* Catalog,
-		const TArray<struct FQRBuildableSaveData>& Saved);
+		const TArray<struct FQRBuildableSaveData>& Saved,
+		TArray<struct FQRBuildableSaveData>* OutUnrestored = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "Build")
 	void EnterBuildMode();
