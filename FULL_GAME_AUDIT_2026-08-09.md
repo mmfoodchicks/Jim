@@ -187,8 +187,37 @@ Re-run these four slices after the fix batches:
 worldgen/dressing · missions/logistics · data-table cross-integrity ·
 editor-scripts + smoke-sim.
 
-## G. Fix progress
+## G. Fix progress (updated 2026-08-09, same day)
 
-Tracked in commits on `claude/unreal-cpp-blueprint-catchup-nGaRb`
-following this doc's batch letters (`audit A: ...`, `audit B: ...`).
-When a batch lands, its items move to ✅fixed here.
+All five batches LANDED on `claude/unreal-cpp-blueprint-catchup-nGaRb`:
+
+- **audit A** (`9887e1e6`) — items 1–11 ✅fixed: AQRGameState carries the
+  three components; SP interact via DoInteract; dialogue cursor +
+  widget toggle; crouch; footstep gait; Esc-close pause; exposure knob;
+  sprint RPC + client ADS preview; settings FOV/sensitivity/boot-apply
+  + main-menu soft-lock; cheat manager registration; GameMapsSettings.
+- **audit B** (`405b1cf1`) — items 12–14 ✅fixed: NPC survival component
+  + TakeDamage + death flow; wildlife death loot + mission report;
+  legacy wildlife TakeDamage bridge. (15 raider-melee shield/injury
+  still open.)
+- **audit C** (`055e9712`) — items 16–23 ✅fixed: resume regenerates the
+  world from the saved seed; dead/in-flight save guards; bind-once +
+  pending-clear; save v3 (colonist roles, hotbar, raider/corpse skip);
+  stable loot-container ids; spoil game-hours. (24 farm/husbandry/camp
+  capture and 26 weapon-state capture still open.)
+- **audit D** (`a4715981`) — items 27–29 ✅fixed: LMB confirm / R rotate /
+  G exit; WorldStatic object type + widened overlap queries;
+  unrestorable-piece carry-forward; unconditional teardown. (30 BLD_
+  survival-mode rows still open — creative-only today.)
+- **audit E** (`723b059a`) — items 31–32, 34–35 ✅fixed: recipe CSV
+  design→struct converter (216/243 rows convert; 27 data gaps in the
+  report file); bench pulls/delivers via the player inventory; cancel
+  refund; micro-research pay-per-stack. (33 InitializeTechNodes
+  population and 36 missing drop-item rows still open.)
+
+**After pulling:** rerun `qr_import_datatables.py` → `run(overwrite=True)`
+so DT_Recipes re-imports through the converter, then Ctrl+B — five
+batches of C++ changed; paste any compile errors.
+
+**Still open, in priority order:** the four unaudited slices (§F);
+"Deferred within this pass" list in §B; items 15, 24, 26, 30, 33, 36.

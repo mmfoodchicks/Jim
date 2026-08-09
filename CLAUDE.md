@@ -8,6 +8,12 @@ plays without WBP authoring because every widget is built in C++.
 and `GDD_IMPLEMENTATION_STATUS.md` before touching code.** Don't make the
 user re-explain the project.
 
+**2026-08-09 full-game deep audit:** `FULL_GAME_AUDIT_2026-08-09.md` —
+16-slice static playthrough; five fix batches landed (audit A–E commits).
+Read its §G for what's fixed and what's still open (four slices never
+audited: worldgen/dressing, missions/logistics, data-table integrity,
+editor-scripts/smoke — re-run those first when resuming audit work).
+
 ---
 
 ## World canon (set 2026-05-24, Tyson-defensible)
@@ -210,7 +216,9 @@ the reverse). Keep it that way.
 - **Save lifecycle**: `AQRGameMode` autosaves on BeginPlay (load),
   Logout, EndPlay, and every 5 min. Pause menu Save button + Main menu
   Continue both use the QuickSave slot.
-- **Save extension rule** (since save v2, 2026-06-11): all capture/apply
+- **Save extension rule** (since save v2, 2026-06-11; v3 2026-08-09
+  added colonist roles + hotbar — hotbar capture lives in `AQRGameMode`
+  as the documented module-boundary exception): all capture/apply
   logic lives in `FQRSaveSnapshot` (`QRSaveNet/QRSaveSnapshotLibrary`).
   A system persists iff it has a Capture/Apply pair there — never
   hand-copy fields in `QuickSave` again; that's how research, armour
