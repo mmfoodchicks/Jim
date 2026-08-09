@@ -37,6 +37,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|Bench")
 	TObjectPtr<UQRCraftingComponent> Crafting;
 
+	// Bench-local storage: haulers deliver ingredients here and the
+	// crafting component counts/consumes from it alongside the player's
+	// pocket. Without it the bench had no inventory at all and hauler
+	// deliveries had nowhere to land.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Crafting Bench")
+	TObjectPtr<class UQRInventoryComponent> Storage;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Bench")
 	FText DisplayName;
 };

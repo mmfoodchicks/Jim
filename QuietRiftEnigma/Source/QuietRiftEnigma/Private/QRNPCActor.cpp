@@ -7,6 +7,7 @@
 #include "QRRaidPartyAI.h"
 #include "QRFactionCamp.h"
 #include "QRCampSimComponent.h"
+#include "QRMissionDirector.h"
 #include "EngineUtils.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -103,6 +104,14 @@ void AQRNPCActor::HandleDied()
 				}
 			}
 		}
+	}
+
+	// KillTarget mission progress — directive missions can target a
+	// faction, and NPC deaths previously reported nothing.
+	if (Faction)
+	{
+		UQRMissionDirector::ReportSpeciesKilled(GetWorld(),
+			Faction->FactionTag.GetTagName(), 1);
 	}
 
 	// Corpse: keep it targetable by the interact trace but stop it from

@@ -72,6 +72,17 @@ AQRGameMode::AQRGameMode()
 	SaveSystem      = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
 	MissionDirector = CreateDefaultSubobject<UQRMissionDirector>(TEXT("MissionDirector"));
 
+	// Mission template table — NOTHING assigned this before, so every
+	// director entry point early-returned and no procedural mission
+	// could ever exist. The table is imported by qr_import_datatables.py
+	// from DT_MissionTemplates.csv; absence just leaves missions off.
+	static ConstructorHelpers::FObjectFinder<UDataTable> MissionTable(
+		TEXT("/Game/QuietRift/Data/DT_MissionTemplates"));
+	if (MissionTable.Succeeded() && MissionDirector)
+	{
+		MissionDirector->MissionTemplateTable = MissionTable.Object;
+	}
+
 	// Default death-screen widget class — C++ placeholder, swap via BP.
 	DeathScreenClass = UQRDeathScreenWidget::StaticClass();
 
@@ -192,6 +203,15 @@ void AQRGameMode::BeginPlay()
 		SaveSystem->LoadGame(AutosaveSlotName);
 	}
 
+	// Roll procedural missions on a cadence — RollNewMission had ZERO
+	// callers, so even with a template table nothing ever started.
+	// The director self-caps at MaxConcurrentMissions.
+	GetWorldTimerManager().SetTimer(MissionRollTimerHandle,
+		FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (MissionDirector) MissionDirector->RollNewMission();
+		}), 120.0f, /*bLoop*/ true, /*FirstDelay*/ 30.0f);
+
 	// Periodic background autosave. Disabled if AutosaveIntervalSeconds
 	// is 0 — manual + lifecycle saves still work.
 	if (AutosaveIntervalSeconds > 0.0f)
@@ -228,6 +248,7 @@ void AQRGameMode::EndPlay(const EEndPlayReason::Type Reason)
 	// Cancel the autosave loop so the destroyed game mode doesn't keep
 	// pulling on a freed timer manager.
 	GetWorldTimerManager().ClearTimer(AutosaveTimerHandle);
+	GetWorldTimerManager().ClearTimer(MissionRollTimerHandle);
 
 	// Autosave on graceful shutdown. Quit / level-travel / PIE-stop
 	// all route through EndPlay, so this gives us a single hook that

@@ -630,13 +630,21 @@ void UQRMissionDirector::HandleItemAdded(UQRItemInstance* Item, int32 SlotIndex)
 	const FName ItemId = Item->Definition->ItemId;
 	const int32 Qty    = Item->Quantity;
 
-	// Find FetchItem missions matching this target.
-	for (FQRActiveMission& M : ActiveMissions)
+	// Collect ids FIRST — ReportProgress→CompleteMission RemoveAt()s
+	// from ActiveMissions, and GrantRewards can re-enter this handler
+	// via the inventory OnItemAdded broadcast. Iterating live while
+	// that happens trips the ranged-for checker on the final fetch.
+	TArray<FName> Matching;
+	for (const FQRActiveMission& M : ActiveMissions)
 	{
 		if (M.Family == EQRMissionFamily::FetchItem && M.TargetId == ItemId)
 		{
-			ReportProgress(M.MissionId, Qty);
+			Matching.Add(M.MissionId);
 		}
+	}
+	for (const FName& Id : Matching)
+	{
+		ReportProgress(Id, Qty);
 	}
 }
 
@@ -644,12 +652,18 @@ void UQRMissionDirector::HandleItemAdded(UQRItemInstance* Item, int32 SlotIndex)
 void UQRMissionDirector::HandleCodexUpdated(FName EntryId, EQRCodexDiscoveryState NewState)
 {
 	if (NewState != EQRCodexDiscoveryState::Known) return;
-	for (FQRActiveMission& M : ActiveMissions)
+	// Collect-then-report — see HandleItemAdded.
+	TArray<FName> Matching;
+	for (const FQRActiveMission& M : ActiveMissions)
 	{
 		if (M.Family == EQRMissionFamily::ResearchItem && M.TargetId == EntryId)
 		{
-			ReportProgress(M.MissionId, 1);
+			Matching.Add(M.MissionId);
 		}
+	}
+	for (const FName& Id : Matching)
+	{
+		ReportProgress(Id, 1);
 	}
 }
 
@@ -663,12 +677,18 @@ void UQRMissionDirector::ReportSpeciesKilled(UWorld* World, FName SpeciesId, int
 	{
 		if (UQRMissionDirector* MD = It->FindComponentByClass<UQRMissionDirector>())
 		{
-			for (FQRActiveMission& M : MD->ActiveMissions)
+			// Collect-then-report — see HandleItemAdded.
+			TArray<FName> Matching;
+			for (const FQRActiveMission& M : MD->ActiveMissions)
 			{
 				if (M.Family == EQRMissionFamily::KillTarget && M.TargetId == SpeciesId)
 				{
-					MD->ReportProgress(M.MissionId, Delta);
+					Matching.Add(M.MissionId);
 				}
+			}
+			for (const FName& Id : Matching)
+			{
+				MD->ReportProgress(Id, Delta);
 			}
 		}
 	}

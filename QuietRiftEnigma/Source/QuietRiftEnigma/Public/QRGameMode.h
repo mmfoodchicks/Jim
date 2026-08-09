@@ -235,4 +235,7 @@ private:
 	// EndPlay; fires QuickSave on each tick.
 	FTimerHandle AutosaveTimerHandle;
 	void HandleAutosaveTick();
+
+	// Periodic procedural-mission roll (BeginPlay, 120s cadence).
+	FTimerHandle MissionRollTimerHandle;
 };

@@ -1,0 +1,9 @@
+---,Family,DisplayName,Description,TargetId,TargetQuantity,RewardXP
+PMT_FETCH_FIBER,FetchItem,Fiber Run,"Gather fiber bundles for the camp's weavers.",MAT_FIBER_BUNDLE,6,40
+PMT_FETCH_CLOTH,FetchItem,Patch Job,"Collect cloth patches to keep the med tents supplied.",MAT_CLOTH_PATCH,4,35
+PMT_FETCH_BUCKLES,FetchItem,Hardware Sweep,"Bring back buckle sets for harness repairs.",CMP_BUCKLE_SET,2,50
+PMT_HUNT_BOAR,KillTarget,Boar Cull,"Ashback boars are rooting up the crop rows. Thin them out.",ANM_AshbackBoar,3,60
+PMT_HUNT_RUNNER,KillTarget,Runner Harvest,"Glasshorn runners for meat and hide. Clean kills.",ANM_GlasshornRunner,4,55
+PMT_SCOUT_SATELLITE,ScoutPOI,Eyes On the Enemy,"Locate a faction satellite camp and report its position.",FactionSatellite,1,80
+PMT_SCOUT_REMNANT,ScoutPOI,Signal Source,"Something old is transmitting. Find a Remnant site.",RemnantSite,1,100
+PMT_STUDY_BOAR,ResearchItem,Field Notes: Ashback,"Study the Ashback boar and log it in the codex.",ANM_AshbackBoar,1,45

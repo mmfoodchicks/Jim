@@ -219,5 +219,38 @@ All five batches LANDED on `claude/unreal-cpp-blueprint-catchup-nGaRb`:
 so DT_Recipes re-imports through the converter, then Ctrl+B — five
 batches of C++ changed; paste any compile errors.
 
-**Still open, in priority order:** the four unaudited slices (§F);
-"Deferred within this pass" list in §B; items 15, 24, 26, 30, 33, 36.
+**Still open, in priority order:** items 24, 26, 30, 33; species-CSV
+legacy naming (§O glossary); FindDepotWithItem priority-vs-distance
+ordering; escort mission family has no progress source; depot
+StoredItems subobject replication (co-op); DressingStreamer tile-Z
+window; remnant wake-chain data (RiftTechNodeProgression empty);
+save doesn't capture map size/cell size alongside the seed.
+
+### Second pass, same day — batches F–I (all four remaining slices done)
+
+- **audit F+G** (`70ded3fc`) — raids reachable end-to-end (hostility
+  creep, outcome accounting, scheduler latch/timescale, ground-follow
+  pathing, villager targeting, melee injury); sky phase aligned with
+  the clock; wildlife herd ids assigned, alert/blind-flee fixed;
+  item 15 ✅fixed (melee injury type).
+- **audit H** (`7749f4c6`) — worldgen slice findings fixed: hazard-belt
+  scaling (root cause of "New Game is an empty floor"), same-archetype
+  POI spacing with retries (remnants + satellites were mathematically
+  unplaceable), crash/hauler asset-registry item resolution (wrecks
+  scattered zero loot; haulers vaporized depot stock), once-per-save
+  wreck scatter, corrupt-save bootstrap fallback, seeded POI yaw,
+  ConcordatCapitalClass default. Data: DT_TechNodes.csv 15 malformed
+  rows repaired; qr_seed_drop_items.py creates the 112 dangling drop/
+  harvest/loot item definitions — item 36 ✅fixed.
+- **audit I** — missions live: MissionTemplateTable loaded from the new
+  struct-format DT_MissionTemplates.csv (8 starter templates; the
+  design-format CSV remains as the design doc), RollNewMission on a
+  120s cadence, ranged-for mutation crashes fixed in all three
+  progress handlers, NPC deaths report kills. Logistics: hauler
+  component finally attached (Hauler-role colonists), bench Storage
+  inventory + multi-source crafting counting/consumption so hauler
+  deliveries are visible to CanCraft.
+- Editor-scripts + smoke slices re-run inline: all 37 scripts parse,
+  all promised entry points exist, pack paths resolve (the four
+  /Game/Characters|Mannequins hits are engine-template mesh probes in
+  optional scripts with fallbacks — not defects).

@@ -1,5 +1,6 @@
 #include "QRNPCColonist.h"
 #include "QRNPCBrainComponent.h"
+#include "QRHaulerComponent.h"
 #include "QRFarmPlotActor.h"
 #include "QRStationBase.h"
 #include "QRBuildPieceTag.h"
@@ -27,6 +28,16 @@ AQRNPCColonist::AQRNPCColonist()
 void AQRNPCColonist::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Hauler colonists get the logistics FSM. The component existed but
+	// was never attached to ANY actor, so depot→station hauling never
+	// ran in any session.
+	if (ColonistRole == EQRNPCRole::Hauler &&
+		!FindComponentByClass<UQRHaulerComponent>())
+	{
+		UQRHaulerComponent* Hauler = NewObject<UQRHaulerComponent>(this, TEXT("Hauler_RT"));
+		Hauler->RegisterComponent();
+	}
 
 	if (Brain)
 	{

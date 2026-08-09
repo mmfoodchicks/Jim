@@ -158,26 +158,31 @@ bool UQRCraftingComponent::CanCraft(FName RecipeId, FText& OutReason) const
 
 int32 UQRCraftingComponent::CountAvailable(FName ItemId) const
 {
+	// Sum every reachable source: the bound input inventory (the
+	// interacting player's pocket), the OWNER's own inventory (bench
+	// Storage — where haulers deliver), and station depots. The old
+	// InputInventory-only early return meant hauler-delivered stock at
+	// the bench was invisible to CanCraft.
+	int32 Total = 0;
 	if (InputInventory)
 	{
-		return InputInventory->CountItem(ItemId);
+		Total += InputInventory->CountItem(ItemId);
+	}
+	if (UQRInventoryComponent* OwnerInv = GetOwnerInventory())
+	{
+		if (OwnerInv != InputInventory) Total += OwnerInv->CountItem(ItemId);
 	}
 	if (const AQRStationBase* Station = Cast<AQRStationBase>(GetOwner()))
 	{
-		// Sum across nearby depots that accept this item's category. Without
-		// the item definition we don't know the category, so just walk every
-		// nearby depot regardless of its accepted category — we count by
-		// item id on each, and depots only hold items they accept.
-		int32 Total = 0;
-		// Use a broad/empty tag so the station returns all depots.
+		// Broad/empty tag so the station returns all depots; depots only
+		// hold items they accept, so counting by id is safe.
 		TArray<UQRDepotComponent*> Depots = Station->FindNearbyDepots(FGameplayTag());
 		for (UQRDepotComponent* D : Depots)
 		{
 			if (D) Total += D->CountItem(ItemId);
 		}
-		return Total;
 	}
-	return 0;
+	return Total;
 }
 
 bool UQRCraftingComponent::HasAllIngredients(const FQRRecipeTableRow& Recipe, FText& OutReason) const
@@ -202,21 +207,29 @@ int32 UQRCraftingComponent::ConsumeFromInputs(FName ItemId, int32 Quantity)
 {
 	if (Quantity <= 0) return 0;
 
-	if (InputInventory)
+	// Drain sources in the same order CountAvailable sums them:
+	// player pocket → owner (bench) storage → station depots.
+	int32 Taken = 0;
+	auto TakeFromInv = [&](UQRInventoryComponent* Inv)
 	{
-		const int32 Before = InputInventory->CountItem(ItemId);
-		const int32 ToTake = FMath::Min(Quantity, Before);
-		if (ToTake > 0)
+		if (!Inv || Taken >= Quantity) return;
+		const int32 Avail  = Inv->CountItem(ItemId);
+		const int32 ToTake = FMath::Min(Quantity - Taken, Avail);
+		if (ToTake > 0 && Inv->TryRemoveItem(ItemId, ToTake))
 		{
-			InputInventory->TryRemoveItem(ItemId, ToTake);
+			Taken += ToTake;
 		}
-		return ToTake;
+	};
+	TakeFromInv(InputInventory);
+	if (UQRInventoryComponent* OwnerInv = GetOwnerInventory())
+	{
+		if (OwnerInv != InputInventory) TakeFromInv(OwnerInv);
 	}
+	if (Taken >= Quantity) return Taken;
 
 	if (AQRStationBase* Station = Cast<AQRStationBase>(GetOwner()))
 	{
-		// Station depot path: walk depots and withdraw until we have enough.
-		int32 Taken = 0;
+		// Station depot path: walk depots and withdraw the remainder.
 		TArray<UQRDepotComponent*> Depots = Station->FindNearbyDepots(FGameplayTag());
 		for (UQRDepotComponent* D : Depots)
 		{
@@ -229,9 +242,8 @@ int32 UQRCraftingComponent::ConsumeFromInputs(FName ItemId, int32 Quantity)
 			}
 			if (Taken >= Quantity) break;
 		}
-		return Taken;
 	}
-	return 0;
+	return Taken;
 }
 
 bool UQRCraftingComponent::ConsumeIngredients(const FQRRecipeTableRow& Recipe, FText& OutReason)

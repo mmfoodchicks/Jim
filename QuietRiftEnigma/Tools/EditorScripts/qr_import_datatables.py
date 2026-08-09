@@ -55,6 +55,7 @@ TABLES = [
     ("DT_ArmoryAttachments.csv", "DT_ArmoryAttachments", "QRArmoryAttachmentRow",  "QRCombatThreat"),
     ("DT_TechNodes.csv",         "DT_TechNodes",         "QRTechNodeRow",          "QRCombatThreat"),
     ("DT_Recipes.csv",           "DT_Recipes",           "QRRecipeTableRow",       "QRCraftingResearch"),
+    ("DT_MissionTemplates.csv",  "DT_MissionTemplates",  "QRMissionTemplateRow",   "QuietRiftEnigma"),
 ]
 
 

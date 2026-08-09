@@ -1,5 +1,6 @@
 #include "QRCraftingBench.h"
 #include "QRCraftingComponent.h"
+#include "QRInventoryComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 
@@ -21,6 +22,7 @@ AQRCraftingBench::AQRCraftingBench()
 	MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
 	Crafting = CreateDefaultSubobject<UQRCraftingComponent>(TEXT("Crafting"));
+	Storage  = CreateDefaultSubobject<UQRInventoryComponent>(TEXT("Storage"));
 
 	DisplayName = FText::FromString(TEXT("Workbench"));
 }
