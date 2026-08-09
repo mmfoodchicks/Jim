@@ -5,6 +5,9 @@
 #include "QRCivilianReactionComponent.h"
 #include "QRSurvivalComponent.h"
 #include "QRRaidPartyAI.h"
+#include "QRFactionCamp.h"
+#include "QRCampSimComponent.h"
+#include "EngineUtils.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Animation/AnimSequence.h"
@@ -87,6 +90,19 @@ void AQRNPCActor::HandleDied()
 	if (UQRRaidPartyAI* RaidAI = FindComponentByClass<UQRRaidPartyAI>())
 	{
 		RaidAI->SetComponentTickEnabled(false);
+		// The FSM's own death-report can't run once its tick is off —
+		// tell the source camp directly that it lost this raider.
+		if (UWorld* W = GetWorld())
+		{
+			for (TActorIterator<AQRFactionCamp> It(W); It; ++It)
+			{
+				if ((*It)->Sim && (*It)->Sim->CampId == RaidAI->SourceCampId)
+				{
+					(*It)->Sim->ReportRaidDefeated(1);
+					break;
+				}
+			}
+		}
 	}
 
 	// Corpse: keep it targetable by the interact trace but stop it from

@@ -94,6 +94,24 @@ private:
 
 	FVector HomeLocation = FVector::ZeroVector;
 	float DwellUntilSec = 0.0f;
+
+	// Alert-state entry time — the alert beat used to reuse the stale
+	// idle DwellUntilSec, freezing prey for up to ~6.5s (or skipping the
+	// beat entirely).
+	float AlertStartSec = 0.0f;
+
+	// While fleeing with NO known target (hit from outside perception),
+	// keep running until this time instead of standing down on the next
+	// 0.25s think.
+	float NoTargetFleeUntilSec = 0.0f;
+
+public:
+	// How long an animal flees blind after damage from an unseen source.
+	UPROPERTY(EditAnywhere, Category = "QR|Wildlife|AI",
+		meta = (ClampMin = "1", ClampMax = "30"))
+	float BlindFleeSeconds = 6.0f;
+
+private:
 	float NextAttackAtSec = 0.0f;
 	bool bMoveOutstanding = false;
 

@@ -31,15 +31,22 @@ void UQRCampSimComponent::AdvanceGameHours(float DeltaGameHours)
 	if (State.Population < PopulationCap)
 	{
 		// Accumulate fractional pop until it ticks an integer up.
-		static thread_local TMap<UQRCampSimComponent*, float> PopAccum;
-		float& Acc = PopAccum.FindOrAdd(this);
-		Acc += PopDelta;
-		while (Acc >= 1.0f && State.Population < PopulationCap)
+		// (Member accumulator — the old function-static map keyed by raw
+		// `this` leaked entries and could collide across PIE worlds.)
+		PopulationFraction += PopDelta;
+		while (PopulationFraction >= 1.0f && State.Population < PopulationCap)
 		{
 			State.Population += 1;
-			Acc -= 1.0f;
+			PopulationFraction -= 1.0f;
 		}
 	}
+
+	// Hostility creep — camps heat up over time until something (a
+	// defeat, leader death) cools them off. Without this nothing ever
+	// RAISED hostility, so the 0.55 raid gate was unreachable from the
+	// 0.4 starting value and no camp could ever launch its first raid.
+	State.Hostility = FMath::Min(1.0f,
+		State.Hostility + HostilityGrowthPerDay * DeltaDays);
 
 	// Military recruitment — convert resources into soldiers when we
 	// have spare population to train.
@@ -68,18 +75,25 @@ void UQRCampSimComponent::ModifyHostility(float Delta)
 
 void UQRCampSimComponent::ReportRaidDefeated(int32 PartySize)
 {
-	// Camp loses the committed force entirely and absorbs a long cooldown.
-	State.MilitaryStrength = FMath::Max(0, State.MilitaryStrength - PartySize);
+	// NOTE: the whole party was already deducted from MilitaryStrength at
+	// launch (TryDecideRaid), and this is called once PER DEAD RAIDER by
+	// the raid FSM / NPC death flow — the old version subtracted the
+	// party AGAIN on every call, double-charging the garrison.
 	State.HoursSinceLastRaid = -DefeatExtraCooldownHours;  // negative pushes cooldown out
 	State.HoursSinceLastDefeat = 0.0f;
-	// Defeats discourage further hostility short-term.
-	State.Hostility = FMath::Max(0.0f, State.Hostility - 0.10f);
+	// Losses discourage further hostility — scaled per raider lost so
+	// per-death reporting doesn't crater hostility (-0.10 apiece did).
+	State.Hostility = FMath::Max(0.0f,
+		State.Hostility - 0.02f * FMath::Max(1, PartySize));
 }
 
 
 void UQRCampSimComponent::ReportRaidSuccessful(int32 SurvivingMilitary, float LootedResources)
 {
-	State.MilitaryStrength = FMath::Max(0, SurvivingMilitary);
+	// Survivors REJOIN the garrison. This is also called once per
+	// returning raider — the old assignment replaced the entire home
+	// garrison with the survivor count (one survivor home = army of 1).
+	State.MilitaryStrength += FMath::Max(0, SurvivingMilitary);
 	State.Resources       += LootedResources;
 	State.HoursSinceLastRaid = 0.0f;
 	State.SuccessfulRaids++;
@@ -229,10 +243,20 @@ float UQRCampSimComponent::GetEffectiveLeadership() const
 	{
 		if (UQRLeaderComponent* L = Owner->FindComponentByClass<UQRLeaderComponent>())
 		{
-			return FMath::Clamp(L->LeadershipAptitude, 0.0f, 10.0f);
+			// Worldgen stamps per-camp variation onto FallbackLeadership
+			// (it can't reach the leader component pre-BeginPlay). The camp
+			// always carries a leader component, so the fallback was dead:
+			// prefer the leader's aptitude once anything actually changed
+			// it; an untouched 5.0 default defers to a stamped fallback.
+			const bool bLeaderTouched   = !FMath::IsNearlyEqual(L->LeadershipAptitude, 5.0f);
+			const bool bFallbackStamped = !FMath::IsNearlyEqual(FallbackLeadership, 5.0f);
+			if (bLeaderTouched || !bFallbackStamped)
+			{
+				return FMath::Clamp(L->LeadershipAptitude, 0.0f, 10.0f);
+			}
 		}
 	}
-	return FallbackLeadership;
+	return FMath::Clamp(FallbackLeadership, 0.0f, 10.0f);
 }
 
 
@@ -249,12 +273,13 @@ bool UQRCampSimComponent::AreConditionsFavorable() const
 	// Night ≈ +1
 	if (GM->bIsNight) ++Score;
 
-	// Active weather event ≈ +1 (reflective lookup so we don't bind to
-	// the enum value here).
+	// Active weather event ≈ +1. Direct call — the old reflective lookup
+	// searched for a property named "bEventActive" that has never existed
+	// on UQRWeatherComponent, so weather NEVER counted toward raid
+	// conditions. Both classes live in this module; no reflection needed.
 	if (UQRWeatherComponent* Weather = GM->Weather)
 	{
-		const FBoolProperty* P = FindFProperty<FBoolProperty>(Weather->GetClass(), TEXT("bEventActive"));
-		if (P && P->GetPropertyValue_InContainer(Weather)) ++Score;
+		if (Weather->HasActiveEvent()) ++Score;
 	}
 
 	// Player far from this camp (out exploring, undefended base)

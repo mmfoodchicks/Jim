@@ -1,6 +1,8 @@
 #include "QRRaidScheduler.h"
 #include "QRMath.h"
+#include "GameFramework/GameModeBase.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/UnrealType.h"
 
 AQRRaidScheduler::AQRRaidScheduler()
 {
@@ -21,10 +23,35 @@ void AQRRaidScheduler::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 void AQRRaidScheduler::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	if (!HasAuthority() || bRaidInProgress) return;
+	if (!HasAuthority()) return;
 
-	// Advance cooldown clock
-	const float GameHoursPerSec = 1.0f / 60.0f;
+	// One-shot latch fix: nothing in the codebase ever called EndRaid,
+	// so the first TriggerRaid set bRaidInProgress forever and the
+	// scheduler went silent for the rest of the session. Time the wave
+	// out — attackers are dead, retreated, or despawned well within it.
+	if (bRaidInProgress)
+	{
+		RaidElapsedSeconds += DeltaTime;
+		if (RaidElapsedSeconds >= RaidAutoEndSeconds)
+		{
+			EndRaid(/*bDefendersWon*/ true);
+		}
+		return;
+	}
+
+	// Advance cooldown clock in GAME hours. Match the GameMode's day
+	// length via reflection (this module can't include the game module);
+	// the old hardcoded 1/60 assumed a 24-minute day vs the actual 20.
+	float GameHoursPerSec = 24.0f / 1200.0f;
+	if (AGameModeBase* GM = GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr)
+	{
+		if (const FFloatProperty* P = FindFProperty<FFloatProperty>(
+			GM->GetClass(), TEXT("DayLengthRealSeconds")))
+		{
+			const float DayLen = P->GetPropertyValue_InContainer(GM);
+			if (DayLen > 1.0f) GameHoursPerSec = 24.0f / DayLen;
+		}
+	}
 	HoursSinceLastRaid += DeltaTime * GameHoursPerSec;
 
 	// Periodic raid viability check
@@ -106,6 +133,7 @@ void AQRRaidScheduler::TriggerRaid(FGameplayTag FactionTag, EQRRaidExperienceTie
 	}
 
 	bRaidInProgress = true;
+	RaidElapsedSeconds = 0.0f;
 	ActiveWave      = Wave;
 	HoursSinceLastRaid = 0.0f;
 

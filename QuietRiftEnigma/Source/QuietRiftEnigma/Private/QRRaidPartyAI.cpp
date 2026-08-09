@@ -1,4 +1,5 @@
 #include "QRRaidPartyAI.h"
+#include "QRNPCActor.h"
 #include "QRNPCBrainComponent.h"
 #include "QRSurvivalComponent.h"
 #include "QRFactionCamp.h"
@@ -136,7 +137,9 @@ void UQRRaidPartyAI::TickComponent(float DeltaTime, ELevelTick TickType,
 		MoveToward(TargetLocation, MarchSpeed, DeltaTime);
 		// If we've reached the target location and no hostiles found,
 		// the raid effectively wasted itself — retreat with what we have.
-		if (FVector::DistSquared(Owner->GetActorLocation(), TargetLocation) < 200.0f * 200.0f)
+		// 2D distance: MoveToward ground-follows, so a target picked at a
+		// different altitude would never satisfy a 3D check.
+		if (FVector::DistSquared2D(Owner->GetActorLocation(), TargetLocation) < 200.0f * 200.0f)
 		{
 			SetState(EQRRaidPartyState::Retreat);
 		}
@@ -183,7 +186,9 @@ void UQRRaidPartyAI::TickComponent(float DeltaTime, ELevelTick TickType,
 			{
 				if (T->HasAuthority())
 				{
-					TSurv->ApplyDamage(AttackDamage);
+					// Melee wounds bleed — bare ApplyDamage carried no
+					// injury type, so raider hits never left a mark.
+					TSurv->ApplyDamage(AttackDamage, EQRInjuryType::Bleeding);
 				}
 			}
 		}
@@ -198,7 +203,7 @@ void UQRRaidPartyAI::TickComponent(float DeltaTime, ELevelTick TickType,
 	case EQRRaidPartyState::Retreat:
 	{
 		MoveToward(CampOrigin, EngageSpeed, DeltaTime);
-		if (FVector::DistSquared(Owner->GetActorLocation(), CampOrigin) < 300.0f * 300.0f)
+		if (FVector::DistSquared2D(Owner->GetActorLocation(), CampOrigin) < 300.0f * 300.0f)
 		{
 			// Made it home — report success (survivors return) and despawn.
 			if (UWorld* W = GetWorld())
@@ -236,7 +241,22 @@ bool UQRRaidPartyAI::MoveToward(const FVector& Destination, float Speed, float D
 
 	const FVector Dir = To.GetSafeNormal();
 	FVector NewLoc = Cur + Dir * Speed * DeltaTime;
+	// Follow the terrain instead of freezing Z at spawn height — the old
+	// Z-lock left raiders hovering or stuck against the first slope while
+	// the 3D arrival checks never triggered.
 	NewLoc.Z = Cur.Z;
+	if (UWorld* W = GetWorld())
+	{
+		FHitResult Ground;
+		FCollisionQueryParams QP(SCENE_QUERY_STAT(QRRaidGround), false, Owner);
+		if (W->LineTraceSingleByChannel(Ground,
+			NewLoc + FVector(0, 0, 300.0f), NewLoc - FVector(0, 0, 1000.0f),
+			ECC_Visibility, QP))
+		{
+			// AQRNPCActor capsule half-height is 90.
+			NewLoc.Z = Ground.ImpactPoint.Z + 90.0f;
+		}
+	}
 	Owner->SetActorLocation(NewLoc);
 	if (!Dir.IsNearlyZero())
 	{
@@ -263,7 +283,25 @@ AActor* UQRRaidPartyAI::ScanForHostile() const
 			if (FVector::DistSquared(P->GetActorLocation(), Loc) <= R2) return P;
 		}
 	}
-	return nullptr;
+
+	// Villagers next — raids now threaten the colony, not just the
+	// player (villagers are killable since the NPC health model landed).
+	AActor* Nearest = nullptr;
+	float   NearestD2 = R2;
+	for (TActorIterator<AQRNPCActor> It(W); It; ++It)
+	{
+		AQRNPCActor* NPC = *It;
+		if (!NPC || NPC == Owner) continue;
+		if (NPC->FindComponentByClass<UQRRaidPartyAI>()) continue;   // fellow raider
+		if (NPC->Survival && NPC->Survival->bIsDead) continue;
+		const float D2 = FVector::DistSquared(NPC->GetActorLocation(), Loc);
+		if (D2 <= NearestD2)
+		{
+			NearestD2 = D2;
+			Nearest   = NPC;
+		}
+	}
+	return Nearest;
 }
 
 

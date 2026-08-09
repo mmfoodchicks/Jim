@@ -178,10 +178,13 @@ void AQRSkyManager::Tick(float DeltaTime)
 
 	const float DayProgress = GM->GetDayProgress();  // 0..1
 
-	// Pitch follows a clean cosine — at t=0 the sun is at -90° (mid-
-	// night, below horizon), peaks at +90° at t=0.5 (noon), back at
-	// t=1.0.
-	const float SunPitch = -FMath::Cos(DayProgress * 2.0f * PI) * 90.0f;
+	// Pitch follows a clean cosine, phase-aligned with the GameMode's
+	// clock (bIsNight = progress > 0.5): t=0 dawn at the horizon,
+	// t=0.25 noon (pitch -90, sun overhead), t=0.5 sunset, t=0.75
+	// midnight. The old un-shifted cosine put noon at t=0 — a quarter
+	// day out of phase, so "night" NPC schedules ran in daylight and
+	// mornings were pitch dark.
+	const float SunPitch = -FMath::Cos((DayProgress - 0.25f) * 2.0f * PI) * 90.0f;
 
 	FRotator Rot = SunLight->GetActorRotation();
 	Rot.Pitch = SunPitch;

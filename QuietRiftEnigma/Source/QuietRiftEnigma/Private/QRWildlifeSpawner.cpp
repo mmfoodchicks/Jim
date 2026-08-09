@@ -164,6 +164,10 @@ bool AQRWildlifeSpawner::TrySpawnOne()
 		*Cls, Loc, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), Params);
 	if (!A) return false;
 
+	// Everything from one spawner ring counts as one loose herd so the
+	// herd-alert reaction has members (HerdGroupId was never set anywhere).
+	A->HerdGroupId = static_cast<int32>(GetUniqueID() & 0x7FFFFFFF);
+
 	SpawnedAnimals.Add(A);
 	return true;
 }

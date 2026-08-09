@@ -434,13 +434,18 @@ void AQRWildlifeAIController::Think()
 	{
 		if (!CurrentTarget)
 		{
+			AlertStartSec = 0.0f;
 			SetState(EQRWildlifeAIState::Wandering);
 			break;
 		}
 		// Brief alert before transitioning to flee -- gives the player
-		// a beat to read what's happening. ~0.5s.
-		if (Now >= DwellUntilSec + 0.5f)
+		// a beat to read what's happening. ~0.5s from ENTERING the state.
+		// (The old check reused the stale idle DwellUntilSec, which could
+		// freeze prey ~6.5s or skip the beat entirely.)
+		if (AlertStartSec <= 0.0f) AlertStartSec = Now;
+		if (Now >= AlertStartSec + 0.5f)
 		{
+			AlertStartSec = 0.0f;
 			MoveToLocation(PickFleeTarget(CurrentTarget));
 			SetState(EQRWildlifeAIState::Fleeing);
 			bMoveOutstanding = true;
@@ -457,6 +462,34 @@ void AQRWildlifeAIController::Think()
 	case EQRWildlifeAIState::Fleeing:
 	case EQRWildlifeAIState::Fleeing_Injured:
 	{
+		// Hit from OUTSIDE perception (sniped): no CurrentTarget. Flee
+		// blind for a fixed window — the old code stood down on the very
+		// next 0.25s think, so long-range shots barely moved the animal.
+		if (!CurrentTarget)
+		{
+			if (NoTargetFleeUntilSec <= 0.0f)
+			{
+				NoTargetFleeUntilSec = Now + BlindFleeSeconds;
+				MoveToLocation(PickWanderTarget());
+				bMoveOutstanding = true;
+			}
+			if (Now < NoTargetFleeUntilSec)
+			{
+				if (GetMoveStatus() == EPathFollowingStatus::Idle)
+				{
+					MoveToLocation(PickWanderTarget());
+					bMoveOutstanding = true;
+				}
+				break;
+			}
+			NoTargetFleeUntilSec = 0.0f;
+			// fall through into the stand-down below
+		}
+		else
+		{
+			NoTargetFleeUntilSec = 0.0f;
+		}
+
 		// Reached safe distance? Stand down.
 		if (!CurrentTarget ||
 			FVector::DistSquared(CurrentTarget->GetActorLocation(),

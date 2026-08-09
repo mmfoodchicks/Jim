@@ -54,6 +54,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Raid")
 	float RaidTriggerThreshold = 60.0f;
 
+	// Real seconds after TriggerRaid before the scheduler auto-calls
+	// EndRaid(defenders won). Nothing else ever ended a raid, so the
+	// first one latched bRaidInProgress for the whole session.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Raid",
+		meta = (ClampMin = "60", ClampMax = "3600"))
+	float RaidAutoEndSeconds = 600.0f;
+
 	// ── Runtime ──────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Raid")
 	float CurrentOpportunityScore = 0.0f;
@@ -99,6 +106,7 @@ public:
 
 private:
 	float RaidCheckAccumulator = 0.0f;
+	float RaidElapsedSeconds   = 0.0f;
 	const float RaidCheckInterval = 300.0f; // Check every 5 real-minutes
 
 	EQRRaidExperienceTier DetermineRaidTier() const;

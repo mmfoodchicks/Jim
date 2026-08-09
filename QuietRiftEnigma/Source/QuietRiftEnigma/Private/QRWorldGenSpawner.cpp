@@ -5,6 +5,7 @@
 #include "QRCrashSiteActor.h"
 #include "QRCaveEntrance.h"
 #include "QRWildlifeActor.h"
+#include "QRWildlifeBase.h"
 #include "QRNPCActor.h"
 #include "QRFactionCamp.h"
 #include "QRCampSimComponent.h"
@@ -507,12 +508,22 @@ void AQRWorldGenSpawner::SpawnFauna()
 		UClass* Cls = Entry.ActorClass.IsNull() ? *WildlifeFallbackClass : Entry.ActorClass.LoadSynchronous();
 		if (!Cls) continue;
 
+		// One herd id per spawned GROUP — nothing ever assigned
+		// HerdGroupId, so AlertHerd() and every species' herd reaction
+		// were dead code. Solitary spawns stay 0 (no herd).
+		const int32 HerdId = (GroupSize > 1) ? Attempts : 0;
 		for (int32 g = 0; g < GroupSize && Placed < TotalDesired; ++g)
 		{
 			const FVector Offset(Rng.FRandRange(-200.0f, 200.0f),
 				Rng.FRandRange(-200.0f, 200.0f), 0.0f);
 			if (AActor* A = SpawnAt(Cls, Hit + Offset, FRotator(0, Rng.FRandRange(0.0f, 360.0f), 0)))
+			{
+				if (AQRWildlifeBase* WB = Cast<AQRWildlifeBase>(A))
+				{
+					WB->HerdGroupId = HerdId;
+				}
 				++Placed;
+			}
 		}
 	}
 

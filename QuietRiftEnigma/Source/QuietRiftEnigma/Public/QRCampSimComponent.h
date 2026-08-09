@@ -111,6 +111,14 @@ public:
 		meta = (ClampMin = "0", ClampMax = "10"))
 	float BasePopGrowthPerDay = 0.5f;
 
+	// Hostility gained per game-day of simmering. This is what lets a
+	// camp reach the raid gate at all — defeats and leader deaths cool
+	// it back down. 0.05/day ≈ first raid after ~3 game-days from the
+	// 0.4 default vs the 0.55 gate.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Camp",
+		meta = (ClampMin = "0", ClampMax = "1"))
+	float HostilityGrowthPerDay = 0.05f;
+
 	// Resources gained per game-day from territory + foraging.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Camp",
 		meta = (ClampMin = "0", ClampMax = "50"))
@@ -227,6 +235,10 @@ private:
 	FVector FindRaidTargetLocation() const;
 	float   GetEffectiveLeadership() const;
 	bool    AreConditionsFavorable() const;
+
+	// Fractional population accumulator (replaces the leaky function-
+	// static map keyed by raw `this`).
+	float PopulationFraction = 0.0f;
 
 	// Pick a tier per the Raid_Experience_Tiers design ladder:
 	//   Inexperienced  : <2 successful raids (still learning)
