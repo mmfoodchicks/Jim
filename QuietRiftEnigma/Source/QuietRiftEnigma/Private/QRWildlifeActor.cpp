@@ -146,6 +146,18 @@ void AQRWildlifeActor::TickMovement(float DeltaTime, float Speed,
 	}
 }
 
+float AQRWildlifeActor::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	const float Applied = Super::TakeDamage(DamageAmount, DamageEvent,
+		EventInstigator, DamageCauser);
+	if (DamageAmount > 0.0f)
+	{
+		ReceiveDamage(DamageAmount, DamageCauser);
+	}
+	return Applied;
+}
+
 void AQRWildlifeActor::ReceiveDamage(float Amount, AActor* Source)
 {
 	if (State == EQRWildlifeState::Dead) return;

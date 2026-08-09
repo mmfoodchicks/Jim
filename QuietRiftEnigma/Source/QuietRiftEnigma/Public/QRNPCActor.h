@@ -11,6 +11,7 @@ class UQRDialogueComponent;
 class UQRFactionComponent;
 class UQRNPCBrainComponent;
 class UQRCivilianReactionComponent;
+class UQRSurvivalComponent;
 
 /**
  * Minimal NPC actor: capsule + skeletal mesh + dialogue + faction
@@ -51,8 +52,25 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
 	TObjectPtr<UQRCivilianReactionComponent> Reaction;
 
+	// Health model. Weapons apply damage through this (the weapon
+	// component looks it up first), raider melee hits it, medics heal
+	// through it. NPCs had NO health sink at all before — every NPC and
+	// raider was silently unkillable.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
+	TObjectPtr<UQRSurvivalComponent> Survival;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC")
 	FText DisplayName;
+
+	// Corpse lifetime after death before the actor is destroyed.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC",
+		meta = (ClampMin = "1", ClampMax = "600"))
+	float CorpseDespawnSeconds = 30.0f;
+
+	// Engine damage (bullets via ApplyPointDamage fallback, hazards,
+	// explosions) routes into Survival — same pattern as AQRCharacter.
+	virtual float TakeDamage(float DamageAmount, const struct FDamageEvent& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
 
 	// Soft pointer assigned by qr_assign_npc_appearance.py or a designer
 	// BP subclass. Loaded on BeginPlay if MeshComp's slot is still empty.
@@ -63,6 +81,11 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	// Bound to Survival->OnDeath: freezes the AI, poses the corpse,
+	// drops blocking collision, schedules despawn.
+	UFUNCTION()
+	void HandleDied();
 };
 
 

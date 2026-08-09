@@ -111,6 +111,12 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
+	// Bridge engine damage (weapon ApplyPointDamage, hazards) into
+	// ReceiveDamage. Without this override the class was unkillable —
+	// ReceiveDamage had no callers at all.
+	virtual float TakeDamage(float DamageAmount, const struct FDamageEvent& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
+
 private:
 	FVector HomeLocation = FVector::ZeroVector;
 	FVector CurrentTarget = FVector::ZeroVector;

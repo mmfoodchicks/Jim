@@ -1,5 +1,9 @@
 #include "QRWildlifeBase.h"
 #include "QRWildlifeAIController.h"
+#include "QRWorldItem.h"
+#include "QRItemDefinition.h"
+#include "QRMissionDirector.h"
+#include "Engine/AssetManager.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -610,6 +614,53 @@ void AQRWildlifeBase::OnDied_Implementation(AActor* Killer)
 	if (AAIController* AIC = Cast<AAIController>(GetController()))
 	{
 		AIC->UnPossess();
+	}
+
+	// Roll the death drop table and scatter the loot as pickupable world
+	// items. The tables existed but nothing ever rolled them — killing
+	// any animal yielded literally nothing before the corpse despawned.
+	if (HasAuthority() && GetWorld())
+	{
+		int32 SpawnedStacks = 0;
+		for (const FQRWildlifeDrop& Drop : Harvest())
+		{
+			if (Drop.ItemId.IsNone() || Drop.MinQuantity <= 0) continue;
+
+			FActorSpawnParameters SP;
+			SP.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			const FVector Loc = GetActorLocation()
+				+ FVector(FMath::FRandRange(-40.0f, 40.0f),
+				          FMath::FRandRange(-40.0f, 40.0f), 20.0f);
+			AQRWorldItem* Item = GetWorld()->SpawnActor<AQRWorldItem>(
+				AQRWorldItem::StaticClass(), Loc, FRotator::ZeroRotator, SP);
+			if (!Item) continue;
+
+			// Harvest() collapses the roll into MinQuantity.
+			Item->ItemId   = Drop.ItemId;
+			Item->Quantity = Drop.MinQuantity;
+
+			// Resolve the definition for the visual mesh. Pickup re-resolves
+			// through the asset manager, so a missing def still leaves a
+			// functional (meshless) pickup instead of vanishing loot.
+			if (UAssetManager* AM = UAssetManager::GetIfInitialized())
+			{
+				const FPrimaryAssetId AssetId(TEXT("QRItem"), Drop.ItemId);
+				if (const UQRItemDefinition* Def =
+					Cast<UQRItemDefinition>(AM->GetPrimaryAssetPath(AssetId).TryLoad()))
+				{
+					Item->InitializeFrom(Def, Item->Quantity);
+				}
+			}
+			++SpawnedStacks;
+		}
+		UE_LOG(LogTemp, Log, TEXT("[Wildlife] %s death drops: %d stacks"),
+			*GetName(), SpawnedStacks);
+
+		// KillTarget mission progress — the director's static hook was only
+		// reachable from the legacy AQRWildlifeActor path before.
+		UQRMissionDirector::ReportSpeciesKilled(GetWorld(),
+			!SpeciesId.IsNone() ? SpeciesId : ItemId, 1);
 	}
 
 	// Despawn the corpse after a delay so the world stays tidy.
