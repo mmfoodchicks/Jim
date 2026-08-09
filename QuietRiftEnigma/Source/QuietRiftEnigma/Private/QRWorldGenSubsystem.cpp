@@ -133,7 +133,12 @@ void UQRWorldGenSubsystem::GenerateCellGrid()
 {
 	const float HalfWorldM    = WorldMapSizeKm * 1000.0f * 0.5f;
 	const float PlayableRadM  = HalfWorldM;
-	const float HazardInnerM  = FMath::Max(0.0f, PlayableRadM - HazardBeltMeters);
+	// Scale the hazard belt with map size. A fixed 5 km belt on the 8 km
+	// bootstrap map left a 3 km playable core — the Surface and Mid bands
+	// were 100% hazard, so wrecks/camps/fauna/caves could never place and
+	// New Game produced a nearly empty world.
+	const float EffectiveBeltM = FMath::Min(HazardBeltMeters, PlayableRadM * 0.15f);
+	const float HazardInnerM  = FMath::Max(0.0f, PlayableRadM - EffectiveBeltM);
 
 	for (int32 Y = 0; Y < GridH; ++Y)
 	{
@@ -265,6 +270,25 @@ void UQRWorldGenSubsystem::PlacePOIs()
 		return true;
 	};
 
+	// Spacing against SAME-archetype placements only. The all-placements
+	// check made RemnantSites mathematically unplaceable: the capital
+	// sits at the origin and the whole Remnant band is within 8 km of
+	// it, so every candidate failed and zero remnants ever spawned.
+	auto MinSpacingOKSameType = [&](const FVector& Loc, float MinDistCm, FName Type) -> bool
+	{
+		for (const FQRPOIPlacement& P : POIPlacements)
+		{
+			if (P.ArchetypeId != Type) continue;
+			if (FVector::DistSquared(P.WorldLocation, Loc) < MinDistCm * MinDistCm)
+				return false;
+		}
+		return true;
+	};
+
+	// Spacing constants scale with the map so small bootstrap maps can
+	// still satisfy them (8 km apart is meaningless on an 8 km map).
+	const float MapHalfM = WorldMapSizeKm * 1000.0f * 0.5f;
+
 	auto SampleRandomCellInBand = [&](EQRDepthBand Band, int32 MaxTries,
 		FName RequireBiome = NAME_None) -> int32
 	{
@@ -303,27 +327,41 @@ void UQRWorldGenSubsystem::PlacePOIs()
 		}
 	}
 
-	// ── 2. Remnant sites — 4 in the Remnant band.
-	for (int32 i = 0; i < 4; ++i)
+	// ── 2. Remnant sites — 4 in the Remnant band. Retry-until-placed
+	// (the old 4-sample loop consumed an attempt on every spacing
+	// rejection), spaced only against other remnants and scaled to map.
 	{
-		const int32 Idx = SampleRandomCellInBand(EQRDepthBand::Remnant, 200);
-		if (Idx == INDEX_NONE) break;
-		const FQRWorldCell& C = Cells[Idx];
-		const FVector Loc = WorldPosForCell(C.X, C.Y);
-		if (Loc.SizeSquared() < StartSafeRadiusMeters * StartSafeRadiusMeters * 10000.0f) continue;
-		if (!MinSpacingOK(Loc, 8000.0f * 100.0f)) continue;  // 8km apart
-		AddPlacement(TEXT("RemnantSite"), Loc, 2000.0f, C);
+		const float RemnantSpacingCm = FMath::Min(8000.0f, MapHalfM * 0.4f) * 100.0f;
+		int32 PlacedRemnants = 0;
+		for (int32 Try = 0; Try < 200 && PlacedRemnants < 4; ++Try)
+		{
+			const int32 Idx = SampleRandomCellInBand(EQRDepthBand::Remnant, 200);
+			if (Idx == INDEX_NONE) break;
+			const FQRWorldCell& C = Cells[Idx];
+			const FVector Loc = WorldPosForCell(C.X, C.Y);
+			if (Loc.SizeSquared() < StartSafeRadiusMeters * StartSafeRadiusMeters * 10000.0f) continue;
+			if (!MinSpacingOKSameType(Loc, RemnantSpacingCm, TEXT("RemnantSite"))) continue;
+			AddPlacement(TEXT("RemnantSite"), Loc, 2000.0f, C);
+			++PlacedRemnants;
+		}
 	}
 
-	// ── 3. Faction satellites — ring in Deep band.
-	for (int32 i = 0; i < 8; ++i)
+	// ── 3. Faction satellites — ring in Deep band. Same-type spacing:
+	// the 4 km all-placements check could never pass vs the capital at
+	// origin when the whole Deep band is within ~3 km of it.
 	{
-		const int32 Idx = SampleRandomCellInBand(EQRDepthBand::Deep, 200);
-		if (Idx == INDEX_NONE) break;
-		const FQRWorldCell& C = Cells[Idx];
-		const FVector Loc = WorldPosForCell(C.X, C.Y);
-		if (!MinSpacingOK(Loc, 4000.0f * 100.0f)) continue;
-		AddPlacement(TEXT("FactionSatellite"), Loc, 1500.0f, C);
+		const float SatSpacingCm = FMath::Min(4000.0f, MapHalfM * 0.25f) * 100.0f;
+		int32 PlacedSats = 0;
+		for (int32 Try = 0; Try < 200 && PlacedSats < 8; ++Try)
+		{
+			const int32 Idx = SampleRandomCellInBand(EQRDepthBand::Deep, 200);
+			if (Idx == INDEX_NONE) break;
+			const FQRWorldCell& C = Cells[Idx];
+			const FVector Loc = WorldPosForCell(C.X, C.Y);
+			if (!MinSpacingOKSameType(Loc, SatSpacingCm, TEXT("FactionSatellite"))) continue;
+			AddPlacement(TEXT("FactionSatellite"), Loc, 1500.0f, C);
+			++PlacedSats;
+		}
 	}
 
 	// ── 4. Crash wrecks.

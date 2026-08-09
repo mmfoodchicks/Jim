@@ -9,6 +9,7 @@
 #include "QRNPCActor.h"
 #include "QRFactionCamp.h"
 #include "QRCampSimComponent.h"
+#include "QRVanguardColony.h"
 #include "QRGameMode.h"
 #include "QRResearchComponent.h"
 #include "GameFramework/GameStateBase.h"
@@ -31,6 +32,11 @@ AQRWorldGenSpawner::AQRWorldGenSpawner()
 	CaveEntranceClass    = AQRCaveEntrance::StaticClass();
 	WildlifeFallbackClass = AQRWildlifeActor::StaticClass();
 	FactionSatelliteClass = AQRFactionCamp::StaticClass();
+	// Was the only POI class with no default — bootstrap worlds spawned
+	// nothing at the world center (while its phantom placement still
+	// blocked min-spacing near the origin) and the Vanguard sim never
+	// found its actor.
+	ConcordatCapitalClass = AQRVanguardColony::StaticClass();
 
 	PopulateDefaultCrashTemplates();
 }
@@ -285,7 +291,10 @@ void AQRWorldGenSpawner::SpawnPOIs()
 		FVector SpawnLoc = P.WorldLocation;
 		FVector GroundHit;
 		if (TraceGround(P.WorldLocation, GroundHit)) SpawnLoc = GroundHit;
-		const FRotator Rot(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f);
+		// Seed-derived yaw — FMath::FRandRange broke the deterministic-
+		// world contract (every run/resume re-rotated each POI).
+		FRandomStream YawRng(Sub->WorldSeed ^ static_cast<int32>(GetTypeHash(P.WorldLocation.ToString())));
+		const FRotator Rot(0.0f, YawRng.FRandRange(0.0f, 360.0f), 0.0f);
 
 		// 1. POIArchetypeTable override path — if set and a row matches
 		//    the archetype id, use the table's actor class + loot.

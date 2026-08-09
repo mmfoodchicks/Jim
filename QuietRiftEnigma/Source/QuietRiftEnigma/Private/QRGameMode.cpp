@@ -245,6 +245,40 @@ void AQRGameMode::HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data)
 	if (!bSuccess)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[QR] Save load failed for slot '%s'"), *AutosaveSlotName);
+
+		// The BeginPlay bootstrap was skipped because a save EXISTED —
+		// if that save turns out corrupt/unreadable, nothing else would
+		// ever generate the world. Fall back to a fresh bootstrap so a
+		// bad save file degrades to New Game instead of an empty floor.
+		if (bAutoBootstrapWorld && GetWorld())
+		{
+			bool bExisting = false;
+			for (TActorIterator<AQRWorldGenSeedActor> It(GetWorld()); It; ++It) { bExisting = true; break; }
+			UQRWorldGenSubsystem* WG = GetWorld()->GetSubsystem<UQRWorldGenSubsystem>();
+			if (!bExisting && WG && !WG->bGenerated)
+			{
+				AQRWorldGenSeedActor* Seed = GetWorld()->SpawnActor<AQRWorldGenSeedActor>(
+					AQRWorldGenSeedActor::StaticClass(),
+					FVector::ZeroVector, FRotator::ZeroRotator);
+				AQRWorldGenSpawner* WSpawner = GetWorld()->SpawnActor<AQRWorldGenSpawner>(
+					AQRWorldGenSpawner::StaticClass(),
+					FVector::ZeroVector, FRotator::ZeroRotator);
+				if (Seed)
+				{
+					Seed->WorldSeed       = BootstrapWorldSeed;
+					Seed->WorldMapSizeKm  = BootstrapMapSizeKm;
+					Seed->CellSizeMeters  = BootstrapCellSizeMeters;
+					Seed->Generate();
+				}
+				if (WSpawner)
+				{
+					WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
+					WSpawner->SpawnAll();
+				}
+				UE_LOG(LogTemp, Log, TEXT("[QRGameMode] load failed — bootstrapped fresh world (seed %d)"),
+					BootstrapWorldSeed);
+			}
+		}
 		return;
 	}
 	PendingLoadedData     = Data;

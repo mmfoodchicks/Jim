@@ -2,6 +2,8 @@
 #include "QRWorldItem.h"
 #include "QRItemDefinition.h"
 #include "QRInventoryComponent.h"
+#include "QRLootedRegistry.h"
+#include "QRSaveSnapshotLibrary.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -72,6 +74,24 @@ void AQRCrashSiteActor::PopulateLoot(const FQRCrashLootTemplate& Template, int32
 	UWorld* W = GetWorld();
 	if (!W || !WorldItemClass) return;
 
+	// One scatter per wreck per SAVE, ever. Resume regeneration re-runs
+	// SpawnAll → PopulateLoot; without this guard every reload re-rolled
+	// the full hero-wreck haul (an infinite loot exploit). Keyed by a
+	// deterministic id from the wreck's placement, persisted through
+	// UQRLootedRegistry alongside container looted-state.
+	const FString WreckKey = FString::Printf(TEXT("WRECK_%s_%d_%d"),
+		*ArchetypeId.ToString(),
+		FMath::RoundToInt(GetActorLocation().X),
+		FMath::RoundToInt(GetActorLocation().Y));
+	const FGuid WreckGuid(GetTypeHash(WreckKey),
+		GetTypeHash(WreckKey + TEXT("::QR")), 0x57524B21u,
+		static_cast<uint32>(WreckKey.Len()));
+	if (UQRLootedRegistry* Registry = W->GetSubsystem<UQRLootedRegistry>())
+	{
+		if (Registry->HasBeenLooted(WreckGuid)) return;
+		Registry->MarkLooted(WreckGuid);
+	}
+
 	ClearScatteredLoot();
 	FRandomStream Rng(Seed);
 	const FVector Center = GetActorLocation();
@@ -81,12 +101,17 @@ void AQRCrashSiteActor::PopulateLoot(const FQRCrashLootTemplate& Template, int32
 		if (Entry.ItemId.IsNone()) continue;
 		if (Rng.FRand() > Entry.SpawnChance) continue;
 
-		// Resolve item definition by id. Convention follows seeder
-		// output: /Game/QuietRift/Data/Items/<Id>.<Id>
-		const FString DefPath = FString::Printf(TEXT("/Game/QuietRift/Data/Items/%s.%s"),
-			*Entry.ItemId.ToString(), *Entry.ItemId.ToString());
-		UQRItemDefinition* Def = LoadObject<UQRItemDefinition>(nullptr, *DefPath);
-		if (!Def) continue;
+		// Asset-registry resolver — seeders put every definition in a
+		// bucket subfolder (Items/<Bucket>/<Id>), so the old flat-path
+		// LoadObject returned null for EVERY entry and no wreck ever
+		// scattered a single item (including the only TOL_MED_KEY).
+		UQRItemDefinition* Def = FQRSaveSnapshot::ResolveItemDefinition(Entry.ItemId);
+		if (!Def)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[QRCrash] no item def for '%s' — entry skipped"),
+				*Entry.ItemId.ToString());
+			continue;
+		}
 
 		const int32 Quantity = Rng.RandRange(Entry.MinQty, FMath::Max(Entry.MinQty, Entry.MaxQty));
 

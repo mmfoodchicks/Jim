@@ -1,5 +1,6 @@
 #include "QRHaulerComponent.h"
 #include "QRDepotActor.h"
+#include "QRSaveSnapshotLibrary.h"
 #include "QRInventoryComponent.h"
 #include "QRItemDefinition.h"
 #include "QRItemInstance.h"
@@ -122,17 +123,25 @@ void UQRHaulerComponent::TickPickUp()
 		return;
 	}
 
+	// Resolve BEFORE removing — the old order removed from the depot and
+	// then failed the flat-path LoadObject (defs live in bucket
+	// subfolders), silently vaporizing up to CarryCapacity items from
+	// the stockpile on every hauler cycle.
+	const UQRItemDefinition* Def = FQRSaveSnapshot::ResolveItemDefinition(ActiveItemId);
+	if (!Def)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[QRHauler] no item def for '%s' — pickup aborted"),
+			*ActiveItemId.ToString());
+		SetState(EQRHaulerState::Idle);
+		return;
+	}
+
 	if (!Depot->Storage->TryRemoveItem(ActiveItemId, ToMove))
 	{
 		SetState(EQRHaulerState::Idle);
 		return;
 	}
 
-	// Resolve the definition by id for TryAddByDefinition.
-	const FString DefPath = FString::Printf(TEXT("/Game/QuietRift/Data/Items/%s.%s"),
-		*ActiveItemId.ToString(), *ActiveItemId.ToString());
-	const UQRItemDefinition* Def = LoadObject<UQRItemDefinition>(nullptr, *DefPath);
-	if (Def)
 	{
 		int32 Remainder = 0;
 		MyInv->TryAddByDefinition(Def, ToMove, Remainder);
@@ -160,12 +169,9 @@ void UQRHaulerComponent::TickDeliver()
 		return;
 	}
 
-	if (MyInv->TryRemoveItem(ActiveItemId, ActiveQuantity))
+	if (const UQRItemDefinition* Def = FQRSaveSnapshot::ResolveItemDefinition(ActiveItemId))
 	{
-		const FString DefPath = FString::Printf(TEXT("/Game/QuietRift/Data/Items/%s.%s"),
-			*ActiveItemId.ToString(), *ActiveItemId.ToString());
-		const UQRItemDefinition* Def = LoadObject<UQRItemDefinition>(nullptr, *DefPath);
-		if (Def)
+		if (MyInv->TryRemoveItem(ActiveItemId, ActiveQuantity))
 		{
 			int32 Remainder = 0;
 			StationInv->TryAddByDefinition(Def, ActiveQuantity, Remainder);
