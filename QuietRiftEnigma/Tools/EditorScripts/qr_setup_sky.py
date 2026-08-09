@@ -132,6 +132,10 @@ def _ensure_celestial(label, mesh_path, location, scale, material_path=None):
                 _try(lambda: comp.set_material(0, mat_obj))
     _try(lambda: actor.set_actor_location(location, False, False))
     _try(lambda: actor.set_actor_scale3d(unreal.Vector(scale, scale, scale)))
+    # Actor TAG mirrors the label — AQRSkyManager resolves bodies by tag
+    # now (labels are editor-only, which is why cooked builds and
+    # un-redressed maps lost Jupiter).
+    _try(lambda: actor.set_editor_property("tags", [unreal.Name(label)]))
     return actor
 
 

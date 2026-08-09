@@ -13,6 +13,7 @@
 #include "QRCrashSiteActor.h"
 #include "QRHUD.h"
 #include "Animation/AnimSequence.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Engine/SkeletalMesh.h"
 #include "QRWildlifeActor.h"
 #include "QRBuildModeComponent.h"
@@ -904,9 +905,11 @@ void AQRCharacter::TryFireWeapon()
 		// TryFireWeapon above via ApplyWeaponRecoilKick. The camera is
 		// deliberately left untouched.
 
-		// Visible tracer + hit feedback. One pink line per PELLET so the
-		// shotgun's spread reads clearly (a single line was hiding that
-		// 7 of the 8 pellets even fired). Cyan sphere at each impact.
+		// Debug-line tracer + hit feedback, OFF by default — the weapon
+		// component's replicated Niagara muzzle/tracer/impact FX are the
+		// real visuals; these pink lines were dev scaffolding that stayed
+		// on top of them.
+		if (bDebugTracerLines)
 		if (UWorld* W = GetWorld())
 		{
 			const FVector Muzzle = Start + Forward * 35.0f;
@@ -1655,6 +1658,20 @@ void AQRCharacter::TickThirdPersonAnim()
 	else if (Speed >= 15.0f && !TPWalkAnim.IsNull())
 	{
 		Want = TPWalkAnim;
+	}
+
+	// Scale loop speed to actual velocity every tick so feet track the
+	// ground instead of moonwalking — walk clip is authored for
+	// WalkSpeed, run clip for SprintSpeed.
+	if (UAnimSingleNodeInstance* Single = Body->GetSingleNodeInstance())
+	{
+		float Rate = 1.0f;
+		if (Speed >= 15.0f)
+		{
+			const float Ref = (Speed >= SprintSpeed * 0.75f) ? SprintSpeed : WalkSpeed;
+			Rate = FMath::Clamp(Speed / FMath::Max(Ref, 1.0f), 0.6f, 1.6f);
+		}
+		Single->SetPlayRate(Rate);
 	}
 
 	if (Want.IsNull() || Want == TPLastPlayed) return;

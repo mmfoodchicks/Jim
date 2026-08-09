@@ -120,6 +120,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky")
 	TArray<FQRMoonConfig> Moons;
 
+	// ── Runtime celestial guarantee ─────────────────────────────────
+	// If the editor-script-authored QR_Jupiter / QR_Moon_* actors are
+	// NOT in the level (script never run on this map, or a cooked build
+	// where label lookup can't work), spawn them at runtime so the sky
+	// can never be empty. Script-authored actors always win.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky|Celestial")
+	bool bAutoCreateCelestials = true;
+
+	// Runtime deep-space starfield: instanced star dome (brightness
+	// tiers + Milky Way band + planet-bright points + dim nebula
+	// patches). No light pollution on a Jovian moon — nights are dense.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky|Celestial")
+	bool bAutoCreateStarfield = true;
+
+	// Star dome radius (cm). Beyond Jupiter (65 km) so bodies occlude
+	// stars correctly.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky|Celestial",
+		meta = (ClampMin = "1000000"))
+	float StarDomeRadius = 9000000.0f;
+
+	// Deterministic star layout seed — same sky every session.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|Sky|Celestial")
+	int32 StarfieldSeed = 20570;
+
 	virtual void Tick(float DeltaTime) override;
 
 protected:
@@ -139,5 +163,36 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<ADirectionalLight> JovianLight;
 
+	/** Runtime starfield actor + per-tier instanced components/MIDs so
+	 *  Tick can fade stars out in daylight. */
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> StarfieldActor;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UInstancedStaticMeshComponent>> StarTiers;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UMaterialInstanceDynamic>> StarTierMIDs;
+
+	/** Base colors per tier, pre-fade (index-matched to StarTiers). */
+	TArray<FLinearColor> StarTierBaseColors;
+
 	void ResolveSkyActors();
+
+	/** Spawn Jupiter + moons at runtime when the level doesn't carry
+	 *  them. Uses the script's positions/scales; tags actors so future
+	 *  resolution works outside the editor too. */
+	void EnsureCelestialBodies();
+
+	/** Build the instanced star dome (tiers, Milky Way, planets,
+	 *  nebulae) if not already present. */
+	void EnsureStarfield();
+
+	/** Fade star tiers with sun height; hide them in full daylight. */
+	void UpdateStarVisibility(float AboveHorizon);
+
+	/** Spawn one unlit-ish celestial sphere (engine basic sphere + a
+	 *  color MID). Returns the spawned actor. */
+	AActor* SpawnCelestialSphere(const FString& NameTag, const FVector& Location,
+		float UniformScale, const FLinearColor& Color);
 };

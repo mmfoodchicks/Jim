@@ -2,6 +2,11 @@
 #include "QRGameMode.h"
 #include "Engine/DirectionalLight.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 
@@ -104,22 +109,37 @@ void AQRSkyManager::ResolveSkyActors()
 	MoonActors.Reset();
 	MoonActors.SetNum(Moons.Num());
 
-#if WITH_EDITOR
-	// Label lookup is editor-only (GetActorLabel doesn't exist in
-	// shipping). For dev work this is enough; in a packaged build we'd
-	// switch to Actor Tags. Wrapped in WITH_EDITOR so the file still
-	// compiles for cooked targets -- moons just won't orbit there.
+	// Resolve by ACTOR TAG first (works in every build — runtime-spawned
+	// and script-spawned bodies both carry tags now), then fall back to
+	// the editor-only label path for maps dressed by older script runs.
 	for (TActorIterator<AActor> It(W); It; ++It)
 	{
-		const FString Label = It->GetActorLabel();
-		if (Label == TEXT("QR_Jupiter"))
+		if (It->ActorHasTag(TEXT("QR_Jupiter")))
 		{
 			JupiterActor = *It;
 			continue;
 		}
 		for (int32 i = 0; i < Moons.Num(); ++i)
 		{
-			if (Label == Moons[i].ActorLabel.ToString())
+			if (It->ActorHasTag(Moons[i].ActorLabel))
+			{
+				MoonActors[i] = *It;
+				break;
+			}
+		}
+	}
+#if WITH_EDITOR
+	for (TActorIterator<AActor> It(W); It; ++It)
+	{
+		const FString Label = It->GetActorLabel();
+		if (!JupiterActor && Label == TEXT("QR_Jupiter"))
+		{
+			JupiterActor = *It;
+			continue;
+		}
+		for (int32 i = 0; i < Moons.Num(); ++i)
+		{
+			if (!MoonActors[i] && Label == Moons[i].ActorLabel.ToString())
 			{
 				MoonActors[i] = *It;
 				break;
@@ -127,6 +147,12 @@ void AQRSkyManager::ResolveSkyActors()
 		}
 	}
 #endif
+
+	// Guarantee the sky: if the level doesn't carry the celestial stack
+	// (script never run on this map — the "Jupiter isn't there" bug),
+	// build it at runtime.
+	if (bAutoCreateCelestials) EnsureCelestialBodies();
+	if (bAutoCreateStarfield)  EnsureStarfield();
 
 	// Resolve the Jovianlight (works in any build -- it's a typed cast,
 	// not a label, falling back to the dimmest demoted directional light
@@ -212,6 +238,10 @@ void AQRSkyManager::Tick(float DeltaTime)
 	const float SunCurve     = AboveHorizon * AboveHorizon;
 	const float Intensity    = FMath::Lerp(NightIntensity, DayIntensity, SunCurve);
 
+	// Deep-space layer: fade the star tiers with sun height and keep the
+	// slow sidereal drift running.
+	UpdateStarVisibility(AboveHorizon);
+
 	FLinearColor Color;
 	if (SunPitch <= -30.0f)
 	{
@@ -282,6 +312,228 @@ void AQRSkyManager::Tick(float DeltaTime)
 				FMath::Sin(Angle) * Moons[i].OrbitRadius,
 				0.0f);
 			Moon->SetActorLocation(JLoc + Offset);
+		}
+	}
+}
+
+
+// ─── Runtime celestial guarantee ─────────────────────────────────────
+
+AActor* AQRSkyManager::SpawnCelestialSphere(const FString& NameTag,
+	const FVector& Location, float UniformScale, const FLinearColor& Color)
+{
+	UWorld* W = GetWorld();
+	if (!W) return nullptr;
+
+	UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr,
+		TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (!Sphere) return nullptr;
+
+	FActorSpawnParameters SP;
+	SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AActor* Body = W->SpawnActor<AActor>(AActor::StaticClass(), Location,
+		FRotator::ZeroRotator, SP);
+	if (!Body) return nullptr;
+
+	UStaticMeshComponent* SMC = NewObject<UStaticMeshComponent>(Body);
+	SMC->RegisterComponent();
+	SMC->SetStaticMesh(Sphere);
+	SMC->SetMobility(EComponentMobility::Movable);
+	SMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SMC->SetCastShadow(false);
+	Body->SetRootComponent(SMC);
+	Body->SetActorLocation(Location);
+	Body->SetActorScale3D(FVector(UniformScale));
+
+	// Prefer the script-authored flat-emissive material when the editor
+	// pipeline has run; otherwise tint the engine basic-shape material.
+	UMaterialInterface* Authored = LoadObject<UMaterialInterface>(nullptr,
+		*FString::Printf(TEXT("/Game/QuietRift/Materials/M_%s.M_%s"), *NameTag, *NameTag));
+	if (Authored)
+	{
+		SMC->SetMaterial(0, Authored);
+	}
+	else if (UMaterialInterface* Basic = LoadObject<UMaterialInterface>(nullptr,
+		TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+	{
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Basic, Body);
+		MID->SetVectorParameterValue(TEXT("Color"), Color);
+		SMC->SetMaterial(0, MID);
+	}
+
+	Body->Tags.Add(FName(*NameTag));
+#if WITH_EDITOR
+	Body->SetActorLabel(NameTag);
+#endif
+	return Body;
+}
+
+void AQRSkyManager::EnsureCelestialBodies()
+{
+	// Positions/scales mirror qr_setup_sky.py: Jupiter ~65 km out at
+	// scale 4500 ≈ 4° of sky (canon: 8× our Moon, cream-tan banded).
+	if (!JupiterActor)
+	{
+		JupiterActor = SpawnCelestialSphere(TEXT("QR_Jupiter"),
+			FVector(5000000.0f, 1000000.0f, 4000000.0f), 4500.0f,
+			FLinearColor(0.87f, 0.75f, 0.55f, 1.0f));
+		if (JupiterActor)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[QRSky] runtime-spawned QR_Jupiter (level had none)"));
+		}
+	}
+
+	// Real-proportion Galilean scales (Io ≈ 2.6% of Jupiter, etc).
+	static const float MoonScales[4] = { 117.0f, 100.0f, 169.0f, 155.0f };
+	static const FLinearColor MoonColors[4] = {
+		FLinearColor(0.85f, 0.78f, 0.45f, 1.0f),   // Io — sulfur yellow
+		FLinearColor(0.80f, 0.78f, 0.72f, 1.0f),   // Europa — icy tan
+		FLinearColor(0.55f, 0.50f, 0.45f, 1.0f),   // Ganymede — grey-brown
+		FLinearColor(0.40f, 0.37f, 0.33f, 1.0f),   // Callisto — dark grey
+	};
+	const FVector JLoc = JupiterActor
+		? JupiterActor->GetActorLocation()
+		: FVector(5000000.0f, 1000000.0f, 4000000.0f);
+	for (int32 i = 0; i < Moons.Num() && i < MoonActors.Num(); ++i)
+	{
+		if (MoonActors[i]) continue;
+		MoonActors[i] = SpawnCelestialSphere(Moons[i].ActorLabel.ToString(),
+			JLoc + FVector(Moons[i].OrbitRadius, 0, 0),
+			MoonScales[FMath::Min(i, 3)], MoonColors[FMath::Min(i, 3)]);
+	}
+}
+
+void AQRSkyManager::EnsureStarfield()
+{
+	if (StarfieldActor) return;
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	// Reuse one authored by a previous run of this code in a saved map.
+	for (TActorIterator<AActor> It(W); It; ++It)
+	{
+		if (It->ActorHasTag(TEXT("QR_Starfield"))) { StarfieldActor = *It; break; }
+	}
+	if (StarfieldActor) return;
+
+	UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr,
+		TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	UMaterialInterface* Basic = LoadObject<UMaterialInterface>(nullptr,
+		TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	if (!Sphere || !Basic) return;
+
+	FActorSpawnParameters SP;
+	SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	StarfieldActor = W->SpawnActor<AActor>(AActor::StaticClass(),
+		FVector::ZeroVector, FRotator::ZeroRotator, SP);
+	if (!StarfieldActor) return;
+	StarfieldActor->Tags.Add(TEXT("QR_Starfield"));
+#if WITH_EDITOR
+	StarfieldActor->SetActorLabel(TEXT("QR_Starfield"));
+#endif
+	USceneComponent* Root = NewObject<USceneComponent>(StarfieldActor);
+	Root->RegisterComponent();
+	StarfieldActor->SetRootComponent(Root);
+
+	StarTiers.Reset();
+	StarTierMIDs.Reset();
+	StarTierBaseColors.Reset();
+
+	FRandomStream Rng(StarfieldSeed);
+
+	// Random point on the visible dome (slightly below horizon so the
+	// sky reads full to the edges).
+	auto DomeDir = [&Rng]() -> FVector
+	{
+		const float Az = Rng.FRandRange(0.0f, 2.0f * PI);
+		const float El = FMath::Asin(Rng.FRandRange(-0.06f, 1.0f)); // uniform-ish over dome
+		return FVector(FMath::Cos(El) * FMath::Cos(Az),
+		               FMath::Cos(El) * FMath::Sin(Az),
+		               FMath::Sin(El));
+	};
+
+	// The Milky Way band: a tilted great circle. Points sample along it
+	// with gaussian scatter off-plane.
+	const FVector BandNormal = FVector(0.35f, 0.2f, 1.0f).GetSafeNormal();
+	auto BandDir = [&]() -> FVector
+	{
+		const float T = Rng.FRandRange(0.0f, 2.0f * PI);
+		const FVector U = FVector::CrossProduct(BandNormal, FVector::UpVector).GetSafeNormal();
+		const FVector V = FVector::CrossProduct(BandNormal, U);
+		FVector Dir = (U * FMath::Cos(T) + V * FMath::Sin(T));
+		// Gaussian-ish off-plane scatter (sum of two uniforms).
+		const float Off = (Rng.FRand() + Rng.FRand() - 1.0f) * 0.12f;
+		Dir = (Dir + BandNormal * Off).GetSafeNormal();
+		return Dir;
+	};
+
+	auto MakeTier = [&](const TCHAR* Name, int32 Count, float MinScale, float MaxScale,
+		const FLinearColor& Color, bool bBand) -> void
+	{
+		UInstancedStaticMeshComponent* ISM = NewObject<UInstancedStaticMeshComponent>(StarfieldActor, FName(Name));
+		ISM->RegisterComponent();
+		ISM->AttachToComponent(Root, FAttachmentTransformRules::KeepRelativeTransform);
+		ISM->SetStaticMesh(Sphere);
+		ISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ISM->SetCastShadow(false);
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Basic, StarfieldActor);
+		MID->SetVectorParameterValue(TEXT("Color"), Color);
+		ISM->SetMaterial(0, MID);
+		for (int32 i = 0; i < Count; ++i)
+		{
+			const FVector Dir = bBand ? BandDir() : DomeDir();
+			if (Dir.Z < -0.08f) continue;
+			const float S = Rng.FRandRange(MinScale, MaxScale) / 100.0f; // basic sphere = 100cm
+			FTransform T(FRotator::ZeroRotator, Dir * StarDomeRadius, FVector(S));
+			ISM->AddInstance(T);
+		}
+		StarTiers.Add(ISM);
+		StarTierMIDs.Add(MID);
+		StarTierBaseColors.Add(Color);
+	};
+
+	// No light pollution: a dense, layered night sky.
+	MakeTier(TEXT("Stars_Bright"),  180,  260.0f, 380.0f, FLinearColor(1.0f, 1.0f, 0.98f), false);
+	MakeTier(TEXT("Stars_Mid"),     700,  150.0f, 240.0f, FLinearColor(0.85f, 0.88f, 1.0f), false);
+	MakeTier(TEXT("Stars_Dim"),    2200,   80.0f, 140.0f, FLinearColor(0.55f, 0.58f, 0.70f), false);
+	MakeTier(TEXT("MilkyWay"),     2600,   70.0f, 150.0f, FLinearColor(0.60f, 0.60f, 0.72f), true);
+	MakeTier(TEXT("Nebulae"),        14,  900.0f, 1600.0f, FLinearColor(0.28f, 0.20f, 0.34f), true);
+	// Sister planets read as extra-bright tinted stars from 5.2 AU.
+	MakeTier(TEXT("Planet_Saturn"),   1,  420.0f, 420.0f, FLinearColor(1.0f, 0.92f, 0.70f), false);
+	MakeTier(TEXT("Planet_Inner"),    3,  350.0f, 420.0f, FLinearColor(1.0f, 0.85f, 0.80f), false);
+
+	UE_LOG(LogTemp, Log, TEXT("[QRSky] runtime starfield built (%d tiers)"), StarTiers.Num());
+}
+
+void AQRSkyManager::UpdateStarVisibility(float AboveHorizon)
+{
+	if (StarTiers.Num() == 0) return;
+
+	// Stars wash out as the (dim, 1/27-Earth) sun climbs. Fully hidden
+	// only near noon; the fade preserves bright stars into twilight.
+	const float StarAlpha = FMath::Clamp(1.0f - AboveHorizon * 1.6f, 0.0f, 1.0f);
+	const bool bVisible = StarAlpha > 0.02f;
+	for (int32 i = 0; i < StarTiers.Num(); ++i)
+	{
+		if (!StarTiers[i]) continue;
+		StarTiers[i]->SetVisibility(bVisible);
+		if (bVisible && StarTierMIDs.IsValidIndex(i) && StarTierMIDs[i] &&
+			StarTierBaseColors.IsValidIndex(i))
+		{
+			StarTierMIDs[i]->SetVectorParameterValue(TEXT("Color"),
+				StarTierBaseColors[i] * StarAlpha);
+		}
+	}
+
+	// Slow sidereal drift so the night sky isn't a static painting.
+	if (StarfieldActor)
+	{
+		AQRGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AQRGameMode>() : nullptr;
+		if (GM)
+		{
+			FRotator R = StarfieldActor->GetActorRotation();
+			R.Yaw = GM->GetDayProgress() * 360.0f;
+			StarfieldActor->SetActorRotation(R);
 		}
 	}
 }

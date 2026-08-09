@@ -234,6 +234,11 @@ public:
 		meta = (ClampMin = "0", ClampMax = "2"))
 	float CameraRecoilScale = 0.18f;
 
+	// Dev-only pink pellet lines + cyan impact spheres on top of the
+	// real Niagara fire FX. Off by default.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Debug")
+	bool bDebugTracerLines = false;
+
 	// ── State ────────────────────────────────
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Character")
 	bool bIsSprinting = false;
