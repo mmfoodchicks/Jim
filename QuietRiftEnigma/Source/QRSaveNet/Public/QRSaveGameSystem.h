@@ -27,7 +27,7 @@ public:
 
 // Current save layout version — bump this whenever FQRGameSaveData or its nested structs change.
 // MigrateToCurrentVersion() must handle every intermediate step.
-static constexpr int32 QRCurrentSaveVersion = 2;
+static constexpr int32 QRCurrentSaveVersion = 3;
 
 // Singleton-accessible save/load coordinator
 UCLASS(BlueprintType, Blueprintable)

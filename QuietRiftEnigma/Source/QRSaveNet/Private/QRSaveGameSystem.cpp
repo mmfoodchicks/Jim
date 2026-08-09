@@ -21,6 +21,13 @@ void UQRSaveGameSystem::MigrateToCurrentVersion(FQRGameSaveData& Data)
 		// no data patching needed.
 		Data.SaveVersion = 2;
 	}
+	if (Data.SaveVersion < 3)
+	{
+		// v2 → v3: ColonistRole on FQRNPCSaveData; HotbarSlotItemIds +
+		// HotbarActiveSlot on FQRGameSaveData. Struct defaults cover both
+		// (role Unassigned, hotbar empty) — no data patching needed.
+		Data.SaveVersion = 3;
+	}
 }
 
 void UQRSaveGameSystem::SaveGame(const FQRGameSaveData& DataToSave, const FString& SlotName, int32 UserIndex)

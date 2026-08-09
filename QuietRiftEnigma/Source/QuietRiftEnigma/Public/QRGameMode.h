@@ -216,6 +216,14 @@ private:
 	FQRGameSaveData PendingLoadedData;
 	bool            bHasPendingLoadedData = false;
 
+	// True while an async LoadGame is outstanding. QuickSave refuses to
+	// run during this window so EndPlay/autosave can't clobber the slot
+	// with fresh-spawn state before the loaded snapshot applies.
+	bool bLoadInFlight = false;
+
+	// OnLoadComplete.AddUObject does NOT dedupe — bind exactly once.
+	bool bLoadDelegateBound = false;
+
 	void HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data);
 
 	// Driven by AutosaveIntervalSeconds. Set in BeginPlay, cleared in

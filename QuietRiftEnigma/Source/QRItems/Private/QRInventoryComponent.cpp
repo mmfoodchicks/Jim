@@ -568,8 +568,10 @@ void UQRInventoryComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// Accumulate real-time into game-hours (assumes 1 real-second ≈ 1 game-minute at default day speed)
-	SpoilAccumulatedHours += DeltaTime / 3600.0f;
+	// Accumulate real-time into GAME-hours. The old /3600 used REAL hours,
+	// so at the 20-minute game day food spoiled ~72× slower than the
+	// vitals sim assumes.
+	SpoilAccumulatedHours += DeltaTime * SpoilGameHoursPerRealSecond;
 
 	if (SpoilAccumulatedHours >= 0.01f) // advance spoil every ~36 real-seconds
 	{

@@ -63,6 +63,14 @@ public:
 		meta = (ClampMin = "0.1", ClampMax = "1.0"))
 	float SprintEncumbranceRatio = 0.85f;
 
+	// Game-hours that pass per real second, used by the spoilage clock.
+	// Default matches AQRGameMode's 20-minute game day (24h / 1200s);
+	// keep in sync if the day length changes. (QRItems can't reach the
+	// game module's GameMode to read it directly.)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory",
+		meta = (ClampMin = "0.0001", ClampMax = "1.0"))
+	float SpoilGameHoursPerRealSecond = 24.0f / 1200.0f;
+
 	// ── State ────────────────────────────────
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Items, Category = "Inventory")
 	TArray<TObjectPtr<UQRItemInstance>> Items;

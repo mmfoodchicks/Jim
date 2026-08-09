@@ -224,6 +224,11 @@ struct QRSAVENET_API FQRNPCSaveData
 	UPROPERTY() FVector AssignedWorkPost   = FVector::ZeroVector;
 	UPROPERTY() FVector AssignedBed        = FVector::ZeroVector;
 	UPROPERTY() uint8   BrainState         = 0;   // EQRNPCBrainState
+
+	// SaveVersion 3: colonist job role (EQRNPCRole). Dropping this made
+	// every colonist forget their job on reload — the job AI keyed off a
+	// role that reset to Unassigned.
+	UPROPERTY() uint8   ColonistRole       = 0;
 };
 
 // Top-level save game structure
@@ -295,4 +300,12 @@ struct QRSAVENET_API FQRGameSaveData
 
 	// Faction data
 	UPROPERTY() TMap<FName, float> FactionTrustScores;
+
+	// SaveVersion 3: hotbar bindings — per-slot item ids (None = empty
+	// slot) + the active slot index. Captured/applied by AQRGameMode
+	// directly: UQRHotbarComponent lives in the game module, which
+	// QRSaveNet cannot reference, so this is the documented exception to
+	// the everything-in-FQRSaveSnapshot rule.
+	UPROPERTY() TArray<FName> HotbarSlotItemIds;
+	UPROPERTY() int32 HotbarActiveSlot = -1;
 };

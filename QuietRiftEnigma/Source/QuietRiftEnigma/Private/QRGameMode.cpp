@@ -33,7 +33,10 @@
 #include "QRMountHusbandryComponent.h"
 #include "QRFarmPlotActor.h"
 #include "QRNPCActor.h"
+#include "QRNPCColonist.h"
 #include "QRNPCBrainComponent.h"
+#include "QRRaidPartyAI.h"
+#include "QRHotbarComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -180,7 +183,12 @@ void AQRGameMode::BeginPlay()
 	// share of the snapshot.
 	if (SaveSystem && SaveSystem->DoesSaveExist(AutosaveSlotName))
 	{
-		SaveSystem->OnLoadComplete.AddUObject(this, &AQRGameMode::HandleLoadComplete);
+		if (!bLoadDelegateBound)
+		{
+			SaveSystem->OnLoadComplete.AddUObject(this, &AQRGameMode::HandleLoadComplete);
+			bLoadDelegateBound = true;
+		}
+		bLoadInFlight = true;
 		SaveSystem->LoadGame(AutosaveSlotName);
 	}
 
@@ -233,6 +241,7 @@ void AQRGameMode::EndPlay(const EEndPlayReason::Type Reason)
 
 void AQRGameMode::HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data)
 {
+	bLoadInFlight = false;
 	if (!bSuccess)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[QR] Save load failed for slot '%s'"), *AutosaveSlotName);
@@ -240,6 +249,41 @@ void AQRGameMode::HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data)
 	}
 	PendingLoadedData     = Data;
 	bHasPendingLoadedData = true;
+
+	// Resuming skipped the BeginPlay world bootstrap on purpose — we
+	// needed the SAVED seed first. Regenerate the deterministic world now,
+	// otherwise a resumed session is a barren floor: no POIs, camps,
+	// caves, or fauna (the "load my save → empty world" bug).
+	if (bAutoBootstrapWorld && GetWorld())
+	{
+		bool bExisting = false;
+		for (TActorIterator<AQRWorldGenSeedActor> It(GetWorld()); It; ++It) { bExisting = true; break; }
+		UQRWorldGenSubsystem* WG = GetWorld()->GetSubsystem<UQRWorldGenSubsystem>();
+		if (!bExisting && WG && !WG->bGenerated)
+		{
+			const int32 ResumeSeed = (Data.WorldSeed != 0) ? Data.WorldSeed : BootstrapWorldSeed;
+			AQRWorldGenSeedActor* Seed = GetWorld()->SpawnActor<AQRWorldGenSeedActor>(
+				AQRWorldGenSeedActor::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			AQRWorldGenSpawner* WSpawner = GetWorld()->SpawnActor<AQRWorldGenSpawner>(
+				AQRWorldGenSpawner::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			if (Seed)
+			{
+				Seed->WorldSeed       = ResumeSeed;
+				Seed->WorldMapSizeKm  = BootstrapMapSizeKm;
+				Seed->CellSizeMeters  = BootstrapCellSizeMeters;
+				Seed->Generate();
+			}
+			if (WSpawner)
+			{
+				WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
+				WSpawner->SpawnAll();
+			}
+			UE_LOG(LogTemp, Log,
+				TEXT("[QRGameMode] regenerated world from saved seed %d"), ResumeSeed);
+		}
+	}
 
 	// Restore world-level state that doesn't need a player pawn.
 	WorldTimeSeconds      = Data.WorldTimeSeconds;
@@ -356,6 +400,12 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 				Brain->AssignedBed      = N.AssignedBed;
 				Brain->State            = static_cast<EQRNPCBrainState>(N.BrainState);
 			}
+			// v3: restore the colonist's job so the farm/guard/medic AI
+			// resumes instead of everyone reverting to Unassigned.
+			if (AQRNPCColonist* Col = Cast<AQRNPCColonist>(NPC))
+			{
+				Col->ColonistRole = static_cast<EQRNPCRole>(N.ColonistRole);
+			}
 		}
 		UE_LOG(LogTemp, Log, TEXT("[QR] Restored %d NPC actors"),
 			PendingLoadedData.NPCActors.Num());
@@ -366,6 +416,38 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 	// creator runs only at New Game.
 	Player->PlayerIdentity = PendingLoadedData.PlayerIdentity;
 
+	// Hotbar rebinding (v3): match saved per-slot item ids against the
+	// restored inventory instances. First unclaimed instance with the id
+	// wins, so two stacks of the same item fill two slots correctly.
+	if (Player->Hotbar && Player->Inventory &&
+		PendingLoadedData.HotbarSlotItemIds.Num() > 0)
+	{
+		TSet<UQRItemInstance*> Claimed;
+		const int32 N = FMath::Min(Player->Hotbar->Slots.Num(),
+			PendingLoadedData.HotbarSlotItemIds.Num());
+		for (int32 i = 0; i < N; ++i)
+		{
+			Player->Hotbar->Slots[i] = nullptr;
+			const FName WantId = PendingLoadedData.HotbarSlotItemIds[i];
+			if (WantId.IsNone()) continue;
+			for (UQRItemInstance* Inst : Player->Inventory->Items)
+			{
+				if (Inst && Inst->IsValid() && Inst->Definition &&
+					Inst->Definition->ItemId == WantId && !Claimed.Contains(Inst))
+				{
+					Player->Hotbar->Slots[i] = Inst;
+					Claimed.Add(Inst);
+					break;
+				}
+			}
+		}
+		const int32 WantActive = PendingLoadedData.HotbarActiveSlot;
+		if (WantActive >= 0 && WantActive < Player->Hotbar->Slots.Num())
+		{
+			Player->Hotbar->SelectSlot(WantActive);
+		}
+	}
+
 	// Move the pawn to the saved location if non-zero. Avoids zeroing
 	// out a freshly-spawned PlayerStart when there's no saved transform.
 	const FVector& SavedLoc = PendingLoadedData.PlayerData.WorldLocation;
@@ -373,6 +455,10 @@ void AQRGameMode::ApplyLoadedDataToPlayer(AQRCharacter* Player)
 	{
 		Player->SetActorLocation(SavedLoc);
 	}
+
+	// One-shot: without clearing, every later authoritative pawn BeginPlay
+	// (respawns, co-op joins) re-applied this stale snapshot.
+	bHasPendingLoadedData = false;
 
 	UE_LOG(LogTemp, Log, TEXT("[QR] Applied save snapshot to player pawn '%s'"), *Player->GetName());
 }
@@ -482,10 +568,42 @@ bool AQRGameMode::IsMissionComplete(FName MissionId) const
 void AQRGameMode::QuickSave()
 {
 	if (!SaveSystem) return;
+
+	// Never overwrite the slot while its own async load is still in
+	// flight — EndPlay / the autosave timer could clobber a good save
+	// with fresh-spawn state before the snapshot applies.
+	if (bLoadInFlight)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[QR] QuickSave skipped — load in flight"));
+		return;
+	}
+
+	// Never snapshot mid-death: restoring a 0-HP pawn produces an
+	// unkillable zombie with no death flow. The previous autosave stands;
+	// respawn re-enables saving a few seconds later.
+	if (APlayerController* DeadPC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+	{
+		if (AQRCharacter* P = Cast<AQRCharacter>(DeadPC->GetPawn()))
+		{
+			if (P->Survival && P->Survival->bIsDead)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[QR] QuickSave skipped — player dead (respawn pending)"));
+				return;
+			}
+		}
+	}
+
 	FQRGameSaveData Data;
 	Data.SaveSlotName        = AutosaveSlotName;
 	Data.SaveTimestamp       = FDateTime::Now();
-	Data.WorldSeed           = 0; // Blueprint fills from world generator
+
+	// Real seed from the worldgen subsystem so resume can regenerate the
+	// same world. Was hardcoded 0 ("Blueprint fills") — nothing ever did.
+	Data.WorldSeed = BootstrapWorldSeed;
+	if (UQRWorldGenSubsystem* WG = GetWorld() ? GetWorld()->GetSubsystem<UQRWorldGenSubsystem>() : nullptr)
+	{
+		if (WG->bGenerated) Data.WorldSeed = WG->WorldSeed;
+	}
 	Data.WorldTimeSeconds    = WorldTimeSeconds;
 	Data.DayNumber           = DayNumber;
 	Data.CompletedMissionIds = CompletedMissionIds;
@@ -516,6 +634,20 @@ void AQRGameMode::QuickSave()
 			// out of the save by someone forgetting to extend this function.
 			FQRSaveSnapshot::CaptureSurvival(Player->Survival, Data.PlayerData);
 			FQRSaveSnapshot::CaptureInventory(Player->Inventory, Data.PlayerInventory);
+
+			// Hotbar bindings (v3). Lives here, not in FQRSaveSnapshot:
+			// UQRHotbarComponent is game-module, unreachable from QRSaveNet.
+			if (Player->Hotbar)
+			{
+				Data.HotbarSlotItemIds.Reset();
+				for (UQRItemInstance* Slot : Player->Hotbar->Slots)
+				{
+					Data.HotbarSlotItemIds.Add(
+						(Slot && Slot->IsValid() && Slot->Definition)
+							? Slot->Definition->ItemId : NAME_None);
+				}
+				Data.HotbarActiveSlot = Player->Hotbar->ActiveSlotIndex;
+			}
 		}
 	}
 
@@ -542,6 +674,13 @@ void AQRGameMode::QuickSave()
 
 			if (AQRNPCActor* NPC = Cast<AQRNPCActor>(*It))
 			{
+				// Transient actors don't persist: corpses, and raid-party
+				// members mid-raid — restoring raiders as brain-driven
+				// villagers turned an autosave-during-a-raid into a squad
+				// of permanent hostile "residents".
+				if (NPC->Survival && NPC->Survival->bIsDead) continue;
+				if (NPC->FindComponentByClass<UQRRaidPartyAI>()) continue;
+
 				FQRNPCSaveData N;
 #if WITH_EDITOR
 				// Actor labels are editor-only; packaged builds key off
@@ -558,6 +697,10 @@ void AQRGameMode::QuickSave()
 					N.AssignedWorkPost = Brain->AssignedWorkPost;
 					N.AssignedBed      = Brain->AssignedBed;
 					N.BrainState       = static_cast<uint8>(Brain->State);
+				}
+				if (const AQRNPCColonist* Col = Cast<AQRNPCColonist>(NPC))
+				{
+					N.ColonistRole = static_cast<uint8>(Col->ColonistRole);
 				}
 				Data.NPCActors.Add(MoveTemp(N));
 			}
@@ -580,9 +723,14 @@ void AQRGameMode::QuickSave()
 void AQRGameMode::QuickLoad()
 {
 	if (!SaveSystem) return;
-	// Subscribe each call — HandleLoadComplete is idempotent and the
-	// delegate dedupes on identical bindings.
-	SaveSystem->OnLoadComplete.AddUObject(this, &AQRGameMode::HandleLoadComplete);
+	// Bind exactly once — AddUObject does NOT dedupe (the old comment
+	// claiming it does was wrong; repeated QuickLoads stacked handlers).
+	if (!bLoadDelegateBound)
+	{
+		SaveSystem->OnLoadComplete.AddUObject(this, &AQRGameMode::HandleLoadComplete);
+		bLoadDelegateBound = true;
+	}
+	bLoadInFlight = true;
 	SaveSystem->LoadGame(AutosaveSlotName, 0);
 }
 

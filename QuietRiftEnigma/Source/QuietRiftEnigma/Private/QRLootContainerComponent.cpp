@@ -21,13 +21,18 @@ void UQRLootContainerComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Auto-assign a stable id if the designer left it blank. Editor-placed
-	// containers should leave this auto so each placement serializes its
-	// own assigned id; runtime-spawned containers (e.g. from a POI spawner)
-	// can also rely on this path.
+	// Auto-assign a stable id if the designer left it blank. Derive it
+	// from the owner's path name instead of FGuid::NewGuid() — a random
+	// guid regenerated every session, so the LootedRegistry never matched
+	// and every "looted" container came back full after a restart.
+	// Worldgen spawns actors deterministically from the seed, so path
+	// names reproduce across sessions for spawned containers too.
 	if (!UniqueId.IsValid())
 	{
-		UniqueId = FGuid::NewGuid();
+		const FString StablePath = GetOwner() ? GetOwner()->GetPathName() : GetPathName();
+		const uint32 HashA = GetTypeHash(StablePath);
+		const uint32 HashB = GetTypeHash(StablePath + TEXT("::QRLOOT"));
+		UniqueId = FGuid(HashA, HashB, 0x51524C54u, static_cast<uint32>(StablePath.Len()));
 	}
 
 	// Ask the registry whether we've been looted in a previous session.
