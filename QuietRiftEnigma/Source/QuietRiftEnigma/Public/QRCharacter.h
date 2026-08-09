@@ -281,7 +281,7 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_Reload();
 
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Character")
+	UFUNCTION(BlueprintCallable, Category = "Character")
 	void SetSprinting(bool bSprint);
 
 	UFUNCTION(BlueprintPure, Category = "Character")
@@ -435,10 +435,22 @@ public:
 private:
 	UFUNCTION(Server, Reliable)
 	void Server_Interact(AActor* Target);
+	// Shared interact dispatch (dialogue / loot / pickup / crash breach).
+	// Runs on authority — called directly by TryInteract on the host and
+	// via Server_Interact for remote clients. Before this existed the
+	// authority path only broadcast OnInteract (zero subscribers), so
+	// F-interact was dead in single-player.
+	void DoInteract(AActor* Target);
 	void Move(const struct FInputActionValue& Value);
 	void Look(const struct FInputActionValue& Value);
 	void StartSprint();
 	void StopSprint();
+	UFUNCTION(Server, Reliable)
+	void Server_SetSprinting(bool bSprint);
+	void HandleCrouchPressed();
+	// Client-side mirror of DoUseHeld's weapon-ADS branch so the owning
+	// client's FPView zooms immediately (the server copy drives spread).
+	void ApplyLocalADSPreview(bool bPressed);
 	// Fire input: Started = trigger pull (one shot for every mode);
 	// Completed = release. Full-auto sustains via Tick polling bFireHeld
 	// so no Enhanced Input trigger config is required.
@@ -467,6 +479,24 @@ private:
 	void DoUseHeld(bool bPressed);
 	// Tracks whether the current RMB hold started an ADS so release can clear it.
 	bool bUseStartedADS = false;
+
+	// Currently-open interaction overlays. F toggles them closed; without
+	// the guards every F press at a bench stacked another widget copy.
+	UPROPERTY()
+	TObjectPtr<class UQRCraftingWidget> CraftingWidgetOpen = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<class UQRDialogueWidget> DialogueWidgetOpen = nullptr;
+
+	// Look() multiplier, persisted by the settings widget ("MouseSensitivity").
+	float MouseSensitivityMult = 1.0f;
+
+public:
+	// Settings widget pushes slider changes live through this.
+	UFUNCTION(BlueprintCallable, Category = "QR|Controls")
+	void SetMouseSensitivity(float NewMult);
+
+private:
 
 	// Time until next footstep (counts down each Tick on locally-controlled,
 	// grounded, moving characters).

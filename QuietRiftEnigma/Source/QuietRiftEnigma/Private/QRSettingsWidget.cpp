@@ -18,6 +18,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Misc/ConfigCacheIni.h"
 #include "QRCharacter.h"
+#include "QRFPViewComponent.h"
 #include "QRPauseMenuWidget.h"
 
 namespace QRSettingsDefaults
@@ -174,6 +175,16 @@ void UQRSettingsWidget::HandleSensitivity(float NewValue)
 	if (SensitivityValue) SensitivityValue->SetText(FText::AsNumber(FMath::RoundToFloat(NewValue * 100.0f) / 100.0f));
 	GConfig->SetFloat(kCfgSection, TEXT("MouseSensitivity"), NewValue, GGameUserSettingsIni);
 	GConfig->Flush(false, GGameUserSettingsIni);
+
+	// Push live to the local pawn — before this the slider only wrote a
+	// config value nothing ever read, so sensitivity was a no-op.
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		if (AQRCharacter* Char = Cast<AQRCharacter>(PC->GetPawn()))
+		{
+			Char->SetMouseSensitivity(NewValue);
+		}
+	}
 }
 
 void UQRSettingsWidget::HandleFOV(float NewValue)
@@ -184,13 +195,17 @@ void UQRSettingsWidget::HandleFOV(float NewValue)
 	GConfig->SetFloat(kCfgSection, TEXT("FieldOfView"), static_cast<float>(Snapped), GGameUserSettingsIni);
 	GConfig->Flush(false, GGameUserSettingsIni);
 
-	// Push into the active camera on the local pawn so the change is
-	// visible immediately.
+	// Drive the view component's BaseFOV (its interp target) instead of
+	// PlayerCameraManager::SetFOV — the manager override PINS the FOV and
+	// silently killed ADS / scope / sprint zoom for the rest of the session.
 	if (APlayerController* PC = GetOwningPlayer())
 	{
-		if (APlayerCameraManager* CM = PC->PlayerCameraManager)
+		if (APawn* P = PC->GetPawn())
 		{
-			CM->SetFOV(static_cast<float>(Snapped));
+			if (UQRFPViewComponent* View = P->FindComponentByClass<UQRFPViewComponent>())
+			{
+				View->BaseFOV = static_cast<float>(Snapped);
+			}
 		}
 	}
 }
@@ -251,10 +266,18 @@ void UQRSettingsWidget::HandleClose()
 			PC->SetInputMode(Mode);
 			PC->bShowMouseCursor = true;
 		}
-		else
+		else if (Cast<AQRCharacter>(PC->GetPawn()))
 		{
 			PC->SetInputMode(FInputModeGameOnly());
 			PC->bShowMouseCursor = false;
+		}
+		else
+		{
+			// Opened from the MAIN MENU: there is no gameplay pawn, so
+			// dropping to GameOnly + hidden cursor made every menu button
+			// unclickable — a hard soft-lock. Stay in UI-only input.
+			PC->SetInputMode(FInputModeUIOnly());
+			PC->bShowMouseCursor = true;
 		}
 	}
 

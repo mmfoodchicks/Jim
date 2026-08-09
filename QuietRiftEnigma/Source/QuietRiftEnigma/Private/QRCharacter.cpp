@@ -39,6 +39,7 @@
 #include "QRMissionDirector.h"
 #include "Components/AudioComponent.h"
 #include "Sound/SoundBase.h"
+#include "AudioDevice.h"
 #include "QRGameMode.h"
 #include "QRUISound.h"
 #include "Kismet/GameplayStatics.h"
@@ -133,6 +134,10 @@ AQRCharacter::AQRCharacter()
 	// the rolling hills climbable.
 	GetCharacterMovement()->SetWalkableFloorAngle(52.0f);
 	GetCharacterMovement()->MaxStepHeight = 55.0f;
+	// Crouch was mapped (Ctrl/C) but the movement component never allowed
+	// it, and no input binding existed — completely inert until now.
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = CrouchSpeed;
 
 	// Survival Components
 	Inventory = CreateDefaultSubobject<UQRInventoryComponent>(TEXT("Inventory"));
@@ -172,6 +177,14 @@ void AQRCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Re-apply the exposure bias with the SERIALIZED property value — the
+	// constructor call ran before property init, so an editor-tuned
+	// LockedExposureEV never actually reached the camera.
+	QR_Exposure(LockedExposureEV);
+
+	// BP/editor-tuned CrouchSpeed lands after the constructor too.
+	GetCharacterMovement()->MaxWalkSpeedCrouched = CrouchSpeed;
+
 	// Bind death delegate
 	if (Survival)
 	{
@@ -199,8 +212,12 @@ void AQRCharacter::BeginPlay()
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
 			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
+			// Priority 100 so the authored (or promoted-runtime) default
+			// context outranks the raw runtime context Apply() adds at 0.
+			// The old 0-vs-50 arrangement was inverted: runtime defaults
+			// silently overrode any BP-authored rebinds.
 			if (DefaultMappingContext)
-				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+				Subsystem->AddMappingContext(DefaultMappingContext, 100);
 		}
 
 		// Force input back to GameOnly. AQRMainMenuGameMode leaves the PC
@@ -229,6 +246,32 @@ void AQRCharacter::BeginPlay()
 		                     TEXT("LeftHanded"), bLeftCfg, GGameUserSettingsIni))
 		{
 			bIsLeftHanded = bLeftCfg;
+		}
+	}
+
+	// Apply the rest of the persisted user settings — these used to be
+	// write-only: the sliders saved to config but nothing ever read it
+	// back at boot (and sensitivity was never read at all).
+	if (IsLocallyControlled())
+	{
+		const TCHAR* Section = TEXT("/Script/QuietRiftEnigma.UserSettings");
+		float SensCfg = 1.0f;
+		if (GConfig->GetFloat(Section, TEXT("MouseSensitivity"), SensCfg, GGameUserSettingsIni))
+		{
+			MouseSensitivityMult = FMath::Clamp(SensCfg, 0.1f, 4.0f);
+		}
+		float FOVCfg = 0.0f;
+		if (GConfig->GetFloat(Section, TEXT("FieldOfView"), FOVCfg, GGameUserSettingsIni) && CachedView)
+		{
+			CachedView->BaseFOV = FMath::Clamp(FOVCfg, 60.0f, 120.0f);
+		}
+		float VolCfg = 1.0f;
+		if (GConfig->GetFloat(Section, TEXT("MasterVolume"), VolCfg, GGameUserSettingsIni) && GEngine)
+		{
+			if (FAudioDevice* AD = GEngine->GetMainAudioDeviceRaw())
+			{
+				AD->SetTransientPrimaryVolume(FMath::Clamp(VolCfg, 0.0f, 1.0f));
+			}
 		}
 	}
 
@@ -428,8 +471,13 @@ void AQRCharacter::Tick(float DeltaTime)
 			FootstepTimer -= DeltaTime;
 			if (FootstepTimer <= 0.0f)
 			{
-				const float MaxSpeed = CMC ? CMC->MaxWalkSpeed : WalkSpeed;
-				const float SpeedAlpha = MaxSpeed > 0.0f ? FMath::Clamp(Speed / MaxSpeed, 0.0f, 1.0f) : 0.0f;
+				// Normalize against the walk→sprint band, NOT the current
+				// MaxWalkSpeed — MaxWalkSpeed equals walk speed while
+				// walking, so the old Speed/MaxSpeed always read ≈1.0 and
+				// every walk played Run-gait steps at sprint cadence.
+				const float SpeedAlpha = FMath::Clamp(
+					(Speed - WalkSpeed) / FMath::Max(SprintSpeed - WalkSpeed, 1.0f),
+					0.0f, 1.0f);
 				const float Interval = FMath::Lerp(FootstepWalkInterval, FootstepSprintInterval, SpeedAlpha);
 				const float Vol      = FootstepVolumeMult * FMath::Lerp(0.6f, 1.0f, SpeedAlpha);
 
@@ -522,6 +570,7 @@ void AQRCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		if (LookAction)      EI->BindAction(LookAction,      ETriggerEvent::Triggered, this, &AQRCharacter::Look);
 		if (JumpAction)      EI->BindAction(JumpAction,      ETriggerEvent::Started,   this, &AQRCharacter::HandleJumpPressed);
 		if (JumpAction)      EI->BindAction(JumpAction,      ETriggerEvent::Completed, this, &AQRCharacter::HandleJumpReleased);
+		if (CrouchAction)    EI->BindAction(CrouchAction,    ETriggerEvent::Started,   this, &AQRCharacter::HandleCrouchPressed);
 		if (InteractAction)  EI->BindAction(InteractAction,  ETriggerEvent::Started,   this, &AQRCharacter::TryInteract);
 		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Started,   this, &AQRCharacter::StartSprint);
 		if (SprintAction)    EI->BindAction(SprintAction,    ETriggerEvent::Completed, this, &AQRCharacter::StopSprint);
@@ -603,6 +652,9 @@ void AQRCharacter::Look(const FInputActionValue& Value)
 		LookVector *= View->ADSLookSensitivityMult;
 	}
 
+	// User sensitivity from the settings widget (persisted + live-pushed).
+	LookVector *= MouseSensitivityMult;
+
 	AddControllerYawInput(LookVector.X);
 	AddControllerPitchInput(LookVector.Y);
 }
@@ -611,11 +663,27 @@ void AQRCharacter::StartSprint()
 {
 	if (!CanSprint()) return;
 	SetSprinting(true);
+	// Replicated bIsSprinting + server movement speed — without the RPC
+	// the server never knew a client was sprinting (rubber-banding).
+	if (!HasAuthority()) Server_SetSprinting(true);
 }
 
 void AQRCharacter::StopSprint()
 {
 	SetSprinting(false);
+	if (!HasAuthority()) Server_SetSprinting(false);
+}
+
+void AQRCharacter::Server_SetSprinting_Implementation(bool bSprint)
+{
+	if (bSprint && !CanSprint()) return;
+	SetSprinting(bSprint);
+}
+
+void AQRCharacter::HandleCrouchPressed()
+{
+	if (bIsCrouched) UnCrouch();
+	else Crouch();
 }
 
 void AQRCharacter::SetSprinting(bool bSprint)
@@ -660,6 +728,27 @@ void AQRCharacter::ScanForInteractable()
 
 void AQRCharacter::TryInteract()
 {
+	// F while an interaction overlay is open closes it (toggle) and
+	// restores game input. Without this the bench stacked a fresh widget
+	// per press and the dialogue overlay had no exit at all.
+	if ((CraftingWidgetOpen && CraftingWidgetOpen->IsInViewport()) ||
+		(DialogueWidgetOpen && DialogueWidgetOpen->IsInViewport()))
+	{
+		if (CraftingWidgetOpen) CraftingWidgetOpen->RemoveFromParent();
+		if (DialogueWidgetOpen) DialogueWidgetOpen->RemoveFromParent();
+		CraftingWidgetOpen = nullptr;
+		DialogueWidgetOpen = nullptr;
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			if (PC->IsLocalController())
+			{
+				PC->bShowMouseCursor = false;
+				PC->SetInputMode(FInputModeGameOnly());
+			}
+		}
+		return;
+	}
+
 	if (!CurrentInteractable.IsValid()) return;
 
 	// Client-side: if the focus is a crafting bench, open the local UI.
@@ -677,6 +766,7 @@ void AQRCharacter::TryInteract()
 				{
 					W->AddToViewport(/*ZOrder*/ 200);
 					W->Bind(Bench);
+					CraftingWidgetOpen = W;
 					PC->bShowMouseCursor = true;
 					FInputModeGameAndUI Mode;
 					Mode.SetWidgetToFocus(W->TakeWidget());
@@ -688,8 +778,8 @@ void AQRCharacter::TryInteract()
 	}
 
 	// Client-side dialogue overlay: if the focus has a UQRDialogueComponent,
-	// mount the dialogue widget locally and let the standard Server_Interact
-	// path actually start the conversation (component lives on the actor,
+	// mount the dialogue widget locally and let the DoInteract path below
+	// actually start the conversation (component lives on the actor,
 	// the widget just subscribes to its events).
 	if (DialogueWidgetClass)
 	{
@@ -703,6 +793,14 @@ void AQRCharacter::TryInteract()
 				{
 					W->AddToViewport(/*ZOrder*/ 150);
 					W->Bind(Dlg);
+					DialogueWidgetOpen = W;
+					// Cursor + UI input so the Continue button is actually
+					// clickable — the bench branch always did this, the
+					// dialogue branch never did.
+					PC->bShowMouseCursor = true;
+					FInputModeGameAndUI Mode;
+					Mode.SetWidgetToFocus(W->TakeWidget());
+					PC->SetInputMode(Mode);
 				}
 			}
 		}
@@ -715,7 +813,11 @@ void AQRCharacter::TryInteract()
 		return;
 	}
 
-	OnInteract.Broadcast(CurrentInteractable.Get());
+	// Authority (single-player / listen host): run the same dispatch the
+	// RPC path runs. Previously this only broadcast OnInteract — which
+	// has no subscribers — so pickup / loot / dialogue / crash-breach
+	// were all dead in single-player.
+	DoInteract(CurrentInteractable.Get());
 }
 
 void AQRCharacter::OnFirePressed()
@@ -863,6 +965,11 @@ void AQRCharacter::Server_Reload_Implementation()
 }
 
 void AQRCharacter::Server_Interact_Implementation(AActor* Target)
+{
+	DoInteract(Target);
+}
+
+void AQRCharacter::DoInteract(AActor* Target)
 {
 	if (!Target) return;
 	OnInteract.Broadcast(Target);
@@ -1197,8 +1304,47 @@ void AQRCharacter::OnPausePressed()
 
 void AQRCharacter::TryUseHeld(bool bPressed)
 {
-	if (!HasAuthority()) { Server_UseHeld(bPressed); return; }
+	if (!HasAuthority())
+	{
+		// Local ADS so the owning client's view zooms immediately — the
+		// server's FPView copy (set in DoUseHeld) is not the one this
+		// client's camera reads.
+		ApplyLocalADSPreview(bPressed);
+		Server_UseHeld(bPressed);
+		return;
+	}
 	DoUseHeld(bPressed);
+}
+
+void AQRCharacter::ApplyLocalADSPreview(bool bPressed)
+{
+	if (!bPressed)
+	{
+		if (bUseStartedADS)
+		{
+			if (UQRFPViewComponent* View = FindComponentByClass<UQRFPViewComponent>())
+				View->SetADS(false);
+		}
+		bUseStartedADS = false;
+		return;
+	}
+	if (!Hotbar) return;
+	UQRItemInstance* Held = Hotbar->GetActiveItem();
+	const UQRItemDefinition* Def = (Held && Held->IsValid()) ? Held->Definition : nullptr;
+	if (!Def) return;
+	if (Def->Category == EQRItemCategory::Weapon || Def->Category == EQRItemCategory::Attachment)
+	{
+		if (UQRFPViewComponent* View = FindComponentByClass<UQRFPViewComponent>())
+		{
+			View->SetADS(true);
+			bUseStartedADS = true;
+		}
+	}
+}
+
+void AQRCharacter::SetMouseSensitivity(float NewMult)
+{
+	MouseSensitivityMult = FMath::Clamp(NewMult, 0.1f, 4.0f);
 }
 
 void AQRCharacter::Server_UseHeld_Implementation(bool bPressed)

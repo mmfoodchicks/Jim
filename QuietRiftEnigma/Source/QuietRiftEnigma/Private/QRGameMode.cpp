@@ -1,4 +1,6 @@
 #include "QRGameMode.h"
+#include "QRGameState.h"
+#include "QRCheatManager.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
@@ -59,6 +61,11 @@ AQRGameMode::AQRGameMode()
 		DefaultPawnClass = AQRCharacter::StaticClass();
 	}
 
+	// Carries ColonyState / Research / Weather — without it those three
+	// components never existed anywhere and every FindComponentByClass
+	// lookup (here, crafting, camp sim) returned null forever.
+	GameStateClass = AQRGameState::StaticClass();
+
 	SaveSystem      = CreateDefaultSubobject<UQRSaveGameSystem>(TEXT("SaveSystem"));
 	MissionDirector = CreateDefaultSubobject<UQRMissionDirector>(TEXT("MissionDirector"));
 
@@ -74,12 +81,31 @@ void AQRGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Colony state, research, and weather components live on the GameState actor
+	// Colony state, research, and weather components live on the GameState
+	// actor (AQRGameState carries all three by default). If a BP override
+	// swapped in a different GameState class, create whatever is missing
+	// so these systems can never silently go inert again.
 	if (AGameStateBase* GS = GetGameState<AGameStateBase>())
 	{
 		ColonyState = GS->FindComponentByClass<UQRColonyStateComponent>();
 		Research    = GS->FindComponentByClass<UQRResearchComponent>();
 		Weather     = GS->FindComponentByClass<UQRWeatherComponent>();
+
+		if (!ColonyState)
+		{
+			ColonyState = NewObject<UQRColonyStateComponent>(GS, TEXT("ColonyState_RT"));
+			ColonyState->RegisterComponent();
+		}
+		if (!Research)
+		{
+			Research = NewObject<UQRResearchComponent>(GS, TEXT("Research_RT"));
+			Research->RegisterComponent();
+		}
+		if (!Weather)
+		{
+			Weather = NewObject<UQRWeatherComponent>(GS, TEXT("Weather_RT"));
+			Weather->RegisterComponent();
+		}
 	}
 
 	// The Concordat is placed once by the level designer; locate it by class.
@@ -563,7 +589,21 @@ void AQRGameMode::QuickLoad()
 void AQRGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
-	// New player joined — in listen-server co-op, sync their initial state
+
+	// Register the QR cheat manager. The class existed but nothing ever
+	// assigned it to a PlayerController, so every qr.* console command
+	// was unreachable. PIE builds the default UCheatManager before
+	// PostLogin, so force-recreate with ours.
+	if (NewPlayer)
+	{
+		NewPlayer->CheatClass = UQRCheatManager::StaticClass();
+		if (!NewPlayer->CheatManager ||
+			!NewPlayer->CheatManager->IsA(UQRCheatManager::StaticClass()))
+		{
+			NewPlayer->CheatManager = nullptr;
+			NewPlayer->AddCheats(/*bForce*/ true);
+		}
+	}
 }
 
 void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)

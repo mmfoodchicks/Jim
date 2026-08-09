@@ -36,6 +36,9 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	if (!Character->HotbarPrevAction) Character->HotbarPrevAction = MakeAction(Character, "IA_HotbarPrev_RT", EInputActionValueType::Boolean);
 	if (!Character->UseHeldAction)    Character->UseHeldAction    = MakeAction(Character, "IA_UseHeld_RT",    EInputActionValueType::Boolean);
 	if (!Character->PauseAction)      Character->PauseAction      = MakeAction(Character, "IA_Pause_RT",      EInputActionValueType::Boolean);
+	// Esc must keep firing while the game is paused or the pause menu can
+	// never be closed with the same key that opened it.
+	if (Character->PauseAction)       Character->PauseAction->bTriggerWhenPaused = true;
 	if (!Character->InventoryAction)  Character->InventoryAction  = MakeAction(Character, "IA_Inventory_RT",  EInputActionValueType::Boolean);
 	if (!Character->CodexAction)      Character->CodexAction      = MakeAction(Character, "IA_Codex_RT",      EInputActionValueType::Boolean);
 
@@ -77,6 +80,7 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 	IMC->MapKey(Character->JumpAction,             EKeys::SpaceBar);
 	IMC->MapKey(Character->SprintAction,           EKeys::LeftShift);
 	IMC->MapKey(Character->CrouchAction,           EKeys::LeftControl);
+	IMC->MapKey(Character->CrouchAction,           EKeys::C);
 	IMC->MapKey(Character->InteractAction,         EKeys::F);
 	IMC->MapKey(Character->FireAction,             EKeys::LeftMouseButton);
 	IMC->MapKey(Character->ReloadAction,           EKeys::R);
@@ -100,10 +104,12 @@ void UQRInputDefaults::Apply(AQRCharacter* Character)
 		IMC->MapKey(Character->HotbarSlotActions[i], SlotKeys[i]);
 	}
 
-	// Save as the character's default mapping context. If one is already
-	// authored in BP we leave it as the primary and add ours at lower
-	// priority so the BP mapping wins on key collisions.
-	const int32 Priority = Character->DefaultMappingContext ? 50 : 0;
+	// Save as the character's default mapping context. The runtime context
+	// always goes in at priority 0; BeginPlay adds DefaultMappingContext
+	// (BP-authored, or this IMC promoted) at 100 so authored rebinds win.
+	// The old arrangement (runtime at 50 when a BP context existed at 0)
+	// was inverted — runtime defaults silently overrode BP keys.
+	const int32 Priority = 0;
 	if (!Character->DefaultMappingContext)
 	{
 		Character->DefaultMappingContext = IMC;
