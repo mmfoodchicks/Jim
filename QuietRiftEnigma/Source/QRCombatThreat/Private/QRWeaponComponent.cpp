@@ -12,6 +12,49 @@
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Sound/SoundBase.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+
+namespace
+{
+	// Minimal built-in fire FX so gunfire READS even with no Niagara
+	// packs installed — the Fab library ships zero Niagara systems, so
+	// MuzzleFlashFX/ImpactFX/TracerFX are null in practice and the only
+	// visual used to be the (now off-by-default) debug pellet lines.
+	AActor* SpawnTransientMeshFX(UWorld* W, const TCHAR* MeshPath,
+		const FVector& Loc, const FRotator& Rot, const FVector& Scale,
+		const FLinearColor& Color, float LifeSeconds)
+	{
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, MeshPath);
+		if (!Mesh || !W) return nullptr;
+		FActorSpawnParameters SP;
+		SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AActor* A = W->SpawnActor<AActor>(AActor::StaticClass(), Loc, Rot, SP);
+		if (!A) return nullptr;
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(A);
+		C->RegisterComponent();
+		C->SetStaticMesh(Mesh);
+		C->SetMobility(EComponentMobility::Movable);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetCastShadow(false);
+		A->SetRootComponent(C);
+		A->SetActorLocation(Loc);
+		A->SetActorRotation(Rot);
+		A->SetActorScale3D(Scale);
+		if (UMaterialInterface* Basic = LoadObject<UMaterialInterface>(nullptr,
+			TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Basic, A);
+			MID->SetVectorParameterValue(TEXT("Color"), Color);
+			C->SetMaterial(0, MID);
+		}
+		A->SetLifeSpan(LifeSeconds);
+		return A;
+	}
+}
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 
@@ -632,6 +675,55 @@ void UQRWeaponComponent::Multicast_PlayFireFX_Implementation(
 		const FVector Delta = HitLoc - MuzzleLoc;
 		const FRotator TracerRot = Delta.Rotation();
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(W, TracerFX, MuzzleLoc, TracerRot);
+	}
+
+	// ── Built-in fallbacks (no Niagara assets in the library) ──────
+	if (!MuzzleFlashFX)
+	{
+		// Hot flash sphere + a one-frame warm point light so shots kick
+		// light onto nearby walls, which sells the fire far more than
+		// the mesh itself.
+		SpawnTransientMeshFX(W, TEXT("/Engine/BasicShapes/Sphere.Sphere"),
+			MuzzleLoc, FRotator::ZeroRotator, FVector(0.10f),
+			FLinearColor(1.0f, 0.85f, 0.45f), 0.05f);
+		FActorSpawnParameters SP;
+		SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (AActor* LightHolder = W->SpawnActor<AActor>(AActor::StaticClass(),
+			MuzzleLoc, FRotator::ZeroRotator, SP))
+		{
+			UPointLightComponent* PL = NewObject<UPointLightComponent>(LightHolder);
+			PL->RegisterComponent();
+			PL->SetMobility(EComponentMobility::Movable);
+			PL->SetIntensity(3000.0f);
+			PL->SetLightColor(FLinearColor(1.0f, 0.8f, 0.5f));
+			PL->SetAttenuationRadius(600.0f);
+			PL->SetCastShadows(false);
+			LightHolder->SetRootComponent(PL);
+			LightHolder->SetActorLocation(MuzzleLoc);
+			LightHolder->SetLifeSpan(0.06f);
+		}
+	}
+	if (!TracerFX && bHit)
+	{
+		// Thin emissive beam from muzzle to impact, one frame's worth of
+		// travel — reads as a tracer streak at fire cadence.
+		const FVector Delta = HitLoc - MuzzleLoc;
+		const float Len = Delta.Size();
+		if (Len > 150.0f)
+		{
+			const FVector Mid = MuzzleLoc + Delta * 0.5f;
+			const FRotator BeamRot = FRotationMatrix::MakeFromZ(Delta.GetSafeNormal()).Rotator();
+			// Engine cylinder is 100 cm tall / 100 cm wide at scale 1.
+			SpawnTransientMeshFX(W, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"),
+				Mid, BeamRot, FVector(0.025f, 0.025f, Len / 100.0f),
+				FLinearColor(1.0f, 0.75f, 0.35f), 0.07f);
+		}
+	}
+	if (!ImpactFX && bHit)
+	{
+		SpawnTransientMeshFX(W, TEXT("/Engine/BasicShapes/Sphere.Sphere"),
+			HitLoc + HitNormal * 4.0f, FRotator::ZeroRotator, FVector(0.14f),
+			FLinearColor(1.0f, 0.6f, 0.25f), 0.12f);
 	}
 
 	// Weapon fire SFX at the muzzle. If no FireSound is wired on this
