@@ -2,6 +2,8 @@
 #include "QRInventoryComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 
 AQRDepotActor::AQRDepotActor()
 {
@@ -18,6 +20,13 @@ AQRDepotActor::AQRDepotActor()
 	DepotMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DepotMesh"));
 	DepotMesh->SetupAttachment(InteractSphere);
 	DepotMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// Visible default — depots had no mesh asset on any code path.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DefaultCrate(
+		TEXT("/Game/Meshes/Food/SM_FOD_TUBER_CRATE"));
+	if (DefaultCrate.Succeeded())
+	{
+		DepotMesh->SetStaticMesh(DefaultCrate.Object);
+	}
 
 	// Depot inventory is generous by default — a stockpile, not a
 	// player pocket. Designer can tune the grid + carry capacity.

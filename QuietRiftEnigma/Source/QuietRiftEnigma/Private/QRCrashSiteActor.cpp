@@ -9,7 +9,34 @@
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
 #include "Engine/HitResult.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 #include "CollisionQueryParams.h"
+
+void AQRCrashSiteActor::ApplyArchetypeVisual()
+{
+	if (!WreckMesh) return;
+	const FString Id = ArchetypeId.ToString();
+	const TCHAR* MeshName =
+		Id.Contains(TEXT("Armory"))      ? TEXT("SM_POI_ArmoryWreck") :
+		Id.Contains(TEXT("MedBay"))      ? TEXT("SM_POI_MedBayWreck") :
+		Id.Contains(TEXT("Galley"))      ? TEXT("SM_POI_GalleyWreck") :
+		Id.Contains(TEXT("Food"))        ? TEXT("SM_POI_FoodWreck") :
+		Id.Contains(TEXT("Rover"))       ? TEXT("SM_POI_RoverBayWreck") :
+		Id.Contains(TEXT("Power"))       ? TEXT("SM_POI_PowerModuleWreck") :
+		Id.Contains(TEXT("Comms"))       ? TEXT("SM_POI_CommsRelayDebris") :
+		Id.Contains(TEXT("Cryo"))        ? TEXT("SM_POI_CryoPodCluster") :
+		Id.Contains(TEXT("Avionics"))    ? TEXT("SM_POI_AvionicsWreck") :
+		Id.Contains(TEXT("CommandBridge")) ? TEXT("SM_POI_AvionicsWreck") :
+		Id.Contains(TEXT("Engineering")) ? TEXT("SM_POI_EngineeringWreck") :
+		TEXT("SM_POI_LuggageWreck");
+	const FString Path = FString::Printf(
+		TEXT("/Game/Meshes/POIProps/%s.%s"), MeshName, MeshName);
+	if (UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *Path))
+	{
+		WreckMesh->SetStaticMesh(M);
+	}
+}
 
 AQRCrashSiteActor::AQRCrashSiteActor()
 {
@@ -25,6 +52,14 @@ AQRCrashSiteActor::AQRCrashSiteActor()
 	WreckMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WreckMesh"));
 	WreckMesh->SetupAttachment(ProximitySphere);
 	WreckMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// Visible default — no code path ever assigned a mesh, so every
+	// wreck rendered as nothing. ApplyArchetypeVisual refines per type.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DefaultWreck(
+		TEXT("/Game/Meshes/POIProps/SM_POI_LuggageWreck"));
+	if (DefaultWreck.Succeeded())
+	{
+		WreckMesh->SetStaticMesh(DefaultWreck.Object);
+	}
 
 	WorldItemClass = AQRWorldItem::StaticClass();
 }

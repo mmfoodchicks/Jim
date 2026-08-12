@@ -102,6 +102,14 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "QR|CrashSite")
 	void ClearScatteredLoot();
 
+	// Swap WreckMesh to the SM_POI_* asset matching ArchetypeId (Armory,
+	// MedBay, Galley, ...). Called by the worldgen spawner right after it
+	// stamps ArchetypeId — BeginPlay runs too early for that. Without
+	// this (and the ctor default) every wreck was an INVISIBLE sphere:
+	// no code path ever assigned a mesh asset.
+	UFUNCTION(BlueprintCallable, Category = "QR|CrashSite")
+	void ApplyArchetypeVisual();
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:

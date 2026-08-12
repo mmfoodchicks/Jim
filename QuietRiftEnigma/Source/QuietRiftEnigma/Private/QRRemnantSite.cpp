@@ -2,6 +2,7 @@
 #include "QRSurvivalComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Components/PointLightComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
@@ -48,6 +49,26 @@ void AQRRemnantSite::BeginPlay()
 		ProximitySphere->OnComponentBeginOverlap.AddDynamic(this, &AQRRemnantSite::HandleSphereBeginOverlap);
 		ProximitySphere->OnComponentEndOverlap.AddDynamic(this, &AQRRemnantSite::HandleSphereEndOverlap);
 	}
+
+	// Kind-specific structure mesh — the library ships one per wake
+	// archetype but nothing ever assigned ANY mesh (invisible remnants).
+	// Note: Kind is stamped by the spawner right after SpawnActor, which
+	// is before the first render frame, so reading it here is safe.
+	if (StructureMesh && !StructureMesh->GetStaticMesh())
+	{
+		const TCHAR* KindName =
+			Kind == EQRRemnantStructureType::PowerCore        ? TEXT("PowerCore") :
+			Kind == EQRRemnantStructureType::DataArchive      ? TEXT("DataArchive") :
+			Kind == EQRRemnantStructureType::ResonanceChamber ? TEXT("ResonanceChamber") :
+			TEXT("SignalSpire");
+		const FString Path = FString::Printf(
+			TEXT("/Game/Meshes/Remnant/SM_REM_STR_%s.SM_REM_STR_%s"), KindName, KindName);
+		if (UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *Path))
+		{
+			StructureMesh->SetStaticMesh(M);
+		}
+	}
+
 	ApplyVisualForState();
 }
 

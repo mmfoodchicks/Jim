@@ -6,6 +6,8 @@
 #include "QRRaidPartyAI.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
 
 
@@ -24,6 +26,14 @@ AQRFactionCamp::AQRFactionCamp()
 	CampMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CampMesh"));
 	CampMesh->SetupAttachment(AreaSphere);
 	CampMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// Visible default — camps rendered as nothing (invisible sphere with
+	// a sim ticking inside it).
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DefaultOutpost(
+		TEXT("/Game/Meshes/Vanguard/SM_VAN_OUT_ForwardPost"));
+	if (DefaultOutpost.Succeeded())
+	{
+		CampMesh->SetStaticMesh(DefaultOutpost.Object);
+	}
 
 	Sim     = CreateDefaultSubobject<UQRCampSimComponent>(TEXT("Sim"));
 	Leader  = CreateDefaultSubobject<UQRLeaderComponent>(TEXT("Leader"));

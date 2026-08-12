@@ -2,6 +2,8 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 
 AQRCaveEntrance::AQRCaveEntrance()
 {
@@ -18,6 +20,13 @@ AQRCaveEntrance::AQRCaveEntrance()
 	EntranceMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EntranceMesh"));
 	EntranceMesh->SetupAttachment(InteractSphere);
 	EntranceMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// Visible default — caves spawned as bare spheres + a glow before.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DefaultMouth(
+		TEXT("/Game/Meshes/POIProps/SM_POI_CaveMouthDeepVein"));
+	if (DefaultMouth.Succeeded())
+	{
+		EntranceMesh->SetStaticMesh(DefaultMouth.Object);
+	}
 
 	// Dim interior glow makes a cave mouth read at distance even
 	// without authored decoration.

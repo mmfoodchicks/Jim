@@ -327,6 +327,7 @@ void AQRWorldGenSpawner::SpawnPOIs()
 				if (AQRCrashSiteActor* Crash = Cast<AQRCrashSiteActor>(A))
 				{
 					Crash->ArchetypeId = P.ArchetypeId;
+					Crash->ApplyArchetypeVisual();
 					const int32 LootSeed = Sub->WorldSeed
 						^ GetTypeHash(P.ArchetypeId)
 						^ GetTypeHash(P.WorldLocation.ToString());
@@ -412,6 +413,7 @@ void AQRWorldGenSpawner::SpawnPOIs()
 				{
 					Crash->ArchetypeId        = P.ArchetypeId;
 					Crash->RequiredToolItemId = P.RequiredToolItemId;
+					Crash->ApplyArchetypeVisual();
 
 					const int32 LootSeed = Sub->WorldSeed
 						^ GetTypeHash(P.ArchetypeId)
