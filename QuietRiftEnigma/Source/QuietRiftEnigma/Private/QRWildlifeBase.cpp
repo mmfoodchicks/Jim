@@ -659,8 +659,9 @@ void AQRWildlifeBase::OnDied_Implementation(AActor* Killer)
 
 		// KillTarget mission progress — the director's static hook was only
 		// reachable from the legacy AQRWildlifeActor path before.
-		UQRMissionDirector::ReportSpeciesKilled(GetWorld(),
-			!SpeciesId.IsNone() ? SpeciesId : ItemId, 1);
+		// (SpeciesId is stamped by every species subclass ctor; a None id
+		// simply matches no mission.)
+		UQRMissionDirector::ReportSpeciesKilled(GetWorld(), SpeciesId, 1);
 	}
 
 	// Despawn the corpse after a delay so the world stays tidy.

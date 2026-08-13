@@ -9,9 +9,9 @@ AQRGameState::AQRGameState()
 	Research    = CreateDefaultSubobject<UQRResearchComponent>(TEXT("Research"));
 	Weather     = CreateDefaultSubobject<UQRWeatherComponent>(TEXT("Weather"));
 
-	// Colony + research already declare replicated props; weather state
-	// changes reach clients through its own broadcast events.
-	ColonyState->SetIsReplicatedByDefault(true);
-	Research->SetIsReplicatedByDefault(true);
-	Weather->SetIsReplicatedByDefault(true);
+	// Replication note: SetIsReplicatedByDefault is protected (component-
+	// internal), so per-component replication is each class's own call in
+	// its constructor. Colony + research already declare replicated props;
+	// weather reaches clients through its broadcast events. Single-player
+	// behavior is unaffected either way.
 }

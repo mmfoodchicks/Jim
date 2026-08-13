@@ -38,6 +38,15 @@ const FQRRecipeTableRow* UQRCraftingComponent::FindRecipeRow(FName RecipeId) con
 	return RecipeTable->FindRow<FQRRecipeTableRow>(RecipeId, TEXT("QRCraft"), false);
 }
 
+UQRInventoryComponent* UQRCraftingComponent::GetOwnerInventory() const
+{
+	if (AActor* O = GetOwner())
+	{
+		return O->FindComponentByClass<UQRInventoryComponent>();
+	}
+	return nullptr;
+}
+
 UQRItemDefinition* UQRCraftingComponent::FindItemDefinition(FName ItemId) const
 {
 	if (!ItemDefinitionTable || ItemId.IsNone()) return nullptr;

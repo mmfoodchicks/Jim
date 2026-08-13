@@ -149,6 +149,11 @@ private:
 	// Look up a recipe row. Returns nullptr if missing.
 	const FQRRecipeTableRow* FindRecipeRow(FName RecipeId) const;
 
+	// The OWNER actor's own inventory (e.g. the bench's Storage component,
+	// where haulers deliver) — distinct from the bound InputInventory
+	// (the interacting player's pocket).
+	UQRInventoryComponent* GetOwnerInventory() const;
+
 	// Look up a UQRItemDefinition by id. Returns nullptr if missing.
 	UQRItemDefinition* FindItemDefinition(FName ItemId) const;
 
