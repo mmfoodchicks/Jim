@@ -172,6 +172,15 @@ def _here():
     try:
         return os.path.dirname(os.path.abspath(__file__))
     except NameError:
+        # exec(open(...)) path: __file__ is undefined. The scripts live
+        # INSIDE the project dir (<project>/Tools/EditorScripts) — the
+        # old "../Tools" guess pointed one level too high, so every
+        # sibling (sky, nav, biomes, terrain, VILLAGE) reported
+        # "not on disk" and silently skipped.
+        cand = os.path.normpath(os.path.join(
+            unreal.Paths.project_dir(), "Tools", "EditorScripts"))
+        if os.path.isdir(cand):
+            return cand
         return os.path.normpath(os.path.join(
             unreal.Paths.project_dir(), "..", "Tools", "EditorScripts"))
 

@@ -229,6 +229,20 @@ private:
 	// catalog can resolve them again.
 	TArray<FQRBuildableSaveData> UnrestoredBuildables;
 
+	// Make sure the procedural world actually EXISTS: generation (find-
+	// or-spawn the seed actor, Generate with the given seed) and
+	// population (a spawner has run SpawnAll). Granular — a level-saved
+	// seed actor no longer blocks population. (The dressing script saves
+	// a seed actor into the map, which used to make every PIE session
+	// skip the whole bootstrap: no POIs, no fauna.)
+	void EnsureWorldBootstrapped(int32 Seed);
+
+	// Fresh-boot placement: depth bands run OUTER = Surface → CENTER =
+	// Remnant, so New Game starts on the outer Surface ring (seeded
+	// azimuth, ~78% of playable radius) — not at the origin, which is
+	// the DEEPEST zone and used to surround spawn with endgame flora.
+	void PlacePlayerAtSurfaceStart();
+
 	void HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data);
 
 	// Driven by AutosaveIntervalSeconds. Set in BeginPlay, cleared in

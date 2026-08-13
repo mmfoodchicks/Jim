@@ -64,6 +64,17 @@ void UQRMissionHUDWidget::NativeDestruct()
 	Super::NativeDestruct();
 }
 
+void UQRMissionHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	DistanceRefreshAccum += InDeltaTime;
+	if (DistanceRefreshAccum >= 1.0f)
+	{
+		DistanceRefreshAccum = 0.0f;
+		Refresh();
+	}
+}
+
 void UQRMissionHUDWidget::HandleIssued(FName)            { Refresh(); }
 void UQRMissionHUDWidget::HandleCompleted(FName)         { Refresh(); }
 void UQRMissionHUDWidget::HandleProgress(FName, int32)   { Refresh(); }

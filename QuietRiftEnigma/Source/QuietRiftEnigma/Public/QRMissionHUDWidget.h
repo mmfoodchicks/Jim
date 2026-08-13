@@ -30,6 +30,16 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeDestruct() override;
 
+	// Live distance readout: the tracker used to refresh only on mission
+	// EVENTS, so "(664m)" froze at whatever it was when the mission was
+	// issued. Ticks at 1 Hz.
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	float DistanceRefreshAccum = 0.0f;
+
+public:
+
 private:
 	UPROPERTY()
 	TObjectPtr<UQRMissionDirector> Director = nullptr;

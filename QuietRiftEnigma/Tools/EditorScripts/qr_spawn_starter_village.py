@@ -115,7 +115,22 @@ def _wipe_previous():
         print("[village] wiped {} prior villagers".format(removed))
 
 
-def run(count=8, radius_m=40.0, center=(0.0, 0.0)):
+def run(count=8, radius_m=40.0, center=None):
+    # Default the village onto the PLAYER START, not the world origin —
+    # New Game now begins on the outer Surface ring (the origin is the
+    # deepest Remnant zone), so an origin village would be 25 km from
+    # the player.
+    if center is None:
+        center = (0.0, 0.0)
+        try:
+            for a in unreal.EditorLevelLibrary.get_all_level_actors():
+                if isinstance(a, unreal.PlayerStart):
+                    loc = a.get_actor_location()
+                    center = (loc.x, loc.y)
+                    print("[village] centering on PlayerStart ({:.0f}, {:.0f})".format(loc.x, loc.y))
+                    break
+        except Exception as e:
+            print("[village] PlayerStart lookup failed ({}) -- using origin".format(e))
     """Spawn `count` colonists around `center` (cm). Each gets a unique
     name from DEFAULT_NAMES (recycled past index 20), a wander home at
     spawn, a work post offset 6m north of home, a bed 6m south.

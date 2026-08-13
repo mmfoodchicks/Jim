@@ -153,39 +153,15 @@ void AQRGameMode::BeginPlay()
 		}
 	}
 
-	// Auto-bootstrap the procedural world. Runs ONLY when there's no
-	// pre-existing world-gen actor in the level AND no save to load
-	// (a save means we're resuming a previously-generated world).
+	// Auto-bootstrap the procedural world. Fresh boot only — a save
+	// defers to HandleLoadComplete so generation can use the SAVED seed.
 	if (bAutoBootstrapWorld && GetWorld())
 	{
-		// Skip if a designer already placed worldgen actors.
-		bool bExisting = false;
-		for (TActorIterator<AQRWorldGenSeedActor> It(GetWorld()); It; ++It) { bExisting = true; break; }
 		const bool bResumingSave = SaveSystem && SaveSystem->DoesSaveExist(AutosaveSlotName);
-		if (!bExisting && !bResumingSave)
+		if (!bResumingSave)
 		{
-			// Spawn seed actor + spawner at origin and run them.
-			AQRWorldGenSeedActor* Seed = GetWorld()->SpawnActor<AQRWorldGenSeedActor>(
-				AQRWorldGenSeedActor::StaticClass(),
-				FVector::ZeroVector, FRotator::ZeroRotator);
-			AQRWorldGenSpawner* WSpawner = GetWorld()->SpawnActor<AQRWorldGenSpawner>(
-				AQRWorldGenSpawner::StaticClass(),
-				FVector::ZeroVector, FRotator::ZeroRotator);
-			if (Seed)
-			{
-				Seed->WorldSeed       = BootstrapWorldSeed;
-				Seed->WorldMapSizeKm  = BootstrapMapSizeKm;
-				Seed->CellSizeMeters  = BootstrapCellSizeMeters;
-				Seed->Generate();
-			}
-			if (WSpawner)
-			{
-				WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
-				WSpawner->SpawnAll();
-			}
-			UE_LOG(LogTemp, Log,
-				TEXT("[QRGameMode] auto-bootstrapped world (seed %d, %.0fkm, fauna %.1f/km²)"),
-				BootstrapWorldSeed, BootstrapMapSizeKm, BootstrapFaunaPerKm2);
+			EnsureWorldBootstrapped(BootstrapWorldSeed);
+			PlacePlayerAtSurfaceStart();
 		}
 	}
 
@@ -268,37 +244,12 @@ void AQRGameMode::HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data)
 		UE_LOG(LogTemp, Warning, TEXT("[QR] Save load failed for slot '%s'"), *AutosaveSlotName);
 
 		// The BeginPlay bootstrap was skipped because a save EXISTED —
-		// if that save turns out corrupt/unreadable, nothing else would
-		// ever generate the world. Fall back to a fresh bootstrap so a
-		// bad save file degrades to New Game instead of an empty floor.
+		// if that save turns out corrupt/unreadable, degrade to a fresh
+		// New Game instead of an empty floor.
 		if (bAutoBootstrapWorld && GetWorld())
 		{
-			bool bExisting = false;
-			for (TActorIterator<AQRWorldGenSeedActor> It(GetWorld()); It; ++It) { bExisting = true; break; }
-			UQRWorldGenSubsystem* WG = GetWorld()->GetSubsystem<UQRWorldGenSubsystem>();
-			if (!bExisting && WG && !WG->bGenerated)
-			{
-				AQRWorldGenSeedActor* Seed = GetWorld()->SpawnActor<AQRWorldGenSeedActor>(
-					AQRWorldGenSeedActor::StaticClass(),
-					FVector::ZeroVector, FRotator::ZeroRotator);
-				AQRWorldGenSpawner* WSpawner = GetWorld()->SpawnActor<AQRWorldGenSpawner>(
-					AQRWorldGenSpawner::StaticClass(),
-					FVector::ZeroVector, FRotator::ZeroRotator);
-				if (Seed)
-				{
-					Seed->WorldSeed       = BootstrapWorldSeed;
-					Seed->WorldMapSizeKm  = BootstrapMapSizeKm;
-					Seed->CellSizeMeters  = BootstrapCellSizeMeters;
-					Seed->Generate();
-				}
-				if (WSpawner)
-				{
-					WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
-					WSpawner->SpawnAll();
-				}
-				UE_LOG(LogTemp, Log, TEXT("[QRGameMode] load failed — bootstrapped fresh world (seed %d)"),
-					BootstrapWorldSeed);
-			}
+			EnsureWorldBootstrapped(BootstrapWorldSeed);
+			PlacePlayerAtSurfaceStart();
 		}
 		return;
 	}
@@ -306,38 +257,12 @@ void AQRGameMode::HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data)
 	bHasPendingLoadedData = true;
 
 	// Resuming skipped the BeginPlay world bootstrap on purpose — we
-	// needed the SAVED seed first. Regenerate the deterministic world now,
-	// otherwise a resumed session is a barren floor: no POIs, camps,
-	// caves, or fauna (the "load my save → empty world" bug).
+	// needed the SAVED seed first. Regenerate/populate the deterministic
+	// world now (granular: a level-saved seed actor no longer blocks the
+	// POI/fauna population pass).
 	if (bAutoBootstrapWorld && GetWorld())
 	{
-		bool bExisting = false;
-		for (TActorIterator<AQRWorldGenSeedActor> It(GetWorld()); It; ++It) { bExisting = true; break; }
-		UQRWorldGenSubsystem* WG = GetWorld()->GetSubsystem<UQRWorldGenSubsystem>();
-		if (!bExisting && WG && !WG->bGenerated)
-		{
-			const int32 ResumeSeed = (Data.WorldSeed != 0) ? Data.WorldSeed : BootstrapWorldSeed;
-			AQRWorldGenSeedActor* Seed = GetWorld()->SpawnActor<AQRWorldGenSeedActor>(
-				AQRWorldGenSeedActor::StaticClass(),
-				FVector::ZeroVector, FRotator::ZeroRotator);
-			AQRWorldGenSpawner* WSpawner = GetWorld()->SpawnActor<AQRWorldGenSpawner>(
-				AQRWorldGenSpawner::StaticClass(),
-				FVector::ZeroVector, FRotator::ZeroRotator);
-			if (Seed)
-			{
-				Seed->WorldSeed       = ResumeSeed;
-				Seed->WorldMapSizeKm  = BootstrapMapSizeKm;
-				Seed->CellSizeMeters  = BootstrapCellSizeMeters;
-				Seed->Generate();
-			}
-			if (WSpawner)
-			{
-				WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
-				WSpawner->SpawnAll();
-			}
-			UE_LOG(LogTemp, Log,
-				TEXT("[QRGameMode] regenerated world from saved seed %d"), ResumeSeed);
-		}
+		EnsureWorldBootstrapped((Data.WorldSeed != 0) ? Data.WorldSeed : BootstrapWorldSeed);
 	}
 
 	// Restore world-level state that doesn't need a player pawn.
@@ -876,4 +801,104 @@ void AQRGameMode::HandlePlayerDied(AQRCharacter* DeadPawn)
 			}
 			Pawn->Revive(SpawnLoc, SpawnRot);
 		}), RespawnDelaySeconds, /*bLoop*/ false);
+}
+
+void AQRGameMode::EnsureWorldBootstrapped(int32 Seed)
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+	UQRWorldGenSubsystem* WG = W->GetSubsystem<UQRWorldGenSubsystem>();
+	if (!WG) return;
+
+	// 1. Generation — find-or-spawn the seed actor and Generate. A seed
+	//    actor saved into the level (the dressing script does this) only
+	//    carries CONFIG; the subsystem's cell grid is per-session memory.
+	if (!WG->bGenerated)
+	{
+		AQRWorldGenSeedActor* SeedActor = nullptr;
+		for (TActorIterator<AQRWorldGenSeedActor> It(W); It; ++It) { SeedActor = *It; break; }
+		if (!SeedActor)
+		{
+			SeedActor = W->SpawnActor<AQRWorldGenSeedActor>(
+				AQRWorldGenSeedActor::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			if (SeedActor)
+			{
+				SeedActor->WorldMapSizeKm = BootstrapMapSizeKm;
+				SeedActor->CellSizeMeters = BootstrapCellSizeMeters;
+			}
+		}
+		if (SeedActor)
+		{
+			SeedActor->WorldSeed = Seed;
+			SeedActor->Generate();
+		}
+	}
+
+	// 2. Population — POIs + fauna. A level-saved seed actor used to
+	//    make the old all-or-nothing bootstrap skip this entirely: every
+	//    PIE session ran with zero POIs and zero fauna.
+	if (WG->bGenerated)
+	{
+		bool bSpawnerExists = false;
+		for (TActorIterator<AQRWorldGenSpawner> It(W); It; ++It) { bSpawnerExists = true; break; }
+		if (!bSpawnerExists)
+		{
+			AQRWorldGenSpawner* WSpawner = W->SpawnActor<AQRWorldGenSpawner>(
+				AQRWorldGenSpawner::StaticClass(),
+				FVector::ZeroVector, FRotator::ZeroRotator);
+			if (WSpawner)
+			{
+				WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
+				WSpawner->SpawnAll();
+			}
+		}
+		UE_LOG(LogTemp, Log,
+			TEXT("[QRGameMode] world bootstrapped (seed %d, %.0fkm, spawner %s)"),
+			Seed, WG->WorldMapSizeKm, bSpawnerExists ? TEXT("pre-existing") : TEXT("spawned"));
+	}
+}
+
+void AQRGameMode::PlacePlayerAtSurfaceStart()
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+	UQRWorldGenSubsystem* WG = W->GetSubsystem<UQRWorldGenSubsystem>();
+	if (!WG || !WG->bGenerated) return;
+
+	// Seeded azimuth on the outer Surface ring (band Frac > 0.70).
+	FRandomStream Rng(WG->WorldSeed ^ 0x57A27000);
+	const float PlayableRadCm = WG->WorldMapSizeKm * 1000.0f * 0.5f * 100.0f;
+	const float Az = Rng.FRandRange(0.0f, 2.0f * PI);
+	FVector Start(FMath::Cos(Az), FMath::Sin(Az), 0.0f);
+	Start *= PlayableRadCm * 0.78f;
+
+	FHitResult Hit;
+	FCollisionQueryParams QP(SCENE_QUERY_STAT(QRSurfaceStart), false);
+	if (W->LineTraceSingleByChannel(Hit,
+		Start + FVector(0, 0, 200000.0f), Start - FVector(0, 0, 200000.0f),
+		ECC_Visibility, QP))
+	{
+		Start.Z = Hit.ImpactPoint.Z + 150.0f;
+	}
+	else
+	{
+		Start.Z = 300.0f;
+	}
+
+	// Move the respawn anchor and any already-spawned pawn.
+	for (TActorIterator<APlayerStart> It(W); It; ++It)
+	{
+		It->SetActorLocation(Start);
+		break;
+	}
+	if (APlayerController* PC = W->GetFirstPlayerController())
+	{
+		if (APawn* P = PC->GetPawn())
+		{
+			P->SetActorLocation(Start);
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("[QRGameMode] surface start at (%.0f, %.0f) — %.1f km from center"),
+		Start.X, Start.Y, Start.Size2D() / 100000.0f);
 }
