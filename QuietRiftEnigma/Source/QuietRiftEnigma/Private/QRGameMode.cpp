@@ -882,7 +882,7 @@ void AQRGameMode::EnsureWorldBootstrapped(int32 Seed)
 		}
 		UE_LOG(LogTemp, Log,
 			TEXT("[QRGameMode] world bootstrapped (seed %d, %.0fkm, %d POI actors live)"),
-			Seed, WG->WorldMapSizeKm, WSpawner ? WSpawner->SpawnedActors.Num() : -1);
+			Seed, WG->WorldMapSizeKm, WSpawner ? WSpawner->GetSpawnedActorCount() : -1);
 	}
 }
 

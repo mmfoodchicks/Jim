@@ -142,11 +142,16 @@ private:
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> SpawnedActors;
 
+public:
 	// True once this spawner has populated the world THIS session. A
 	// level-saved spawner starts false every PIE run (bSpawnOnBeginPlay
 	// defaults false), which used to make the GameMode's "spawner
 	// pre-existing" check skip population entirely.
 	bool HasPopulated() const { return SpawnedActors.Num() > 0; }
+
+	int32 GetSpawnedActorCount() const { return SpawnedActors.Num(); }
+
+private:
 
 	void PopulateDefaultCrashTemplates();
 
