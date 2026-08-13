@@ -526,12 +526,27 @@ void AQRWildlifeBase::AlertHerd(AActor* Threat)
 {
 	if (HerdGroupId == 0 || !GetWorld()) return;
 
+	// Cooldown gate. Grazer/pack species call AlertHerd from inside
+	// OnThreatDetected, and this function calls OnThreatDetected on every
+	// herd-mate — with no gate two herd-mates ping-pong alerts until the
+	// stack overflows (2026-08-13 crash report).
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (Now - LastHerdAlertTime < HerdAlertCooldownSeconds) return;
+	LastHerdAlertTime = Now;
+
 	// Find all wildlife in same herd group and alert them
 	for (TActorIterator<AQRWildlifeBase> It(GetWorld()); It; ++It)
 	{
 		AQRWildlifeBase* Other = *It;
-		if (Other && Other != this && Other->HerdGroupId == HerdGroupId && !Other->bIsDead)
-			Other->OnThreatDetected(Threat);
+		if (!Other || Other == this || Other->HerdGroupId != HerdGroupId || Other->bIsDead)
+			continue;
+		// Skip mates already alerted this wave, and stamp BEFORE notifying
+		// so the receiver's own OnThreatDetected → AlertHerd is a no-op
+		// instead of a recursive wave.
+		if (Now - Other->LastHerdAlertTime < Other->HerdAlertCooldownSeconds)
+			continue;
+		Other->LastHerdAlertTime = Now;
+		Other->OnThreatDetected(Threat);
 	}
 }
 

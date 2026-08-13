@@ -35,5 +35,10 @@ void AQRWildlife_SutureWisp::TriggerFilamentBind(AActor* Target)
 void AQRWildlife_SutureWisp::OnThreatDetected_Implementation(AActor* Threat)
 {
 	SetAIState(EQRWildlifeAIState::Attacking);
-	TriggerFilamentBind(Threat);
+	// Only bind targets actually in reach. Instant any-range damage here
+	// fed the herd-alert → damage → alert feedback loop behind the
+	// 2026-08-13 stack-overflow crash; the AI controller closes distance
+	// and re-triggers the bind through the normal attack path.
+	if (Threat && FVector::Dist(Threat->GetActorLocation(), GetActorLocation()) <= FilamentBindRange)
+		TriggerFilamentBind(Threat);
 }

@@ -215,6 +215,17 @@ public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "AI")
 	int32 HerdGroupId = 0;
 
+	// Minimum time between herd-alert waves from this animal. Species
+	// overrides of OnThreatDetected call AlertHerd back, so without this
+	// gate two herd-mates re-alert each other in unbounded mutual
+	// recursion (EXCEPTION_STACK_OVERFLOW).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI",
+		meta = (ClampMin = "0.5", ClampMax = "60"))
+	float HerdAlertCooldownSeconds = 3.0f;
+
+	// World-seconds of the last alert this animal sent OR received.
+	double LastHerdAlertTime = -1.0e9;
+
 	// ── Interface ────────────────────────────
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Wildlife")
 	void TakeDamage_Wildlife(float Amount, AActor* DamageCauser);

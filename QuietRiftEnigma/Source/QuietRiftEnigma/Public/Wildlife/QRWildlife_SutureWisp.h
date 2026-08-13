@@ -27,6 +27,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SutureWisp")
 	float SlashDamage = 35.0f;
 
+	// Max distance (cm) at which the wisp can land a filament bind.
+	// Threat notifications can arrive from herd alerts about targets
+	// hundreds of meters away — never damage those instantly.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SutureWisp")
+	float FilamentBindRange = 700.0f;
+
 	// Ribbon body makes silhouette hard to judge — increases miss chance at range
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SutureWisp")
 	float RangedMissChanceBonus = 0.2f;

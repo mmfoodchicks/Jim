@@ -48,8 +48,14 @@ void AQRWildlife_ShellmawAmbusher::TriggerMawSnap(AActor* Target)
 
 void AQRWildlife_ShellmawAmbusher::OnThreatDetected_Implementation(AActor* Threat)
 {
+	// Herd alerts can report threats far outside snap reach — a buried
+	// ambusher stays hidden for those instead of surfacing and landing
+	// an any-range maw snap.
+	const bool bInSnapRange = Threat &&
+		FVector::Dist(Threat->GetActorLocation(), GetActorLocation()) <= BuriedDetectionRadius * 2.0f;
 	if (bIsBuried)
 	{
+		if (!bInSnapRange) return;
 		Emerge();
 		TriggerMawSnap(Threat);
 	}
