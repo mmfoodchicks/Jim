@@ -36,6 +36,7 @@ PREFIX_RULES = {
     "MED_": ("Medical",   "MEDICINE",  0.2, 10),
     "TOL_": ("Handheld",  "TOOL",      1.0, 1),
     "ATT_": ("AmmoAttachments", "ATTACHMENT", 0.5, 1),
+    "AMM_": ("AmmoAttachments", "AMMO",       0.02, 120),
     "REM_": ("Remnant",   "MATERIAL",  0.6, 10),
 }
 
@@ -81,6 +82,9 @@ DROP_ITEM_IDS = [
     "REM_ART_DATA_SHARD", "REM_ART_POWER_CELL",
     "TOL_CLEANING_KIT", "TOL_COOKWARE", "TOL_LIGHTER", "TOL_SCALPEL",
     "TOL_SCREWDRIVER_SET", "TOL_SOLDERING_IRON", "TOL_WRENCH",
+    # Crash-site loot table entries flagged by the 2026-08-13 playtest log.
+    "AMM_556", "TOL_DECRYPT_SPIKE", "TOL_MED_KEY", "TOL_POWER_COUPLER",
+    "RAW_METAL_INGOT",
 ]
 
 

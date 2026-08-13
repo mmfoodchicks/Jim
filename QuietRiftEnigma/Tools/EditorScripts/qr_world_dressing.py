@@ -539,6 +539,28 @@ CRASH_FIRES = [
     "/Game/Vefects/Free_Fire/Shared/Particles/NS_Fire_Small_Smoke",
 ]
 
+# Shipped-with-the-repo stand-ins for when the optional Fab packs above
+# aren't installed (Ruined_Modern_Buildings etc.) — the decorator used
+# to probe the missing pack once PER DEBRIS PIECE and spam the log.
+CRASH_WRECK_FALLBACK = [
+    "/Game/Meshes/POIProps/SM_POI_LuggageWreck",
+    "/Game/Meshes/POIProps/SM_POI_CommsRelayDebris",
+    "/Game/Meshes/POIProps/SM_POI_MeteorImpactField",
+]
+
+
+def _existing_assets(paths, list_name, fallback=None):
+    """Filter an asset-path list to what's actually installed; warn ONCE
+    per list and swap to the fallback set when nothing survives."""
+    ok = [p for p in paths if unreal.EditorAssetLibrary.does_asset_exist(p)]
+    if not ok and fallback:
+        ok = [p for p in fallback if unreal.EditorAssetLibrary.does_asset_exist(p)]
+        if ok:
+            print("[dress]   {} pack missing -- using shipped stand-ins".format(list_name))
+    if not ok:
+        print("[dress]   {} unavailable -- skipping that decor layer".format(list_name))
+    return ok
+
 
 def _spawn_static_mesh(path, loc, yaw, scale, label):
     mesh = _maybe_load(path)
@@ -597,6 +619,14 @@ def decorate_crash_sites():
     if crash_cls is None:
         print("[dress]   QRCrashSiteActor unavailable -- recompile C++")
         return
+
+    # Resolve the optional-pack decor lists ONCE (missing packs used to
+    # spam a warning per debris piece).
+    global CRASH_WRECK_CHUNKS, CRASH_BODIES, CRASH_FIRES
+    CRASH_WRECK_CHUNKS = _existing_assets(CRASH_WRECK_CHUNKS,
+        "Ruined_Modern_Buildings", CRASH_WRECK_FALLBACK) or CRASH_WRECK_FALLBACK
+    CRASH_BODIES = _existing_assets(CRASH_BODIES, "Horror_Props") or []
+    CRASH_FIRES  = _existing_assets(CRASH_FIRES,  "Vefects fire FX") or []
 
     decorated = 0
     for a in _level_actors():
@@ -662,8 +692,12 @@ MAX_SCATTER_ACTORS  = 729      # 27x27 tile grid ceiling
 MAX_TOTAL_INSTANCES = 120000   # total HISM instances across all tiles
 
 
-def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=350,
+def run_full(playable_radius_m=2500.0, tile_m=500.0, per_tile=150,
              skip_biomes=False, skip_worldgen=False):
+    # NOTE: per_tile default dropped 350 -> 150 after the 2026-08-13
+    # playtest: 100 static tiles x 350 instances froze PIE solid on a
+    # mid-range GPU. For anything past ~3 km use enable_streaming()
+    # instead -- same dressed look, ~9k instances alive at once.
     """Tile a configurable playable radius with worldgen-aware scatter
     actors. Each tile picks its palette per placement from the
     UQRWorldGenSubsystem cell grid so the whole zone reads biome-
