@@ -117,7 +117,7 @@ public:
 	// scatter that stalls the editor.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "World|Worldgen",
 		meta = (ClampMin = "0", ClampMax = "100"))
-	float BootstrapFaunaPerKm2 = 2.0f;
+	float BootstrapFaunaPerKm2 = 6.0f;   // was 2 — playtest read as "no animals"
 
 	// ── Session Setup ─────────────────────────
 	// Maximum players this session was created for (set by lobby before travel).

@@ -35,6 +35,14 @@ void AQRCrashSiteActor::ApplyArchetypeVisual()
 	if (UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *Path))
 	{
 		WreckMesh->SetStaticMesh(M);
+		// Normalize to hero-wreck size: the generated FBX imports at
+		// wildly inconsistent scales ("extremely small" in playtest).
+		// Target ~18 m across regardless of source authoring.
+		const float MaxExtent = M->GetBounds().BoxExtent.GetMax();
+		if (MaxExtent > 1.0f)
+		{
+			WreckMesh->SetRelativeScale3D(FVector(900.0f / MaxExtent));
+		}
 	}
 }
 

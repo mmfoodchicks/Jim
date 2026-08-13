@@ -33,6 +33,11 @@ AQRFactionCamp::AQRFactionCamp()
 	if (DefaultOutpost.Succeeded())
 	{
 		CampMesh->SetStaticMesh(DefaultOutpost.Object);
+		const float MaxExtent = DefaultOutpost.Object->GetBounds().BoxExtent.GetMax();
+		if (MaxExtent > 1.0f)
+		{
+			CampMesh->SetRelativeScale3D(FVector(800.0f / MaxExtent)); // ~16 m outpost
+		}
 	}
 
 	Sim     = CreateDefaultSubobject<UQRCampSimComponent>(TEXT("Sim"));

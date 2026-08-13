@@ -141,9 +141,22 @@ AQRWorldItem* UQRHotbarComponent::DropActiveItem(int32 QuantityToDrop)
 
 	// Spawn just in front of the owner so the dropped item doesn't clip into
 	// their capsule. Half a meter forward + a bit up.
-	const FVector SpawnLoc = Owner->GetActorLocation()
+	FVector SpawnLoc = Owner->GetActorLocation()
 		+ Owner->GetActorForwardVector() * 80.0f
 		+ FVector(0, 0, 20.0f);
+	// Settle the drop onto the ground — the fixed offset left items
+	// hovering at knee height on any slope.
+	if (UWorld* TraceWorld = Owner->GetWorld())
+	{
+		FHitResult Ground;
+		FCollisionQueryParams QP(SCENE_QUERY_STAT(QRItemDropGround), false, Owner);
+		if (TraceWorld->LineTraceSingleByChannel(Ground,
+			SpawnLoc + FVector(0, 0, 200.0f), SpawnLoc - FVector(0, 0, 2000.0f),
+			ECC_Visibility, QP))
+		{
+			SpawnLoc.Z = Ground.ImpactPoint.Z + 10.0f;
+		}
+	}
 	const FRotator SpawnRot = FRotator::ZeroRotator;
 
 	FActorSpawnParameters Params;

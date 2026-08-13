@@ -26,6 +26,11 @@ AQRDepotActor::AQRDepotActor()
 	if (DefaultCrate.Succeeded())
 	{
 		DepotMesh->SetStaticMesh(DefaultCrate.Object);
+		const float MaxExtent = DefaultCrate.Object->GetBounds().BoxExtent.GetMax();
+		if (MaxExtent > 1.0f)
+		{
+			DepotMesh->SetRelativeScale3D(FVector(120.0f / MaxExtent)); // ~2.4 m crate
+		}
 	}
 
 	// Depot inventory is generous by default — a stockpile, not a

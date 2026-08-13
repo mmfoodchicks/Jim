@@ -16,6 +16,8 @@
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Engine/SkeletalMesh.h"
 #include "QRWildlifeActor.h"
+#include "QRWildlifeBase.h"
+#include "UObject/UObjectHash.h"
 #include "QRBuildModeComponent.h"
 #include "QRInputDefaults.h"
 #include "QRGameplayTags.h"
@@ -1122,18 +1124,61 @@ void AQRCharacter::DoDropHeld()
 	UQRItemInstance* Held = Hotbar->GetActiveItem();
 	const UQRItemDefinition* Def = (Held && Held->IsValid()) ? Held->Definition : nullptr;
 
-	// Wildlife — spawn a wandering actor in front of the player and
-	// decrement one unit from the held stack.
+	// Wildlife — spawn in front of the player and decrement one unit.
 	if (Def && Def->Category == EQRItemCategory::Wildlife && WildlifeActorClass)
 	{
-		const FVector SpawnLoc = GetActorLocation()
-			+ GetActorForwardVector() * 150.0f
-			+ FVector(0, 0, -30.0f);
+		// Ground-trace the spawn point: the old fixed -30 cm offset left
+		// creative-spawned animals hovering at chest height forever.
+		FVector SpawnLoc = GetActorLocation() + GetActorForwardVector() * 300.0f;
+		{
+			FHitResult Ground;
+			FCollisionQueryParams QP(SCENE_QUERY_STAT(QRDropGround), false, this);
+			if (GetWorld()->LineTraceSingleByChannel(Ground,
+				SpawnLoc + FVector(0, 0, 300.0f), SpawnLoc - FVector(0, 0, 2000.0f),
+				ECC_Visibility, QP))
+			{
+				SpawnLoc.Z = Ground.ImpactPoint.Z;
+			}
+		}
+
 		FActorSpawnParameters Params;
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		Params.Owner = this;
+
+		// Prefer the REAL species pawn — AI controller, herds, predator/
+		// prey hunting, proper gravity. The legacy static wanderer (no AI,
+		// Z pinned at spawn) is only the fallback for wildlife items with
+		// no matching AQRWildlifeBase subclass.
+		UClass* SpeciesCls = nullptr;
+		{
+			TArray<UClass*> Derived;
+			GetDerivedClasses(AQRWildlifeBase::StaticClass(), Derived, true);
+			for (UClass* C : Derived)
+			{
+				if (C->HasAnyClassFlags(CLASS_Abstract)) continue;
+				const AQRWildlifeBase* CDO = C->GetDefaultObject<AQRWildlifeBase>();
+				if (CDO && CDO->SpeciesId == Def->ItemId)
+				{
+					SpeciesCls = C;
+					break;
+				}
+			}
+		}
+
+		if (SpeciesCls)
+		{
+			const AQRWildlifeBase* CDO = SpeciesCls->GetDefaultObject<AQRWildlifeBase>();
+			const float HoistCm = FMath::Max(CDO ? CDO->BodyHeightMeters : 1.0f, 0.5f) * 100.0f;
+			if (GetWorld()->SpawnActor<AQRWildlifeBase>(SpeciesCls,
+					SpawnLoc + FVector(0, 0, HoistCm), GetActorRotation(), Params))
+			{
+				Inventory->TryRemoveItem(Def->ItemId, 1);
+			}
+			return;
+		}
+
 		if (AQRWildlifeActor* Animal = GetWorld()->SpawnActor<AQRWildlifeActor>(
-				WildlifeActorClass, SpawnLoc, GetActorRotation(), Params))
+				WildlifeActorClass, SpawnLoc + FVector(0, 0, 40.0f), GetActorRotation(), Params))
 		{
 			Animal->InitializeFrom(Def, 1);
 			// Drops are creative-mode: don't make the animal flee the
@@ -1476,19 +1521,31 @@ void AQRCharacter::RefreshHeldItemMesh()
 			TargetMesh = HandDef->WorldMesh.LoadSynchronous();
 
 			// Auto-resolve fallback: if the item def's WorldMesh slot is
-			// empty, look for /Game/Meshes/weapons_assets/SM_<ItemId>.
-			// That's where Blender bakes land, and where qr_seed_items.py
-			// would have stamped the def -- but if the user seeded BEFORE
-			// importing meshes (the common order), the def's slot is empty
-			// and the held weapon stays invisible. Probing the conventional
-			// path keeps the held mesh visible without needing a re-seed.
+			// empty, probe SM_<ItemId> across every mesh bucket (the old
+			// weapons_assets-only probe left most non-weapon items
+			// invisible in hand — playtest report).
 			if (!TargetMesh)
 			{
+				static const TCHAR* Buckets[] = {
+					TEXT("weapons_assets"), TEXT("Weapons"),
+					TEXT("Handheld"), TEXT("items_handheld"),
+					TEXT("Food"), TEXT("food_assets"),
+					TEXT("Building"), TEXT("walls_structures"),
+					TEXT("Remnant"), TEXT("remnant_assets"),
+					TEXT("AmmoAttachments"), TEXT("attachments_ammo"),
+					TEXT("Clothing"), TEXT("cosmetic_clothing"),
+					TEXT("stations"), TEXT("POIProps"), TEXT("poi_props"),
+					TEXT("wildlife"), TEXT("Flora"),
+				};
 				const FString Id = HandDef->ItemId.ToString();
-				const FString Path = FString::Printf(
-					TEXT("/Game/Meshes/weapons_assets/SM_%s.SM_%s"), *Id, *Id);
-				TargetMesh = LoadObject<UStaticMesh>(
-					nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+				for (const TCHAR* Bucket : Buckets)
+				{
+					const FString Path = FString::Printf(
+						TEXT("/Game/Meshes/%s/SM_%s.SM_%s"), Bucket, *Id, *Id);
+					TargetMesh = LoadObject<UStaticMesh>(
+						nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+					if (TargetMesh) break;
+				}
 			}
 		}
 	}

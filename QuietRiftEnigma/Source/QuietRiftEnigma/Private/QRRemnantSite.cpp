@@ -66,6 +66,11 @@ void AQRRemnantSite::BeginPlay()
 		if (UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *Path))
 		{
 			StructureMesh->SetStaticMesh(M);
+			const float MaxExtent = M->GetBounds().BoxExtent.GetMax();
+			if (MaxExtent > 1.0f)
+			{
+				StructureMesh->SetRelativeScale3D(FVector(600.0f / MaxExtent)); // ~12 m
+			}
 		}
 	}
 

@@ -132,7 +132,19 @@ void AQRWildlifeActor::TickMovement(float DeltaTime, float Speed,
 
 	const FVector Dir = ToTarget.GetSafeNormal();
 	FVector NewLoc = Cur + Dir * Speed * DeltaTime;
+	// Ground-conform instead of freezing at SpawnZ — the Z-pin left
+	// creative-spawned animals hovering wherever they were dropped.
 	NewLoc.Z = SpawnZ;
+	{
+		FHitResult Ground;
+		FCollisionQueryParams QP(SCENE_QUERY_STAT(QRLegacyWildlifeGround), false, this);
+		if (GetWorld() && GetWorld()->LineTraceSingleByChannel(Ground,
+			NewLoc + FVector(0, 0, 300.0f), NewLoc - FVector(0, 0, 1500.0f),
+			ECC_Visibility, QP))
+		{
+			NewLoc.Z = Ground.ImpactPoint.Z + 40.0f;
+		}
+	}
 	// bSweep=true so the actor's collision shape blocks against world
 	// static geometry (hills, walls) instead of phasing straight through.
 	SetActorLocation(NewLoc, /*bSweep*/ true);

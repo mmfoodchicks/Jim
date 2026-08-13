@@ -26,6 +26,11 @@ AQRCaveEntrance::AQRCaveEntrance()
 	if (DefaultMouth.Succeeded())
 	{
 		EntranceMesh->SetStaticMesh(DefaultMouth.Object);
+		const float MaxExtent = DefaultMouth.Object->GetBounds().BoxExtent.GetMax();
+		if (MaxExtent > 1.0f)
+		{
+			EntranceMesh->SetRelativeScale3D(FVector(450.0f / MaxExtent)); // ~9 m mouth
+		}
 	}
 
 	// Dim interior glow makes a cave mouth read at distance even
