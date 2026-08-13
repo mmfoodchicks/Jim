@@ -37,6 +37,9 @@
 #include "QRNPCBrainComponent.h"
 #include "QRRaidPartyAI.h"
 #include "QRHotbarComponent.h"
+#include "QRWildlifeBase.h"
+#include "UObject/UObjectHash.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -162,6 +165,8 @@ void AQRGameMode::BeginPlay()
 		{
 			EnsureWorldBootstrapped(BootstrapWorldSeed);
 			PlacePlayerAtSurfaceStart();
+			SpawnStarterVillageAtStart();
+			SpawnStarterFaunaBurst();
 		}
 	}
 
@@ -253,6 +258,25 @@ void AQRGameMode::HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data)
 		}
 		return;
 	}
+	// Legacy-save cleanse: saves written before the seed-capture fix
+	// carry WorldSeed==0 and predate the Surface-ring start — resuming
+	// them strands the player at the origin (the DEEPEST zone) in a
+	// world we can't reconstruct. Treat them as New Game instead of
+	// poisoning every session with stale state.
+	if (Data.WorldSeed == 0)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[QR] Save predates world-seed capture — starting fresh instead of resuming it"));
+		if (bAutoBootstrapWorld && GetWorld())
+		{
+			EnsureWorldBootstrapped(BootstrapWorldSeed);
+			PlacePlayerAtSurfaceStart();
+			SpawnStarterVillageAtStart();
+			SpawnStarterFaunaBurst();
+		}
+		return;
+	}
+
 	PendingLoadedData     = Data;
 	bHasPendingLoadedData = true;
 
@@ -262,7 +286,7 @@ void AQRGameMode::HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data)
 	// POI/fauna population pass).
 	if (bAutoBootstrapWorld && GetWorld())
 	{
-		EnsureWorldBootstrapped((Data.WorldSeed != 0) ? Data.WorldSeed : BootstrapWorldSeed);
+		EnsureWorldBootstrapped(Data.WorldSeed);
 	}
 
 	// Restore world-level state that doesn't need a player pawn.
@@ -840,22 +864,25 @@ void AQRGameMode::EnsureWorldBootstrapped(int32 Seed)
 	//    PIE session ran with zero POIs and zero fauna.
 	if (WG->bGenerated)
 	{
-		bool bSpawnerExists = false;
-		for (TActorIterator<AQRWorldGenSpawner> It(W); It; ++It) { bSpawnerExists = true; break; }
-		if (!bSpawnerExists)
+		AQRWorldGenSpawner* WSpawner = nullptr;
+		for (TActorIterator<AQRWorldGenSpawner> It(W); It; ++It) { WSpawner = *It; break; }
+		if (!WSpawner)
 		{
-			AQRWorldGenSpawner* WSpawner = W->SpawnActor<AQRWorldGenSpawner>(
+			WSpawner = W->SpawnActor<AQRWorldGenSpawner>(
 				AQRWorldGenSpawner::StaticClass(),
 				FVector::ZeroVector, FRotator::ZeroRotator);
-			if (WSpawner)
-			{
-				WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
-				WSpawner->SpawnAll();
-			}
+			if (WSpawner) WSpawner->FaunaPerKm2Base = BootstrapFaunaPerKm2;
+		}
+		// A level-saved spawner has bSpawnOnBeginPlay=false and an empty
+		// SpawnedActors every session — merely EXISTING is not populated.
+		// This is why PIE kept running with zero POIs and zero fauna.
+		if (WSpawner && !WSpawner->HasPopulated())
+		{
+			WSpawner->SpawnAll();
 		}
 		UE_LOG(LogTemp, Log,
-			TEXT("[QRGameMode] world bootstrapped (seed %d, %.0fkm, spawner %s)"),
-			Seed, WG->WorldMapSizeKm, bSpawnerExists ? TEXT("pre-existing") : TEXT("spawned"));
+			TEXT("[QRGameMode] world bootstrapped (seed %d, %.0fkm, %d POI actors live)"),
+			Seed, WG->WorldMapSizeKm, WSpawner ? WSpawner->SpawnedActors.Num() : -1);
 	}
 }
 
@@ -901,4 +928,157 @@ void AQRGameMode::PlacePlayerAtSurfaceStart()
 	}
 	UE_LOG(LogTemp, Log, TEXT("[QRGameMode] surface start at (%.0f, %.0f) — %.1f km from center"),
 		Start.X, Start.Y, Start.Size2D() / 100000.0f);
+}
+
+void AQRGameMode::SpawnStarterVillageAtStart()
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	// Anchor on the (already relocated) PlayerStart.
+	FVector Center = FVector::ZeroVector;
+	for (TActorIterator<APlayerStart> It(W); It; ++It) { Center = It->GetActorLocation(); break; }
+
+	// Don't double a village that already exists near the start (editor-
+	// authored, or an earlier call).
+	for (TActorIterator<AQRNPCColonist> It(W); It; ++It)
+	{
+		if (FVector::DistSquared2D(It->GetActorLocation(), Center) < FMath::Square(300000.0f))
+		{
+			return;
+		}
+	}
+
+	// The appearance script stamps meshes onto spawned actors, not the
+	// C++ CDO — so stamp the shared Mannequin here or runtime colonists
+	// spawn invisible. Deferred spawn: DefaultSkeletalMesh resolves in
+	// BeginPlay, which for plain SpawnActor runs before we could set it.
+	const TCHAR* MannequinPaths[] = {
+		TEXT("/Game/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple"),
+		TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"),
+		TEXT("/Game/Characters/Mannequins/Meshes/SKM_Quinn.SKM_Quinn"),
+		TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny"),
+	};
+	FSoftObjectPath MannequinPath;
+	for (const TCHAR* P : MannequinPaths)
+	{
+		if (LoadObject<USkeletalMesh>(nullptr, P)) { MannequinPath = FSoftObjectPath(P); break; }
+	}
+
+	static const EQRNPCRole Roles[] = {
+		EQRNPCRole::Farmer, EQRNPCRole::Guard, EQRNPCRole::Medic,
+		EQRNPCRole::Farmer, EQRNPCRole::Builder, EQRNPCRole::Cook,
+		EQRNPCRole::Guard, EQRNPCRole::Hauler,
+	};
+	static const TCHAR* Names[] = {
+		TEXT("Asha"), TEXT("Bram"), TEXT("Cyra"), TEXT("Dev"),
+		TEXT("Enna"), TEXT("Frey"), TEXT("Goran"), TEXT("Hale"),
+	};
+
+	int32 Placed = 0;
+	const int32 Count = 8;
+	for (int32 i = 0; i < Count; ++i)
+	{
+		const float Angle = (i / static_cast<float>(Count)) * 2.0f * PI;
+		FVector Loc = Center + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * 4000.0f;
+		FHitResult Hit;
+		FCollisionQueryParams QP(SCENE_QUERY_STAT(QRVillageGround), false);
+		if (W->LineTraceSingleByChannel(Hit, Loc + FVector(0, 0, 100000.0f),
+			Loc - FVector(0, 0, 100000.0f), ECC_Visibility, QP))
+		{
+			Loc.Z = Hit.ImpactPoint.Z + 95.0f;
+		}
+
+		FTransform Xform(FRotator(0, FMath::FRandRange(0.0f, 360.0f), 0), Loc);
+		AQRNPCColonist* NPC = W->SpawnActorDeferred<AQRNPCColonist>(
+			AQRNPCColonist::StaticClass(), Xform, nullptr, nullptr,
+			ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+		if (!NPC) continue;
+		NPC->ColonistRole = Roles[i % UE_ARRAY_COUNT(Roles)];
+		NPC->DisplayName  = FText::FromString(Names[i % UE_ARRAY_COUNT(Names)]);
+		if (MannequinPath.IsValid())
+		{
+			NPC->DefaultSkeletalMesh = TSoftObjectPtr<USkeletalMesh>(MannequinPath);
+		}
+		NPC->FinishSpawning(Xform);
+		++Placed;
+	}
+
+	// One colony dog, per tradition.
+	{
+		TArray<UClass*> Derived;
+		GetDerivedClasses(AQRWildlifeBase::StaticClass(), Derived, true);
+		for (UClass* C : Derived)
+		{
+			if (C->GetName().Contains(TEXT("ColonyDog")))
+			{
+				FVector Loc = Center + FVector(600.0f, 0.0f, 100.0f);
+				W->SpawnActor<AQRWildlifeBase>(C, Loc, FRotator::ZeroRotator);
+				break;
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[QRGameMode] runtime starter village: %d colonists at (%.0f, %.0f)"),
+		Placed, Center.X, Center.Y);
+}
+
+void AQRGameMode::SpawnStarterFaunaBurst()
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+	FVector Center = FVector::ZeroVector;
+	for (TActorIterator<APlayerStart> It(W); It; ++It) { Center = It->GetActorLocation(); break; }
+
+	// Starter ecology: mostly grazers, one predator to make it honest.
+	static const TCHAR* StarterSpecies[] = {
+		TEXT("AshbackBoar"), TEXT("GlasshornRunner"), TEXT("RidgebackGrazer"),
+		TEXT("ShardbackGrazer"), TEXT("ThornhideDray"), TEXT("HookjawStalker"),
+	};
+	static const int32 CountPer[] = { 3, 3, 2, 2, 1, 1 };
+
+	TArray<UClass*> Derived;
+	GetDerivedClasses(AQRWildlifeBase::StaticClass(), Derived, true);
+
+	FRandomStream Rng(0xFA0A);
+	int32 Spawned = 0;
+	for (int32 s = 0; s < UE_ARRAY_COUNT(StarterSpecies); ++s)
+	{
+		UClass* Cls = nullptr;
+		for (UClass* C : Derived)
+		{
+			if (!C->HasAnyClassFlags(CLASS_Abstract) && C->GetName().Contains(StarterSpecies[s]))
+			{
+				Cls = C;
+				break;
+			}
+		}
+		if (!Cls) continue;
+		const AQRWildlifeBase* CDO = Cls->GetDefaultObject<AQRWildlifeBase>();
+		const float HoistCm = FMath::Max(CDO ? CDO->BodyHeightMeters : 1.0f, 0.5f) * 100.0f;
+		const int32 HerdId = 9000 + s;
+		for (int32 i = 0; i < CountPer[s]; ++i)
+		{
+			const float Ang  = Rng.FRandRange(0.0f, 2.0f * PI);
+			const float Dist = Rng.FRandRange(15000.0f, 50000.0f);   // 150–500 m
+			FVector Loc = Center + FVector(FMath::Cos(Ang) * Dist, FMath::Sin(Ang) * Dist, 0.0f);
+			FHitResult Hit;
+			FCollisionQueryParams QP(SCENE_QUERY_STAT(QRFaunaGround), false);
+			if (W->LineTraceSingleByChannel(Hit, Loc + FVector(0, 0, 100000.0f),
+				Loc - FVector(0, 0, 100000.0f), ECC_Visibility, QP))
+			{
+				Loc.Z = Hit.ImpactPoint.Z;
+			}
+			FActorSpawnParameters SP;
+			SP.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			if (AQRWildlifeBase* A = W->SpawnActor<AQRWildlifeBase>(
+				Cls, Loc + FVector(0, 0, HoistCm), FRotator(0, Rng.FRandRange(0.0f, 360.0f), 0), SP))
+			{
+				A->HerdGroupId = (CountPer[s] > 1) ? HerdId : 0;
+				++Spawned;
+			}
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("[QRGameMode] starter fauna burst: %d animals near spawn"), Spawned);
 }

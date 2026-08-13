@@ -567,7 +567,9 @@ void UQRMissionDirector::TickScoutCheck()
 	for (const FQRActiveMission& M : ActiveMissions)
 	{
 		if (M.Family != EQRMissionFamily::ScoutPOI || !M.bHasTargetLocation) continue;
-		const float RadiusCm = M.ScoutRadiusMeters * 100.0f;
+		// Floor the completion radius — templates with tight radii left
+		// players standing "225m away" on top of the marker's POI.
+		const float RadiusCm = FMath::Max(M.ScoutRadiusMeters, 250.0f) * 100.0f;
 		if (FVector::DistSquared2D(PlayerLoc, M.TargetLocation) <= RadiusCm * RadiusCm)
 		{
 			Reached.Add(M.MissionId);

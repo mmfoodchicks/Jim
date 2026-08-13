@@ -8,6 +8,7 @@
 #include "QRFactionCamp.h"
 #include "QRCampSimComponent.h"
 #include "QRMissionDirector.h"
+#include "NavigationInvokerComponent.h"
 #include "EngineUtils.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -38,6 +39,12 @@ AQRNPCActor::AQRNPCActor()
 	Brain    = CreateDefaultSubobject<UQRNPCBrainComponent>(TEXT("Brain"));
 	Reaction = CreateDefaultSubobject<UQRCivilianReactionComponent>(TEXT("Reaction"));
 	Survival = CreateDefaultSubobject<UQRSurvivalComponent>(TEXT("Survival"));
+
+	// Runtime-nav invoker so villagers get nav tiles wherever they live
+	// (the editor-built navmesh never covers the play area — the world
+	// populates at runtime, 25 km from the origin).
+	NavInvoker = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavInvoker"));
+	NavInvoker->SetGenerationRadii(5000.0f, 6500.0f);
 	// NPCs use Survival as a pure health pool — no self-feeding loop
 	// exists yet, so metabolic drains would silently starve the whole
 	// village over a long session.

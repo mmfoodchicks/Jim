@@ -3,6 +3,7 @@
 #include "QRWorldItem.h"
 #include "QRItemDefinition.h"
 #include "QRMissionDirector.h"
+#include "NavigationInvokerComponent.h"
 #include "Engine/AssetManager.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
@@ -30,6 +31,11 @@ AQRWildlifeBase::AQRWildlifeBase()
 	// SkeletalMesh, so without this a spawned animal is an invisible
 	// capsule that can still bite the player ("died to nothing"). Attach
 	// to the capsule root; sized + shown/hidden in SetupFallbackVisual.
+	// Runtime-nav invoker — wildlife AI paths via NavMesh MoveToLocation,
+	// which silently fails without runtime tiles (animals stand inert).
+	NavInvoker = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavInvoker"));
+	NavInvoker->SetGenerationRadii(5000.0f, 6500.0f);
+
 	FallbackMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FallbackMesh"));
 	FallbackMesh->SetupAttachment(GetCapsuleComponent());
 	FallbackMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);

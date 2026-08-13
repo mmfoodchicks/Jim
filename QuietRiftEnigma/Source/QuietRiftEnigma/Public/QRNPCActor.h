@@ -59,6 +59,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
 	TObjectPtr<UQRSurvivalComponent> Survival;
 
+	// Generates runtime navmesh tiles around this NPC.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QR|NPC")
+	TObjectPtr<class UNavigationInvokerComponent> NavInvoker;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "QR|NPC")
 	FText DisplayName;
 

@@ -243,6 +243,17 @@ private:
 	// the DEEPEST zone and used to surround spawn with endgame flora.
 	void PlacePlayerAtSurfaceStart();
 
+	// Runtime starter village around the ACTUAL start. The editor
+	// script version placed colonists at the editor PlayerStart (the
+	// origin) — 25 km from where the player now begins. Skips itself if
+	// colonists already live within 3 km.
+	void SpawnStarterVillageAtStart();
+
+	// A dozen animals within a few hundred metres of the start so the
+	// world reads alive immediately (worldgen fauna is spread across
+	// the full 64 km).
+	void SpawnStarterFaunaBurst();
+
 	void HandleLoadComplete(bool bSuccess, const FQRGameSaveData& Data);
 
 	// Driven by AutosaveIntervalSeconds. Set in BeginPlay, cleared in

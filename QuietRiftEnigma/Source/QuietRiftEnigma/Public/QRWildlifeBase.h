@@ -265,6 +265,11 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wildlife|Visual")
 	TObjectPtr<UStaticMeshComponent> FallbackMesh;
 
+	// Generates runtime navmesh tiles around this animal so NavMesh
+	// pathing works in the runtime-populated world.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wildlife|AI")
+	TObjectPtr<class UNavigationInvokerComponent> NavInvoker;
+
 	// Loads an engine basic-shape mesh into FallbackMesh sized to the body,
 	// or hides it if a skeletal mesh is set. Called from BeginPlay.
 	void SetupFallbackVisual();

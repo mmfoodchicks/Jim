@@ -55,6 +55,7 @@
 #include "Components/CapsuleComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "NavigationInvokerComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Misc/ConfigCacheIni.h"
 #include "DrawDebugHelpers.h"
@@ -155,6 +156,12 @@ AQRCharacter::AQRCharacter()
 	// returned null), so the weapon's spread function never knew you were
 	// aiming and hipfire spread stayed maxed.
 	FPView        = CreateDefaultSubobject<UQRFPViewComponent>(TEXT("FPView"));
+
+	// Dynamic-nav invoker: nav tiles generate around the player at
+	// runtime (the world populates at play time, so editor-built static
+	// navmesh can never cover it).
+	NavInvoker = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavInvoker"));
+	NavInvoker->SetGenerationRadii(9000.0f, 11000.0f);
 	BiomeAmbient  = CreateDefaultSubobject<UAudioComponent>(TEXT("BiomeAmbient"));
 	if (BiomeAmbient)
 	{
