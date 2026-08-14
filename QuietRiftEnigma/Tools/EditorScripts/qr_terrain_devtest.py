@@ -167,21 +167,27 @@ def _load_first_available_material(*pkgs):
 
 def _clear_previous_terrain():
     """Remove every actor labelled QR_Terrain_* so re-running this
-    script leaves a single fresh terrain set, not a stack of them."""
+    script leaves a single fresh terrain set, not a stack of them.
+    Also purges the legacy StarterHill_* cube blocks that
+    qr_create_test_maps used to hardcode into L_DevTest before the
+    dome hills existed -- maps saved with those cubes get cleaned up
+    the next time this script runs."""
     actor_sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     if not actor_sub:
         return 0
     killed = 0
     for a in actor_sub.get_all_level_actors():
         try:
-            if a.get_actor_label().startswith("QR_Terrain_"):
+            label = a.get_actor_label()
+            if (label.startswith("QR_Terrain_")
+                    or label.startswith("StarterHill_")):
                 _try(lambda act=a: unreal.EditorLevelLibrary.destroy_actor(act),
                      "destroy stale terrain actor")
                 killed += 1
         except Exception:
             pass
     if killed:
-        print("[terrain] removed {} stale QR_Terrain_* actors".format(killed))
+        print("[terrain] removed {} stale terrain/starter-hill actors".format(killed))
     return killed
 
 

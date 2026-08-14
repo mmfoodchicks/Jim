@@ -228,34 +228,6 @@ def _spawn_floor():
             break
 
 
-def _spawn_starter_hills():
-    """Drop a few cube-mesh "hills" near spawn so the dev-test world
-    isn't a featureless plane. Placeholder visual until a real
-    Landscape replaces the flat 8 km floor. Uses the engine cube so
-    no Fab dependency."""
-    cube_mesh = unreal.load_object(None, "/Engine/BasicShapes/Cube.Cube")
-    if not cube_mesh:
-        print("[maps]   /Engine/BasicShapes/Cube not loadable — no hills")
-        return
-
-    import math
-    for i in range(8):
-        angle = (i / 8.0) * 2 * math.pi
-        dist  = 1500 + (i % 3) * 800   # 15–31 m
-        loc   = (math.cos(angle) * dist, math.sin(angle) * dist, -50)
-        actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
-            unreal.StaticMeshActor,
-            unreal.Vector(*loc),
-            unreal.Rotator(0, (i * 47) % 360, 0))
-        if not actor: continue
-        scale_xy = 4.0 + (i % 4) * 2.5
-        scale_z  = 1.5 + (i % 3) * 0.8
-        actor.set_actor_scale3d(unreal.Vector(scale_xy, scale_xy, scale_z))
-        actor.static_mesh_component.set_static_mesh(cube_mesh)
-        actor.set_actor_label("StarterHill_{}".format(i))
-    print("[maps]   placed 8 starter hill cubes (15-31 m radius)")
-
-
 def _spawn_scatter_with_biome():
     """Drop one AQRProceduralScatterActor in front of the player spawn
     so trees / rocks / plants from a biome profile actually appear in
@@ -355,7 +327,6 @@ def build_dev_test():
     except Exception as e:
         print("[maps] pre-placement skipped: " + str(e))
 
-    _spawn_starter_hills()
     _spawn_scatter_with_biome()
     _spawn_worldgen_spawner_with_fauna_rules()
 
